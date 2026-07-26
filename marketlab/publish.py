@@ -32,9 +32,10 @@ from pathlib import Path
 
 import pandas as pd
 
-from marketlab import (config, correlations, decision, eco_calendar, events,
-                       forecast, fundamentals, indicators, levels, macro, news,
-                       paper, position, screener, seasonality, signals)
+from marketlab import (config, correlations, cot, decision, eco_calendar,
+                       events, forecast, fundamentals, indicators, levels,
+                       macro, news, paper, position, screener, seasonality,
+                       signals)
 from marketlab.data import get_ohlcv
 
 RACINE_SITE = config.ROOT / "site"
@@ -172,8 +173,14 @@ def bloc_verdicts() -> dict:
 
 # --- Orchestration ----------------------------------------------------------
 
+def bloc_cot() -> list[dict]:
+    """Panorama COT : positionnement hebdomadaire des spéculateurs (CFTC)."""
+    return _table(cot.panorama())
+
+
 BLOCS = {
     "verdicts": bloc_verdicts,
+    "cot": bloc_cot,
     "screener": bloc_screener,
     "macro": bloc_macro,
     "calendrier": bloc_calendrier,

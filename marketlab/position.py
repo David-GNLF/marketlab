@@ -138,9 +138,16 @@ def strategie(symbole: str, horizon: int = 20, capital: float = 10_000.0,
         except RuntimeError:
             pass
 
-    # --- renforts : confluence, force relative, Kelly, stop suiveur ---
+    # --- renforts : confluence, force relative, COT, Kelly, stop suiveur ---
     controles = edge.renforts(symbole, df,
-                              plan if plan else verdict.get("plan"))
+                              plan if plan else verdict.get("plan"),
+                              sens=sens if sens != "aucun" else "")
+    if sens in ("achat", "vente") and \
+            controles.get("cot", {}).get("favorable") is False:
+        verdict["vetos"].append("positionnement COT : "
+                                + controles["cot"]["raison"])
+        verdict["taille_multiplicateur"] = min(
+            verdict["taille_multiplicateur"], 0.5)
     if sens == "achat":
         if controles["confluence"].get("favorable") is False:
             quand = {"reponse": "attendre",

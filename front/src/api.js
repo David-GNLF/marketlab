@@ -42,3 +42,4 @@ export const getCorrelations = () => charger("correlations.json");
 export const getPaper = () => charger("paper.json");
 export const getTitre = (symbole) => charger(`titres/${symbole}.json`);
 export const getVerdicts = () => charger("verdicts.json");
+export const getCot = () => charger("cot.json");

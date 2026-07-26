@@ -187,6 +187,8 @@ function PageTitre({ meta, symbole, setSymbole }) {
                   {f.strategie.renforts.confluence?.raison}
                   {f.strategie.renforts.force_relative?.raison &&
                     <> · {f.strategie.renforts.force_relative.raison}</>}
+                  {f.strategie.renforts.cot?.raison &&
+                    <> · COT : {f.strategie.renforts.cot.raison}</>}
                   {f.strategie.renforts.kelly?.raison &&
                     <> · {f.strategie.renforts.kelly.raison}</>}</p>
               )}
@@ -273,6 +275,7 @@ function PageMacro() {
   const macro = useDonnees(api.getMacro);
   const cal = useDonnees(api.getCalendrier);
   const res = useDonnees(api.getResultats);
+  const cotD = useDonnees(api.getCot);
   return (
     <>
       <div className="carte">
@@ -301,6 +304,20 @@ function PageMacro() {
           <Table lignes={res.donnees} max={25}
                  colonnes={["symbole", "date", "dans_jours",
                             "amplitude_historique_%"]} />
+        )}
+      </div>
+      <div className="carte">
+        <h3>Positionnement des spéculateurs (COT, CFTC)</h3>
+        <p className="note">Rapport hebdomadaire officiel : position nette des
+          fonds spéculatifs sur les contrats à terme américains. COT index =
+          position actuelle rapportée à ses extrêmes sur 3 ans — au-delà de 85
+          ou sous 15, le trade est « encombré » : tout le monde est déjà du
+          même côté.</p>
+        {!cotD.donnees ? <Chargement erreur={cotD.erreur} /> : (
+          <Table lignes={[...cotD.donnees].sort(
+                   (a, b) => (b.cot_index_3ans ?? 0) - (a.cot_index_3ans ?? 0))}
+                 colonnes={["nom", "net_speculateurs", "variation_1_sem",
+                            "cot_index_3ans", "extreme", "date_rapport"]} />
         )}
       </div>
     </>

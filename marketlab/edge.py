@@ -24,7 +24,7 @@ jamais un ordre :
 import numpy as np
 import pandas as pd
 
-from marketlab import indicators, score_history
+from marketlab import cot, indicators, score_history
 from marketlab.data import get_ohlcv
 
 REFERENCES = {
@@ -160,17 +160,26 @@ def stop_suiveur(df: pd.DataFrame, mult: float = 3.0,
 
 # --- Synthèse ----------------------------------------------------------------
 
-def renforts(symbole: str, df: pd.DataFrame, plan: dict | None) -> dict:
-    """Les quatre contrôles, avec un décompte des feux verts applicables."""
+def renforts(symbole: str, df: pd.DataFrame, plan: dict | None,
+             sens: str = "achat") -> dict:
+    """Les contrôles de renfort, avec un décompte des feux verts applicables.
+
+    Le COT (positionnement des spéculateurs, CFTC) s'ajoute quand l'actif est
+    couvert : un positionnement extrême dans le sens du trade signale un
+    marché encombré.
+    """
     resultat = {
         "confluence": confluence(df),
         "force_relative": force_relative(symbole, df),
         "stop_suiveur": stop_suiveur(df),
     }
+    if cot.couvre(symbole):
+        resultat["cot"] = cot.controle(symbole, sens)
     if plan:
         resultat["kelly"] = kelly_fractionne(plan)
     applicables = [r for r in (resultat["confluence"],
-                               resultat["force_relative"])
+                               resultat["force_relative"],
+                               resultat.get("cot", {}))
                    if r.get("favorable") is not None]
     verts = sum(1 for r in applicables if r["favorable"])
     resultat["feux_verts"] = f"{verts}/{len(applicables)}" if applicables else "n/a"
