@@ -19,6 +19,9 @@ __pycache__/
 front/node_modules/
 front/dist/
 
+# --- Site généré (reconstruit par scripts/publier.py) ---
+site/
+
 # --- Système ---
 .DS_Store
 Thumbs.db

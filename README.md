@@ -322,33 +322,46 @@ jusqu'à toucher l'objectif (2×ATR), le stop (1,5×ATR) ou la limite temporelle
 Résultat sur les titres testés (AAPL, MSFT, BTC, NVDA) : le filtrage **ne tient
 pas ses promesses** — à vérifier titre par titre avant tout usage.
 
-## Déploiement
+## Déploiement (hébergement mutualisé cPanel)
 
-Le dépôt : <https://github.com/David-GNLF/marketlab> (privé).
+Dépôt : <https://github.com/David-GNLF/marketlab> (privé).
 
-```bash
-git archive --format=tar.gz -o /tmp/marketlab.tar.gz HEAD
+Un mutualisé ne peut pas exécuter MarketLab tel quel : pas de processus
+permanent (donc pas de Streamlit), requêtes coupées bien avant la fin d'un
+Monte Carlo, et quotas d'inodes incompatibles avec scikit-learn et pyarrow.
+L'architecture **déplace donc les calculs hors du web** :
+
+```
+  Poste de travail (tâche planifiée)        Hébergement cPanel
+  ────────────────────────────────          ──────────────────
+  scripts/publier.py                        site 100 % statique
+    ├─ calcule tout (sans limite de durée)    ├─ index.html + assets/
+    ├─ écrit site/donnees/*.json      ───────▶ ├─ donnees/*.json
+    └─ transfère en FTPS (différentiel)        └─ aucun Python, aucune base
 ```
 
-Puis sur le serveur : extraire dans `/opt/marketlab` et lancer
-`bash deploy/installer.sh` (`--maj` pour une simple mise à jour). Le script
-crée l'utilisateur de service, le venv, et installe les deux unités systemd.
+```bash
+npm run build --prefix front
+```
 
-**Architecture** : `marketlab-api` (uvicorn, port 8600, sert aussi `front/dist`)
-et `marketlab-dashboard` (Streamlit, port 8501), tous deux en écoute sur
-127.0.0.1 uniquement, exposés par nginx avec **authentification obligatoire**
-sur tout le site — l'outil expose un portefeuille et une API capable de le
-modifier.
+```bash
+.venv\Scripts\python scripts\publier.py
+```
 
-> **Cohabitation** : la machine héberge DigiClinic en production avec peu de
-> RAM. Les unités systemd sont plafonnées (`MemoryMax` 550/650 Mo,
-> `CPUQuota` 60 %, `OOMScoreAdjust=800`) pour qu'en cas de dérive ce soit
-> MarketLab qui tombe, jamais l'application de santé. Consommation observée :
-> 144 Mo et 59 Mo.
+Le site produit pèse **~1,3 Mo** (7 blocs + 17 fiches de titres) et s'affiche
+instantanément puisque tout est pré-calculé. Guide complet, création du
+sous-domaine et protection par mot de passe :
+[deploy/cpanel/LISEZMOI.md](deploy/cpanel/LISEZMOI.md).
 
-Le front React compilé (`front/dist`) est exclu du dépôt : le construire
-localement (`npm run build --prefix front`) et le transférer, plutôt
-qu'installer Node.js sur le serveur.
+**Répartition des rôles** : le site publié est en *consultation* (signaux,
+prévisions, fondamentaux, corrélations, agenda, portefeuille), accessible
+partout y compris sur téléphone ; le dashboard Streamlit local reste l'outil
+d'*exploration* (backtests, ML, méta-labeling, calibration), et les
+*opérations* (paper trading, validation d'ordres) se font en local.
+
+> Les identifiants FTP vivent dans `data_local/cpanel.json`, jamais versionné.
+> Le transfert est différentiel : après la première publication, seules
+> quelques centaines de kilo-octets de JSON circulent.
 
 ## Paper trading
 

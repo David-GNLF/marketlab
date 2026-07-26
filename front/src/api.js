@@ -1,40 +1,36 @@
-// Client API MarketLab — le proxy Vite redirige /api vers localhost:8600.
+// Chargement des données publiées.
+//
+// Le site est statique : plus aucun appel à une API, uniquement des fichiers
+// JSON produits en amont par scripts/publier.py. C'est ce qui permet
+// l'hébergement sur un mutualisé cPanel — et ce qui rend l'affichage
+// instantané.
+//
+// Chemins RELATIFS : le site doit fonctionner aussi bien à la racine d'un
+// domaine que dans un sous-dossier (/marketlab).
 
-async function requete(url, options) {
-  const resp = await fetch(url, options);
-  if (!resp.ok) {
-    let detail = resp.statusText;
-    try { detail = (await resp.json()).detail ?? detail; } catch { /* texte brut */ }
-    throw new Error(detail);
+const cache = new Map();
+
+async function charger(chemin) {
+  if (cache.has(chemin)) return cache.get(chemin);
+  const promesse = fetch(`donnees/${chemin}`, { cache: "no-cache" }).then((r) => {
+    if (!r.ok) throw new Error(`${chemin} indisponible (HTTP ${r.status})`);
+    return r.json();
+  });
+  cache.set(chemin, promesse);
+  try {
+    return await promesse;
+  } catch (e) {
+    cache.delete(chemin); // permet de réessayer après un échec réseau
+    throw e;
   }
-  return resp.json();
 }
 
-export const getUnivers = () => requete("/api/univers");
-export const getOhlcv = (symbole, jours = 365) =>
-  requete(`/api/ohlcv/${symbole}?lookback_days=${jours}`);
-export const getSignaux = (symbole) => requete(`/api/signaux/${symbole}`);
-export const getScreener = (univers) =>
-  requete("/api/screener?" + univers.map((u) => `univers=${encodeURIComponent(u)}`).join("&"));
-export const getMacro = () => requete("/api/macro");
-export const getNews = (symbole) => requete(`/api/news/${symbole}`);
-export const postMl = (symbole, params) =>
-  requete(`/api/ml/${symbole}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-  });
-export const getPaper = () => requete("/api/paper");
-export const getOrdres = () => requete("/api/ordres");
-export const postOrdres = (chemin, corps) =>
-  requete(`/api/ordres/${chemin}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(corps ?? {}),
-  });
-export const postPaper = (chemin, corps) =>
-  requete(`/api/paper/${chemin}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(corps),
-  });
+export const getMeta = () => charger("meta.json");
+export const getScreener = () => charger("screener.json");
+export const getMacro = () => charger("macro.json");
+export const getCalendrier = () => charger("calendrier.json");
+export const getResultats = () => charger("resultats.json");
+export const getFondamentaux = () => charger("fondamentaux.json");
+export const getCorrelations = () => charger("correlations.json");
+export const getPaper = () => charger("paper.json");
+export const getTitre = (symbole) => charger(`titres/${symbole}.json`);
