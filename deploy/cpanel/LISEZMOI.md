@@ -31,11 +31,31 @@ l'exploration fine reste dans le dashboard Streamlit local.
 
 ## Mise en place
 
+Hébergeur : **open.bj**, panneau cPanel sur
+`https://cloud740.thundercloud.uk:2083/`. Domaine visé :
+**`marketlab.gnlfconsult.com`**.
+
 ### 1. Créer le sous-domaine dans cPanel
 
-*Domaines → Créer un domaine* : `marketlab.open.bj`, avec pour racine
-`public_html/marketlab`. cPanel crée le dossier et l'entrée DNS si le domaine
-est géré chez lui.
+*Domaines → Créer un domaine* : `marketlab.gnlfconsult.com`, racine
+`public_html/marketlab`.
+
+Le DNS de `gnlfconsult.com` est délégué à `ns3.os-cloud.net` /
+`ns4.os-cloud.net`, le cluster de l'hébergeur : cPanel y propage normalement
+le nouveau sous-domaine tout seul. Vérifier après quelques minutes :
+
+```bash
+nslookup marketlab.gnlfconsult.com
+```
+
+L'adresse attendue est **149.255.62.147** (celle de `gnlfconsult.com`). Si
+rien ne résout au bout d'une heure, ajouter l'enregistrement à la main dans
+*cPanel → Éditeur de zone* : type `A`, nom `marketlab`, valeur
+`149.255.62.147`. En dernier recours, demander à open.bj de propager la zone.
+
+> Attention à ne pas confondre : `kilo.gnlfconsult.com` pointe vers
+> `41.86.235.43`, une infrastructure différente. MarketLab doit viser
+> l'hébergement cPanel, pas ce proxy.
 
 ### 2. Créer un compte FTP dédié
 
@@ -49,7 +69,7 @@ est géré chez lui.
 ```json
 {
   "hote": "cloud740.thundercloud.uk",
-  "utilisateur": "marketlab@open.bj",
+  "utilisateur": "marketlab@gnlfconsult.com",
   "mot_de_passe": "...",
   "dossier_distant": "/public_html/marketlab"
 }
@@ -84,8 +104,9 @@ schtasks /Create /SC DAILY /ST 23:00 /TN "MarketLab\Publication" /TR "C:\Users\D
 
 Le site expose ton portefeuille et tes positions. Sur un hébergement public,
 le protéger par mot de passe : *cPanel → Confidentialité du répertoire* sur
-`public_html/marketlab`. HTTPS est fourni par AutoSSL — le vérifier avant
-d'activer la protection, sans quoi le mot de passe circulerait en clair.
+`public_html/marketlab`. HTTPS est fourni par AutoSSL — vérifier que
+`https://marketlab.gnlfconsult.com` répond bien avant d'activer la protection,
+sans quoi le mot de passe circulerait en clair.
 
 ## Dépannage
 
