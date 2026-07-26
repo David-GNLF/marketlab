@@ -1,0 +1,25 @@
+# --- SECRETS et données personnelles : ne JAMAIS committer ---
+# notifications.json contient le topic ntfy / le token Telegram / le mot de
+# passe SMTP ; providers.json la clé Twelve Data ; le portefeuille et les
+# ordres sont des données personnelles.
+# NB : « data_local/* » et non « data_local/ » — avec un slash final, git
+# n'entre pas dans le dossier et l'exception ci-dessous serait ignorée.
+data_local/*
+!data_local/.gitkeep
+
+# --- Environnement et caches ---
+.venv/
+__pycache__/
+*.py[cod]
+.cache/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# --- Front ---
+front/node_modules/
+front/dist/
+
+# --- Système ---
+.DS_Store
+Thumbs.db
+*.log

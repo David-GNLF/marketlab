@@ -1,0 +1,3 @@
+# Ce dossier accueille les données locales et les secrets (notifications.json,
+# providers.json, paper_portfolio.json, ordres_proposes.json, historique_scores.csv,
+# brvm_*.csv, logs/). Son contenu est volontairement exclu du dépôt.
