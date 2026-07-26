@@ -2,13 +2,16 @@
 # Installation / mise à jour de MarketLab sur le serveur.
 #
 #   sudo bash installer.sh            # installation complète
-#   sudo bash installer.sh --maj      # simple mise à jour du code
+#   sudo bash installer.sh --maj      # simple mise à jour (redémarre les services)
+#
+# Le code doit déjà être présent dans /opt/marketlab : il y est déposé par
+# archive depuis le poste de travail (le dépôt est privé, on évite ainsi de
+# placer le moindre secret d'accès sur ce serveur).
 #
 # Idempotent : peut être relancé sans risque.
 set -euo pipefail
 
 RACINE=/opt/marketlab
-DEPOT=https://github.com/David-GNLF/marketlab.git
 UTILISATEUR=marketlab
 MAJ_SEULE=${1:-}
 
@@ -21,21 +24,18 @@ else
 fi
 
 echo "==> Code source"
-if [ -d "$RACINE/.git" ]; then
-    git -C "$RACINE" fetch --quiet origin
-    git -C "$RACINE" reset --hard --quiet origin/master
-    echo "    mis à jour : $(git -C "$RACINE" log --oneline -1)"
-else
-    apt-get install -y --no-install-recommends git python3-venv >/dev/null
-    git clone --quiet "$DEPOT" "$RACINE"
-    echo "    cloné"
+if [ ! -f "$RACINE/requirements.txt" ]; then
+    echo "ERREUR : aucun code applicatif dans $RACINE." >&2
+    echo "Déposer d'abord l'archive du projet." >&2
+    exit 1
 fi
+echo "    présent"
 
 echo "==> Environnement Python"
 if [ ! -x "$RACINE/.venv/bin/python" ]; then
     python3 -m venv "$RACINE/.venv"
 fi
-# --no-cache-dir : la machine a peu de RAM et peu de marge disque
+# --no-cache-dir : la machine dispose de peu de RAM et de peu de marge disque
 "$RACINE/.venv/bin/pip" install --quiet --no-cache-dir --upgrade pip
 "$RACINE/.venv/bin/pip" install --quiet --no-cache-dir -r "$RACINE/requirements.txt"
 echo "    dépendances à jour"
@@ -44,26 +44,22 @@ echo "==> Dossiers de données"
 mkdir -p "$RACINE/data_local/logs" "$RACINE/.cache"
 chown -R "$UTILISATEUR:$UTILISATEUR" "$RACINE"
 
-if [ "$MAJ_SEULE" = "--maj" ]; then
-    echo "==> Redémarrage des services"
-    systemctl restart marketlab-api marketlab-dashboard
-    sleep 3
-    systemctl is-active marketlab-api marketlab-dashboard
-    echo "Mise à jour terminée."
-    exit 0
-fi
-
 echo "==> Services systemd"
 cp "$RACINE/deploy/marketlab-api.service" /etc/systemd/system/
 cp "$RACINE/deploy/marketlab-dashboard.service" /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now marketlab-api marketlab-dashboard
+
+if [ "$MAJ_SEULE" = "--maj" ]; then
+    systemctl restart marketlab-api marketlab-dashboard
+else
+    systemctl enable --now marketlab-api marketlab-dashboard
+fi
 sleep 5
 
-echo "==> État"
+echo "==> État des services"
 systemctl is-active marketlab-api marketlab-dashboard || true
 echo
-echo "Étapes restantes (manuelles) :"
+echo "Étapes restantes :"
 echo "  1. htpasswd -c /etc/nginx/.marketlab_htpasswd <utilisateur>"
 echo "  2. cp $RACINE/deploy/marketlab.nginx.conf /etc/nginx/sites-available/marketlab"
 echo "     ln -sf /etc/nginx/sites-available/marketlab /etc/nginx/sites-enabled/marketlab"
