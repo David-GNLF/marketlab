@@ -11,6 +11,10 @@ data_local/*
 # Portefeuille et cibler les alertes de résultats. Après une opération en
 # local (paper.py), committer et pousser pour que le site la reflète.
 !data_local/paper_portfolio.json
+# Le journal des décisions est versionné : c'est le TRACK RECORD de l'outil
+# (dates, avis, prix — aucun secret) et GitHub Actions doit pouvoir l'enrichir
+# chaque jour puis le committer.
+!data_local/journal_decisions.csv
 
 # --- Environnement et caches ---
 .venv/

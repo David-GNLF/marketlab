@@ -32,9 +32,9 @@ from pathlib import Path
 
 import pandas as pd
 
-from marketlab import (config, correlations, eco_calendar, events, forecast,
-                       fundamentals, indicators, levels, macro, news, paper,
-                       screener, seasonality, signals)
+from marketlab import (config, correlations, decision, eco_calendar, events,
+                       forecast, fundamentals, indicators, levels, macro, news,
+                       paper, screener, seasonality, signals)
 from marketlab.data import get_ohlcv
 
 RACINE_SITE = config.ROOT / "site"
@@ -154,9 +154,22 @@ def fiche_titre(symbole: str) -> dict:
     return fiche
 
 
+def bloc_verdicts() -> dict:
+    """Dossiers de décision + journalisation + bilan des verdicts passés.
+
+    C'est le bloc central du site : la synthèse motivée de toutes les
+    analyses, et le tableau qui mesure ce que valaient les verdicts
+    précédents une fois leur horizon écoulé.
+    """
+    dossiers = decision.verdicts(TITRES_DETAILLES)
+    decision.journaliser(dossiers)
+    return {"dossiers": dossiers, "bilan": decision.bilan()}
+
+
 # --- Orchestration ----------------------------------------------------------
 
 BLOCS = {
+    "verdicts": bloc_verdicts,
     "screener": bloc_screener,
     "macro": bloc_macro,
     "calendrier": bloc_calendrier,

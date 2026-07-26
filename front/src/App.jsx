@@ -342,8 +342,101 @@ function PagePortefeuille() {
   );
 }
 
+// ---------------------------------------------------------------- Décisions
+const COULEUR_AVIS = {
+  "Favorable": "var(--good)",
+  "Défavorable": "var(--critical)",
+  "S'abstenir": "var(--critical)",
+  "Neutre": "var(--muted)",
+};
+
+function Verdict({ d, onTitre }) {
+  const [ouvert, setOuvert] = useState(false);
+  if (d.erreur) {
+    return <div className="carte"><strong>{d.symbole}</strong>{" "}
+      <span className="note">indisponible : {d.erreur}</span></div>;
+  }
+  return (
+    <div className="carte">
+      <div className="rangee" style={{ alignItems: "center", cursor: "pointer" }}
+           onClick={() => setOuvert(!ouvert)}>
+        <strong style={{ minWidth: 90 }}>{d.symbole}</strong>
+        <span className="badge"
+              style={{ color: COULEUR_AVIS[d.avis] ?? "inherit",
+                       fontWeight: 600 }}>{d.avis}</span>
+        <span>note <strong>{d.note_globale > 0 ? "+" : ""}{d.note_globale}</strong></span>
+        <span className="note">concordance {d["concordance_%"]} % ·
+          taille ×{d.taille_multiplicateur} · cours {nb(d.prix)}</span>
+        <span className="note" style={{ marginLeft: "auto" }}>
+          {ouvert ? "▲ replier" : "▼ détails"}</span>
+      </div>
+      {d.vetos?.length > 0 && d.vetos.map((v, i) => (
+        <p key={i} className="erreur" style={{ margin: "6px 0 0" }}>⚠️ {v}</p>
+      ))}
+      {ouvert && (
+        <div style={{ marginTop: 10 }}>
+          {d.composantes?.map((c) => (
+            <p key={c.nom} className="note" style={{ margin: "4px 0" }}>
+              <strong style={{ display: "inline-block", minWidth: 110 }}>
+                {c.nom}</strong>{" "}
+              <span style={{ display: "inline-block", minWidth: 52,
+                             color: c.note > 5 ? "var(--good)"
+                               : c.note < -5 ? "var(--critical)" : "inherit" }}>
+                {c.note > 0 ? "+" : ""}{c.note}</span>{" "}
+              {c.raisons.join(" · ")}
+            </p>
+          ))}
+          {d.plan && (
+            <p style={{ marginTop: 8 }}>📋 Plan : entrée {nb(d.plan.entree)} ·
+              stop {nb(d.plan.stop)} · objectif {nb(d.plan.objectif)} ·
+              ratio {d.plan.ratio_gain_risque} ·
+              P(stop) {d.plan["proba_toucher_stop_%"]} % ·
+              P(objectif) {d.plan["proba_toucher_objectif_%"]} % ·
+              espérance {d.plan["esperance_%"] > 0 ? "+" : ""}{d.plan["esperance_%"]} %</p>
+          )}
+          <button className="action secondaire" style={{ marginTop: 8 }}
+                  onClick={(e) => { e.stopPropagation(); onTitre(d.symbole); }}>
+            Ouvrir la fiche complète
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PageDecisions({ onTitre }) {
+  const { donnees, erreur } = useDonnees(api.getVerdicts);
+  if (!donnees) return <Chargement erreur={erreur} />;
+  const dossiers = [...(donnees.dossiers ?? [])].sort(
+    (a, b) => (b.note_globale ?? -999) - (a.note_globale ?? -999));
+  const bilan = donnees.bilan;
+  return (
+    <>
+      <div className="carte">
+        <h3>Bilan des verdicts passés</h3>
+        {bilan?.verdicts_evalues > 0 ? (
+          <>
+            <p className="note">{bilan.verdicts_evalues} verdict(s) arrivé(s) à
+              l'horizon depuis le {bilan.premiere_date}.</p>
+            <Table lignes={bilan.par_avis} />
+            <p className="note">{bilan.lecture}</p>
+          </>
+        ) : (
+          <p className="note">{bilan?.message ?? "Bilan indisponible."} Chaque
+            verdict est journalisé automatiquement : ce tableau mesurera le taux
+            de réussite réel de l'outil, avis par avis.</p>
+        )}
+      </div>
+      {dossiers.map((d) => (
+        <Verdict key={d.symbole} d={d} onTitre={onTitre} />
+      ))}
+    </>
+  );
+}
+
 // ---------------------------------------------------------------- App
 const PAGES = {
+  "🎯 Décisions": PageDecisions,
   "Marchés": PageMarches,
   "Titre": PageTitre,
   "Macro & agenda": PageMacro,
@@ -353,7 +446,7 @@ const PAGES = {
 };
 
 export default function App() {
-  const [page, setPage] = useState("Marchés");
+  const [page, setPage] = useState("🎯 Décisions");
   const [symbole, setSymbole] = useState(null);
   const { donnees: meta, erreur } = useDonnees(api.getMeta);
 
