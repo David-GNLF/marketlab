@@ -137,6 +137,64 @@ function PageTitre({ meta, symbole, setSymbole }) {
 
       {!f ? <Chargement erreur={erreur} /> : (
         <>
+          {f.strategie && !f.strategie.erreur && (
+            <div className="carte" style={{ borderLeft: "3px solid var(--series-1)" }}>
+              <h3 style={{ marginTop: 0 }}>🎯 {f.strategie.nom} — stratégie de
+                position</h3>
+              <div className="rangee">
+                <div className="tuile" style={{ minWidth: 220 }}>
+                  <div className="libelle">QUEL SENS ?</div>
+                  <div className="valeur" style={{ fontSize: 17 }}>
+                    {f.strategie.sens.reponse}</div>
+                  <div className="note">{f.strategie.sens.raison}</div>
+                </div>
+                <div className="tuile" style={{ minWidth: 220 }}>
+                  <div className="libelle">QUAND ?</div>
+                  <div className="valeur" style={{ fontSize: 17 }}>
+                    {f.strategie.quand.reponse}</div>
+                  <div className="note">{f.strategie.quand.raison}</div>
+                </div>
+                {f.strategie.marge && (
+                  <div className="tuile" style={{ minWidth: 220 }}>
+                    <div className="libelle">QUELLE MARGE ?</div>
+                    <div className="valeur" style={{ fontSize: 17 }}>
+                      +{f.strategie.marge["objectif_%"]} % visés</div>
+                    <div className="note">{f.strategie.marge.lecture} Scénario
+                      porteur : {f.strategie.marge["scenario_porteur_%"] > 0 ? "+" : ""}
+                      {f.strategie.marge["scenario_porteur_%"]} %.</div>
+                  </div>
+                )}
+              </div>
+              {f.strategie.plan && (
+                <p style={{ marginTop: 10 }}>📋 Entrée {nb(f.strategie.plan.entree)} ·
+                  stop {nb(f.strategie.plan.stop)} · objectif{" "}
+                  {nb(f.strategie.plan.objectif)} · ratio{" "}
+                  {f.strategie.plan.ratio_gain_risque}
+                  {f.strategie.taille && <> · taille {f.strategie.taille.montant} $
+                    (perte max {f.strategie.taille.perte_max} $
+                    {f.strategie.taille.plafond_kelly != null &&
+                      ", plafond Kelly appliqué"})</>}
+                </p>
+              )}
+              {f.strategie.plan?.stop_suiveur && (
+                <p className="note">🪜 Stop suiveur (Chandelier) :{" "}
+                  {nb(f.strategie.plan.stop_suiveur.niveau)} —{" "}
+                  {f.strategie.plan.stop_suiveur.raison}</p>
+              )}
+              {f.strategie.renforts && (
+                <p className="note">🛡️ Renforts ({f.strategie.renforts.feux_verts}
+                  {" "}feux verts) —{" "}
+                  {f.strategie.renforts.confluence?.raison}
+                  {f.strategie.renforts.force_relative?.raison &&
+                    <> · {f.strategie.renforts.force_relative.raison}</>}
+                  {f.strategie.renforts.kelly?.raison &&
+                    <> · {f.strategie.renforts.kelly.raison}</>}</p>
+              )}
+              {f.strategie.verdict?.vetos?.map((v, i) => (
+                <p key={i} className="erreur">⚠️ {v}</p>
+              ))}
+            </div>
+          )}
           <div className="carte">
             <div className="rangee">
               <Tuile libelle="Cours" valeur={nb(f.signaux?.close)} />

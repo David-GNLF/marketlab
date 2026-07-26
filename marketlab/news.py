@@ -42,8 +42,17 @@ NEGATIFS = {
 }
 
 
+NOMS_ANGLAIS = {  # requêtes presse pour les contrats à terme
+    "GC=F": "gold", "SI=F": "silver", "CL=F": "crude oil", "BZ=F": "brent oil",
+    "NG=F": "natural gas", "HG=F": "copper", "CC=F": "cocoa", "CT=F": "cotton",
+    "KC=F": "coffee", "ZW=F": "wheat",
+}
+
+
 def _query(symbol: str) -> str:
     """Transforme un symbole en requête de recherche d'actualités."""
+    if symbol in NOMS_ANGLAIS:
+        return f"{NOMS_ANGLAIS[symbol]} price"
     base = symbol.replace("=X", "").replace("USDT", "")
     for suffix in (".PA", ".DE", ".AS"):
         base = base.removesuffix(suffix)

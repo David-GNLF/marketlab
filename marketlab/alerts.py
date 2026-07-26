@@ -19,7 +19,8 @@ from marketlab import config, eco_calendar, notify, screener
 
 STATE_PATH = config.CACHE_DIR / "alert_state.json"
 
-DEFAULT_UNIVERSES = ["Actions US", "Actions EU", "Forex", "Crypto"]
+DEFAULT_UNIVERSES = ["Actions US", "Actions EU", "Forex", "Crypto",
+                     "Matières premières"]
 STRONG_LABELS = {"Achat fort", "Vente forte"}
 
 

@@ -34,17 +34,17 @@ import pandas as pd
 
 from marketlab import (config, correlations, decision, eco_calendar, events,
                        forecast, fundamentals, indicators, levels, macro, news,
-                       paper, screener, seasonality, signals)
+                       paper, position, screener, seasonality, signals)
 from marketlab.data import get_ohlcv
 
 RACINE_SITE = config.ROOT / "site"
 DOSSIER_DONNEES = RACINE_SITE / "donnees"
 
-# Titres pour lesquels une fiche détaillée est produite. Volontairement
-# restreint : chaque fiche coûte plusieurs requêtes réseau et quelques
-# secondes de calcul.
+# Titres pour lesquels une fiche détaillée (salle de marché) est produite.
+# Chaque fiche coûte des requêtes réseau et quelques secondes de calcul :
+# la liste reste un choix, pas un « tout l'univers ».
 TITRES_DETAILLES = (config.ACTIONS_US[:8] + config.ACTIONS_EU[:4]
-                    + config.CRYPTO[:3] + config.FOREX[:2])
+                    + config.CRYPTO[:3] + config.FOREX + config.MATIERES)
 
 
 def _ecrire(chemin: Path, donnees) -> None:
@@ -120,7 +120,8 @@ def bloc_paper() -> dict | None:
 def fiche_titre(symbole: str) -> dict:
     """Fiche complète d'un titre : cours, signaux, prévision, niveaux, contexte."""
     df = indicators.enrich(get_ohlcv(symbole, lookback_days=1825))
-    fiche = {"symbole": symbole}
+    fiche = {"symbole": symbole,
+             "nom": config.NOMS_ACTIFS.get(symbole, symbole)}
 
     sig = signals.compute_signals(df)
     sig["avis"] = signals.label(sig["score"])
@@ -131,6 +132,9 @@ def fiche_titre(symbole: str) -> dict:
     fiche["historique"] = _table(historique)
 
     for nom, calcul in (
+        # la stratégie répond aux 3 questions (quand / quel sens / quelle
+        # marge) et embarque le verdict complet du moteur de décision
+        ("strategie", lambda: position.strategie(symbole)),
         ("regime", lambda: forecast.regime(df)),
         ("projection", lambda: {k: v for k, v in
                                 forecast.projeter(df, horizon=20).items()

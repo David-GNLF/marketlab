@@ -23,7 +23,7 @@ import yfinance as yf
 from marketlab import config
 
 CACHE_TTL_H = 24
-NON_ACTIONS = ("=X", "USDT")
+NON_ACTIONS = ("=X", "USDT", "=F")  # devises, crypto, contrats à terme
 
 
 def est_action(symbole: str) -> bool:

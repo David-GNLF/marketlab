@@ -35,7 +35,8 @@ from marketlab import config
 from marketlab.data import get_ohlcv
 
 CACHE_TTL_H = 12
-REFERENCES = {".PA": "^FCHI", ".DE": "^GDAXI", ".AS": "^STOXX50E"}
+REFERENCES = {".PA": "^FCHI", ".DE": "^GDAXI", ".AS": "^STOXX50E",
+              ".T": "^N225", ".HK": "^HSI", ".KS": "^KS11", ".TW": "^TWII"}
 REFERENCE_DEFAUT = "^GSPC"
 
 
@@ -43,7 +44,7 @@ def a_des_resultats(symbole: str) -> bool:
     """Seules les actions publient des résultats."""
     if symbole.startswith("^") or symbole in config.BRVM:
         return False
-    return not symbole.endswith(("=X", "USDT"))
+    return not symbole.endswith(("=X", "USDT", "=F"))
 
 
 def _reference(symbole: str) -> str:

@@ -33,11 +33,44 @@ ACTIONS_EU = [
     "SIE.DE",   # Siemens
 ]
 
-INDICES = ["^GSPC", "^NDX", "^FCHI", "^GDAXI", "^STOXX50E"]
+ACTIONS_ASIE = [
+    "7203.T",    # Toyota
+    "6758.T",    # Sony
+    "9984.T",    # SoftBank
+    "0700.HK",   # Tencent
+    "9988.HK",   # Alibaba
+    "2330.TW",   # TSMC
+    "005930.KS", # Samsung
+]
 
-FOREX = ["EURUSD=X", "GBPUSD=X", "USDJPY=X", "USDCHF=X", "AUDUSD=X"]
+INDICES = ["^GSPC", "^NDX", "^FCHI", "^GDAXI", "^STOXX50E",
+           "^N225", "^HSI", "^KS11"]
+
+FOREX = ["EURUSD=X", "GBPUSD=X", "USDJPY=X", "USDCHF=X", "AUDUSD=X",
+         "USDCAD=X", "NZDUSD=X"]
 
 CRYPTO = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
+
+# Contrats à terme Yahoo (suffixe =F). Cacao et coton figurent en bonne place :
+# matières clés pour l'Afrique de l'Ouest. NB : le franc CFA (XOF) étant
+# arrimé à l'euro à parité fixe (655,957), suivre EUR/USD revient à suivre
+# XOF/USD.
+MATIERES = ["GC=F", "SI=F", "CL=F", "BZ=F", "NG=F", "HG=F",
+            "CC=F", "CT=F", "KC=F", "ZW=F"]
+
+# Libellés lisibles (affichage site + requêtes d'actualités)
+NOMS_ACTIFS = {
+    "GC=F": "Or", "SI=F": "Argent", "CL=F": "Pétrole WTI", "BZ=F": "Brent",
+    "NG=F": "Gaz naturel", "HG=F": "Cuivre", "CC=F": "Cacao", "CT=F": "Coton",
+    "KC=F": "Café", "ZW=F": "Blé",
+    "EURUSD=X": "EUR/USD (≈ USD/XOF inversé)", "GBPUSD=X": "GBP/USD",
+    "USDJPY=X": "USD/JPY", "USDCHF=X": "USD/CHF", "AUDUSD=X": "AUD/USD",
+    "USDCAD=X": "USD/CAD", "NZDUSD=X": "NZD/USD",
+    "7203.T": "Toyota", "6758.T": "Sony", "9984.T": "SoftBank",
+    "0700.HK": "Tencent", "9988.HK": "Alibaba", "2330.TW": "TSMC",
+    "005930.KS": "Samsung",
+    "^N225": "Nikkei 225", "^HSI": "Hang Seng", "^KS11": "KOSPI",
+}
 
 # BRVM : symboles officiels (données via import CSV ou scraping best-effort)
 BRVM = ["SNTS", "SGBC", "BOAB", "ETIT", "ONTBF", "PALC"]
@@ -45,8 +78,10 @@ BRVM = ["SNTS", "SGBC", "BOAB", "ETIT", "ONTBF", "PALC"]
 UNIVERS = {
     "Actions US": ACTIONS_US,
     "Actions EU": ACTIONS_EU,
+    "Actions Asie": ACTIONS_ASIE,
     "Indices": INDICES,
     "Forex": FOREX,
+    "Matières premières": MATIERES,
     "Crypto": CRYPTO,
     "BRVM": BRVM,
 }
