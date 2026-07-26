@@ -118,7 +118,11 @@ def publier(dossier_local: Path | None = None, verbeux: bool = True) -> dict:
         for chemin in fichiers:
             relatif = chemin.relative_to(dossier_local).as_posix()
             taille = chemin.stat().st_size
-            if distants.get(relatif) == taille:
+            # Le saut « même taille » ne vaut que pour assets/ : Vite y met une
+            # empreinte du contenu dans le nom, même nom + même taille = même
+            # fichier. Ailleurs c'est faux — meta.json change d'horodatage sans
+            # forcément changer de taille — donc tout le reste part toujours.
+            if relatif.startswith("assets/") and distants.get(relatif) == taille:
                 ignores.append(relatif)
                 continue
 
