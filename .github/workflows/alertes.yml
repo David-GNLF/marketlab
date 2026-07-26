@@ -1,0 +1,45 @@
+name: Alertes horaires
+
+# Les alertes tournent ici, chez GitHub : le poste de travail peut rester
+# éteint. L'état anti-doublon est conservé d'une exécution à l'autre via le
+# cache d'Actions — sans lui, chaque heure renverrait les mêmes alertes.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "5 * * * *"   # heure pleine + 5 min (les crons GitHub dérivent)
+
+concurrency:
+  group: alertes
+  cancel-in-progress: false
+
+jobs:
+  alerter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
+
+      - name: Dépendances Python
+        run: pip install --quiet -r requirements-ci.txt
+
+      # .cache contient l'état anti-doublon ET le cache de cours. Clé par
+      # run_id + restore-keys : chaque exécution repart du plus récent.
+      - name: État anti-doublon et cache des cours
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: alertes-${{ github.run_id }}
+          restore-keys: alertes-
+
+      - name: Évaluer et envoyer les alertes
+        env:
+          MARKETLAB_NTFY_TOPIC: ${{ secrets.MARKETLAB_NTFY_TOPIC }}
+        run: python scripts/alertes.py

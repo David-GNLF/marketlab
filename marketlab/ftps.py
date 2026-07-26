@@ -18,6 +18,7 @@ sont renvoyés, ce qui évite de retransmettre le front à chaque publication.
 
 import ftplib
 import json
+import os
 from pathlib import Path
 
 from marketlab import config
@@ -26,16 +27,29 @@ CONFIG_PATH = config.DATA_DIR / "cpanel.json"
 
 
 def charger_config() -> dict:
-    if not CONFIG_PATH.exists():
-        raise RuntimeError(
-            f"Configuration absente : {CONFIG_PATH}\n"
-            '  {"hote": "...", "utilisateur": "...", "mot_de_passe": "...", '
-            '"dossier_distant": "/public_html/marketlab"}')
-    cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    """Fichier local en priorité ; variables d'environnement en repli.
+
+    Le repli permet l'exécution depuis GitHub Actions, où les accès sont
+    fournis par les secrets du dépôt (MARKETLAB_FTP_HOTE, _UTILISATEUR,
+    _MOT_DE_PASSE, _DOSSIER) et où aucun fichier de secrets n'existe.
+    """
+    if CONFIG_PATH.exists():
+        cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    else:
+        cfg = {
+            "hote": os.environ.get("MARKETLAB_FTP_HOTE"),
+            "port": os.environ.get("MARKETLAB_FTP_PORT", 21),
+            "utilisateur": os.environ.get("MARKETLAB_FTP_UTILISATEUR"),
+            "mot_de_passe": os.environ.get("MARKETLAB_FTP_MOT_DE_PASSE"),
+            "dossier_distant": os.environ.get("MARKETLAB_FTP_DOSSIER",
+                                              "/public_html/marketlab"),
+        }
     manquants = [c for c in ("hote", "utilisateur", "mot_de_passe",
                              "dossier_distant") if not cfg.get(c)]
     if manquants:
-        raise RuntimeError(f"Champs manquants dans {CONFIG_PATH} : {manquants}")
+        raise RuntimeError(
+            f"Accès FTPS incomplets ({manquants}) : renseigner {CONFIG_PATH} "
+            "ou les variables MARKETLAB_FTP_*")
     return cfg
 
 

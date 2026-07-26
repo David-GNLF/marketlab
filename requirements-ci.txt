@@ -1,0 +1,11 @@
+# Dépendances pour l'exécution sur GitHub Actions (publication + alertes).
+# Sans streamlit/plotly (interface locale uniquement) ni scikit-learn
+# (ML exploratoire, pas utilisé par la publication) : l'installation passe
+# de ~1 Go à ~350 Mo et le job démarre nettement plus vite.
+pandas>=2.2
+numpy>=1.26
+scipy>=1.11
+requests>=2.31
+yfinance>=0.2.40
+lxml>=5.0
+pyarrow>=15.0

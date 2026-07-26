@@ -41,13 +41,24 @@ LEGACY_TELEGRAM_PATH = config.DATA_DIR / "telegram.json"
 # --- Configuration ----------------------------------------------------------
 
 def charger_config() -> dict:
-    """Config des notifications, avec reprise de l'ancien telegram.json."""
+    """Config des notifications, avec reprise de l'ancien telegram.json.
+
+    Repli par variable d'environnement (MARKETLAB_NTFY_TOPIC, et
+    MARKETLAB_NTFY_SERVEUR facultative) pour l'exécution depuis GitHub
+    Actions, où le fichier de secrets n'existe pas.
+    """
+    import os
     cfg = {}
     if CONFIG_PATH.exists():
         try:
             cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
         except Exception:
             cfg = {}
+    if not cfg.get("canaux") and os.environ.get("MARKETLAB_NTFY_TOPIC"):
+        cfg = {"canaux": ["ntfy"], "ntfy": {
+            "serveur": os.environ.get("MARKETLAB_NTFY_SERVEUR", "https://ntfy.sh"),
+            "topic": os.environ["MARKETLAB_NTFY_TOPIC"],
+        }}
     if not cfg.get("canaux") and LEGACY_TELEGRAM_PATH.exists():
         try:
             ancien = json.loads(LEGACY_TELEGRAM_PATH.read_text(encoding="utf-8"))

@@ -6,6 +6,11 @@
 # n'entre pas dans le dossier et l'exception ci-dessous serait ignorée.
 data_local/*
 !data_local/.gitkeep
+# Le portefeuille PAPIER est versionné : le dépôt est privé, il ne contient
+# aucun secret, et GitHub Actions en a besoin pour publier la page
+# Portefeuille et cibler les alertes de résultats. Après une opération en
+# local (paper.py), committer et pousser pour que le site la reflète.
+!data_local/paper_portfolio.json
 
 # --- Environnement et caches ---
 .venv/

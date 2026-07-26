@@ -1,0 +1,132 @@
+{
+ "devise": "USD",
+ "capital_initial": 10000.0,
+ "cash": 4500.0,
+ "positions": {
+  "AAPL": {
+   "qty": 4.663309031034173,
+   "prix_moyen": 321.6600036621094
+  },
+  "BTCUSDT": {
+   "qty": 0.031020256227316436,
+   "prix_moyen": 64474.0
+  },
+  "JPM": {
+   "qty": 5.715918933658761,
+   "prix_moyen": 349.8999938964844
+  }
+ },
+ "transactions": [
+  {
+   "quand": "2026-07-26 03:40",
+   "sens": "ACHAT",
+   "symbole": "AAPL",
+   "qty": 4.663309,
+   "prix_usd": 321.66,
+   "montant_usd": 1500.0
+  },
+  {
+   "quand": "2026-07-26 03:40",
+   "sens": "ACHAT",
+   "symbole": "BTCUSDT",
+   "qty": 0.03102,
+   "prix_usd": 64474.0,
+   "montant_usd": 2000.0
+  },
+  {
+   "quand": "2026-07-26 03:40",
+   "sens": "ACHAT",
+   "symbole": "MC.PA",
+   "qty": 1.90405,
+   "prix_usd": 525.1962,
+   "montant_usd": 1000.0
+  },
+  {
+   "quand": "2026-07-26 03:41",
+   "sens": "VENTE",
+   "symbole": "MC.PA",
+   "qty": 1.90405,
+   "prix_usd": 525.1962,
+   "montant_usd": 1000.0,
+   "pnl_usd": 0.0
+  },
+  {
+   "quand": "2026-07-26 04:33",
+   "sens": "ACHAT",
+   "symbole": "JPM",
+   "qty": 5.715919,
+   "prix_usd": 349.9,
+   "montant_usd": 2000.0
+  }
+ ],
+ "equity_history": [
+  {
+   "quand": "2026-07-26 03:40",
+   "valeur_usd": 10000.0
+  },
+  {
+   "quand": "2026-07-26 03:47",
+   "valeur_usd": 10000.0
+  },
+  {
+   "quand": "2026-07-26 04:05",
+   "valeur_usd": 10000.46
+  },
+  {
+   "quand": "2026-07-26 04:23",
+   "valeur_usd": 10000.46
+  },
+  {
+   "quand": "2026-07-26 04:23",
+   "valeur_usd": 10000.46
+  },
+  {
+   "quand": "2026-07-26 04:31",
+   "valeur_usd": 10000.46
+  },
+  {
+   "quand": "2026-07-26 04:31",
+   "valeur_usd": 10000.46
+  },
+  {
+   "quand": "2026-07-26 04:33",
+   "valeur_usd": 10000.46
+  },
+  {
+   "quand": "2026-07-26 12:41",
+   "valeur_usd": 10000.46
+  },
+  {
+   "quand": "2026-07-26 12:44",
+   "valeur_usd": 10000.46
+  },
+  {
+   "quand": "2026-07-26 14:38",
+   "valeur_usd": 10000.46
+  },
+  {
+   "quand": "2026-07-26 16:22",
+   "valeur_usd": 10009.31
+  },
+  {
+   "quand": "2026-07-26 16:48",
+   "valeur_usd": 10009.31
+  },
+  {
+   "quand": "2026-07-26 17:04",
+   "valeur_usd": 10009.31
+  },
+  {
+   "quand": "2026-07-26 17:22",
+   "valeur_usd": 10009.31
+  },
+  {
+   "quand": "2026-07-26 18:29",
+   "valeur_usd": 10009.31
+  },
+  {
+   "quand": "2026-07-26 19:03",
+   "valeur_usd": 10009.31
+  }
+ ]
+}

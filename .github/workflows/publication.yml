@@ -1,0 +1,74 @@
+name: Publication quotidienne du site
+
+# Le calcul tourne ici, chez GitHub — pas sur le poste de travail, qui peut
+# rester éteint. Le site est ensuite poussé vers l'hébergement cPanel en FTPS.
+# 22h00 UTC = 23h00 au Bénin, après la clôture de Wall Street (20h00 UTC été).
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 22 * * *"
+
+concurrency:
+  group: publication
+  cancel-in-progress: false
+
+jobs:
+  publier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
+
+      - name: Dépendances Python
+        run: pip install --quiet -r requirements-ci.txt
+
+      - name: Node (front)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: front/package-lock.json
+
+      - name: Construire le front
+        run: |
+          npm ci --prefix front --no-fund --no-audit
+          npm run build --prefix front
+
+      # Le cache de cours accélère la génération et réduit la charge sur les
+      # sources gratuites. Clé datée : restauré du jour précédent, resauvé
+      # chaque jour.
+      - name: Cache des cours
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: cours-${{ github.run_id }}
+          restore-keys: cours-
+
+      - name: Générer et publier
+        env:
+          MARKETLAB_FTP_HOTE: ${{ secrets.MARKETLAB_FTP_HOTE }}
+          MARKETLAB_FTP_UTILISATEUR: ${{ secrets.MARKETLAB_FTP_UTILISATEUR }}
+          MARKETLAB_FTP_MOT_DE_PASSE: ${{ secrets.MARKETLAB_FTP_MOT_DE_PASSE }}
+          MARKETLAB_FTP_DOSSIER: ${{ secrets.MARKETLAB_FTP_DOSSIER }}
+        run: python scripts/publier.py
+
+      # Une génération silencieusement dégradée vaut d'être signalée : le
+      # site continuerait d'afficher des chiffres de plus en plus datés.
+      - name: Signaler un échec sur ntfy
+        if: failure()
+        env:
+          NTFY_TOPIC: ${{ secrets.MARKETLAB_NTFY_TOPIC }}
+        run: |
+          if [ -n "$NTFY_TOPIC" ]; then
+            curl -s -m 20 -H "Title: MarketLab publication" -H "Priority: high" \
+              -d "La publication quotidienne du site a echoue : voir GitHub Actions." \
+              "https://ntfy.sh/$NTFY_TOPIC" || true
+          fi
