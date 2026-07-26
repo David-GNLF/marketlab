@@ -305,6 +305,51 @@ la plupart des régularités de calendrier ne résistent pas à un test correct.
 Les effets retenus sont à traiter comme un léger biais de contexte, jamais
 comme un signal autonome.
 
+## Méta-labeling (dans l'onglet ML)
+
+Plutôt que de prédire la direction — problème sur lequel nos mesures montrent
+un avantage quasi nul — un second modèle estime si le signal du moment mérite
+d'être suivi. Étiquetage par **triple barrière** : chaque signal est suivi
+jusqu'à toucher l'objectif (2×ATR), le stop (1,5×ATR) ou la limite temporelle.
+
+> **Le juge de paix est la séquence exécutable**, pas l'espérance par trade.
+> Les signaux étant quotidiens, des centaines de trades se chevauchent :
+> l'espérance moyenne surpondère les périodes denses et peut donner une
+> conclusion **inverse** de la réalité. Mesuré sur BTC : espérance par trade
+> +0,51 % → +0,95 % avec le filtre, mais séquence réellement exécutable
+> +30,9 % → **−8,9 %**. Le verdict signale explicitement ces contradictions.
+
+Résultat sur les titres testés (AAPL, MSFT, BTC, NVDA) : le filtrage **ne tient
+pas ses promesses** — à vérifier titre par titre avant tout usage.
+
+## Déploiement
+
+Le dépôt : <https://github.com/David-GNLF/marketlab> (privé).
+
+```bash
+git archive --format=tar.gz -o /tmp/marketlab.tar.gz HEAD
+```
+
+Puis sur le serveur : extraire dans `/opt/marketlab` et lancer
+`bash deploy/installer.sh` (`--maj` pour une simple mise à jour). Le script
+crée l'utilisateur de service, le venv, et installe les deux unités systemd.
+
+**Architecture** : `marketlab-api` (uvicorn, port 8600, sert aussi `front/dist`)
+et `marketlab-dashboard` (Streamlit, port 8501), tous deux en écoute sur
+127.0.0.1 uniquement, exposés par nginx avec **authentification obligatoire**
+sur tout le site — l'outil expose un portefeuille et une API capable de le
+modifier.
+
+> **Cohabitation** : la machine héberge DigiClinic en production avec peu de
+> RAM. Les unités systemd sont plafonnées (`MemoryMax` 550/650 Mo,
+> `CPUQuota` 60 %, `OOMScoreAdjust=800`) pour qu'en cas de dérive ce soit
+> MarketLab qui tombe, jamais l'application de santé. Consommation observée :
+> 144 Mo et 59 Mo.
+
+Le front React compilé (`front/dist`) est exclu du dépôt : le construire
+localement (`npm run build --prefix front`) et le transférer, plutôt
+qu'installer Node.js sur le serveur.
+
 ## Paper trading
 
 ```bash
