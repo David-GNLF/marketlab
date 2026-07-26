@@ -148,6 +148,20 @@ def build_alerts(universes: list[str] | None = None, event_hours: int = 24,
     except Exception as exc:
         print(f"[resultats] règle ignorée : {str(exc)[:100]}")
 
+    # 5. Sentiment de marché aux extrêmes (contrarien) — 1 alerte par zone/jour
+    try:
+        from marketlab import sentiment_marche
+        fg = sentiment_marche.indice()
+        if fg["zone"] in ("peur extrême", "avidité extrême"):
+            cle = f"sentiment|{today}|{fg['zone']}"
+            if cle not in state["evenements"]:
+                messages.append(
+                    f"🌡️ <b>Sentiment de marché : {fg['zone'].upper()}</b> "
+                    f"({fg['valeur']:.0f}/100)\n{fg['lecture']}")
+                state["evenements"].append(cle)
+    except Exception as exc:
+        print(f"[sentiment] règle ignorée : {str(exc)[:80]}")
+
     if persist:
         _save_state(state)
     return messages

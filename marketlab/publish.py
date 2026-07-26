@@ -35,7 +35,7 @@ import pandas as pd
 from marketlab import (config, correlations, cot, decision, eco_calendar,
                        events, forecast, fundamentals, indicators, levels,
                        macro, news, paper, position, screener, seasonality,
-                       signals)
+                       sentiment_marche, signals)
 from marketlab.data import get_ohlcv
 
 RACINE_SITE = config.ROOT / "site"
@@ -181,6 +181,7 @@ def bloc_cot() -> list[dict]:
 BLOCS = {
     "verdicts": bloc_verdicts,
     "cot": bloc_cot,
+    "sentiment_marche": sentiment_marche.indice,
     "screener": bloc_screener,
     "macro": bloc_macro,
     "calendrier": bloc_calendrier,

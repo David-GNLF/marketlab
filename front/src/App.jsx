@@ -276,8 +276,47 @@ function PageMacro() {
   const cal = useDonnees(api.getCalendrier);
   const res = useDonnees(api.getResultats);
   const cotD = useDonnees(api.getCot);
+  const fg = useDonnees(api.getSentimentMarche);
   return (
     <>
+      <div className="carte">
+        <h3>Thermomètre peur / avidité</h3>
+        {!fg.donnees ? <Chargement erreur={fg.erreur} /> : (
+          <>
+            <div className="rangee" style={{ alignItems: "center" }}>
+              <div className="tuile">
+                <div className="libelle">Indice (0 = peur, 100 = avidité)</div>
+                <div className="valeur" style={{
+                  color: fg.donnees.valeur <= 25 ? "var(--critical)"
+                    : fg.donnees.valeur >= 75 ? "var(--series-2)" : "inherit" }}>
+                  {fg.donnees.valeur} — {fg.donnees.zone}</div>
+              </div>
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <div style={{ background: "var(--grid)", borderRadius: 6,
+                              height: 10, position: "relative" }}>
+                  <div style={{ position: "absolute", left: `${fg.donnees.valeur}%`,
+                                top: -4, width: 4, height: 18, borderRadius: 2,
+                                background: "var(--series-1)",
+                                transform: "translateX(-50%)" }} />
+                </div>
+                <div className="note" style={{ display: "flex",
+                                               justifyContent: "space-between" }}>
+                  <span>peur extrême</span><span>neutre</span><span>avidité extrême</span>
+                </div>
+              </div>
+            </div>
+            <p>{fg.donnees.lecture}</p>
+            {fg.donnees.composantes?.map((c, i) => (
+              <p key={i} className="note" style={{ margin: "3px 0" }}>
+                <strong style={{ display: "inline-block", minWidth: 180 }}>
+                  {c.nom}</strong>
+                <span style={{ display: "inline-block", minWidth: 42 }}>
+                  {c.note ?? "—"}</span> {c.detail}</p>
+            ))}
+            <p className="note">{fg.donnees.methode}</p>
+          </>
+        )}
+      </div>
       <div className="carte">
         <h3>Régime macroéconomique</h3>
         {!macro.donnees ? <Chargement erreur={macro.erreur} /> : (
