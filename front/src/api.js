@@ -10,9 +10,16 @@
 
 const cache = new Map();
 
+// L'hébergeur (LiteSpeed) peut servir une version en cache des JSON pendant
+// des heures. Le paramètre de version, renouvelé toutes les 5 minutes,
+// force un contenu frais sans interdire tout cache navigateur.
+const version = () => Math.floor(Date.now() / 300000);
+
 async function charger(chemin) {
   if (cache.has(chemin)) return cache.get(chemin);
-  const promesse = fetch(`donnees/${chemin}`, { cache: "no-cache" }).then((r) => {
+  const promesse = fetch(`donnees/${chemin}?v=${version()}`, {
+    cache: "no-cache",
+  }).then((r) => {
     if (!r.ok) throw new Error(`${chemin} indisponible (HTTP ${r.status})`);
     return r.json();
   });

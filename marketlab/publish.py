@@ -200,7 +200,10 @@ def generer(titres: list[str] | None = None, blocs: list[str] | None = None,
                 print(f"    ECHEC : {str(exc)[:120]}", flush=True)
 
     meta = {
-        "genere_le": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"),
+        # heure du Bénin calculée depuis UTC : la machine qui génère (poste
+        # local ou runner GitHub) peut être sur n'importe quel fuseau
+        "genere_le": (pd.Timestamp.utcnow() + pd.Timedelta(hours=1))
+                     .strftime("%Y-%m-%d %H:%M"),
         "fuseau": "Bénin (UTC+1)",
         "blocs": produits,
         "titres": fiches,
