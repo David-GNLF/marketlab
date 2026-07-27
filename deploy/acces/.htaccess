@@ -1,0 +1,8 @@
+# Page publique de définition de mot de passe : c'est la SEULE zone du site
+# exemptée du Basic Auth — un invité n'a pas encore de compte pour franchir
+# la porte. La sécurité repose sur les jetons signés à usage unique (72 h).
+# Double syntaxe (Apache 2.4 + héritage 2.2/LiteSpeed) pour l'exemption.
+Require all granted
+Satisfy any
+Order allow,deny
+Allow from all
