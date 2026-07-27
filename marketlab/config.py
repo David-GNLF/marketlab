@@ -86,6 +86,22 @@ UNIVERS = {
     "BRVM": BRVM,
 }
 
+# ---------------------------------------------------------------------------
+# SOURCES UNIQUES DE VÉRITÉ pour les périmètres. Tout module qui balaye des
+# actifs DOIT partir d'ici — jamais d'une liste locale recopiée : c'est ainsi
+# que le screener avait perdu les matières premières et l'Asie.
+# ---------------------------------------------------------------------------
+
+# Tous les actifs analysables automatiquement (BRVM exclue : données manuelles)
+SUIVIS = (ACTIONS_US + ACTIONS_EU + ACTIONS_ASIE + INDICES + FOREX
+          + MATIERES + CRYPTO)
+
+# Actifs disposant d'une salle de marché complète (fiche + verdict + robot).
+# Sous-ensemble volontaire : chaque fiche coûte ~1 min de calcul au CI.
+FICHES = (ACTIONS_US[:8] + ACTIONS_EU[:4]
+          + ["7203.T", "0700.HK", "2330.TW", "005930.KS"]   # Asie représentative
+          + CRYPTO[:3] + FOREX + MATIERES)
+
 # Séries FRED clés pour le tableau macro (id FRED -> libellé)
 FRED_SERIES = {
     "CPIAUCSL": "Inflation US (CPI, indice)",

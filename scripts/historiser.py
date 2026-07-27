@@ -18,11 +18,11 @@ import pandas as pd
 from marketlab import config, screener
 
 CSV = config.DATA_DIR / "historique_scores.csv"
-UNIVERS = ["Actions US", "Actions EU", "Indices", "Forex", "Crypto"]
+# périmètre = la source unique de vérité (voir config.SUIVIS)
 
 
 def main() -> int:
-    symbols = [s for u in UNIVERS for s in config.UNIVERS[u]]
+    symbols = list(config.SUIVIS)
     table = screener.scan(symbols)
     table.insert(0, "date", pd.Timestamp.today().date().isoformat())
 

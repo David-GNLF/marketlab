@@ -60,6 +60,11 @@ jobs:
       - name: Générer l'instantané
         run: python scripts/publier.py --generer-seul
 
+      # Garde-fou : toute dérive de périmètre (un univers absent du screener,
+      # une fiche manquante…) fait échouer la publication AVANT l'envoi.
+      - name: Vérifier la cohérence
+        run: python scripts/verifier_coherence.py --site
+
       # Le robot lit les verdicts frais, tient TOUS les comptes de trading
       # virtuel (stops/objectifs/liquidations sur les extrêmes de séance),
       # prend ses positions selon ses règles écrites, et produit le

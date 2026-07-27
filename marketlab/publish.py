@@ -44,8 +44,7 @@ DOSSIER_DONNEES = RACINE_SITE / "donnees"
 # Titres pour lesquels une fiche détaillée (salle de marché) est produite.
 # Chaque fiche coûte des requêtes réseau et quelques secondes de calcul :
 # la liste reste un choix, pas un « tout l'univers ».
-TITRES_DETAILLES = (config.ACTIONS_US[:8] + config.ACTIONS_EU[:4]
-                    + config.CRYPTO[:3] + config.FOREX + config.MATIERES)
+TITRES_DETAILLES = list(config.FICHES)
 
 
 def _ecrire(chemin: Path, donnees) -> None:
@@ -68,9 +67,7 @@ def _table(df: pd.DataFrame) -> list[dict]:
 # --- Blocs ------------------------------------------------------------------
 
 def bloc_screener() -> list[dict]:
-    symboles = [s for u in ("Actions US", "Actions EU", "Indices", "Forex",
-                            "Crypto") for s in config.UNIVERS[u]]
-    return _table(screener.scan(symboles))
+    return _table(screener.scan(config.SUIVIS))
 
 
 def bloc_macro() -> dict:
@@ -84,12 +81,14 @@ def bloc_calendrier() -> list[dict]:
 
 
 def bloc_resultats() -> list[dict]:
-    symboles = config.ACTIONS_US + config.ACTIONS_EU
+    symboles = (config.ACTIONS_US + config.ACTIONS_EU
+                + config.ACTIONS_ASIE)
     return _table(events.prochaines_publications(symboles, jours=45))
 
 
 def bloc_fondamentaux() -> list[dict]:
-    return _table(fundamentals.comparer(config.ACTIONS_US + config.ACTIONS_EU))
+    return _table(fundamentals.comparer(
+        config.ACTIONS_US + config.ACTIONS_EU + config.ACTIONS_ASIE))
 
 
 def bloc_correlations() -> dict:
