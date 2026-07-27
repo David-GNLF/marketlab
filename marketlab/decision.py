@@ -20,8 +20,9 @@ Deux principes non négociables :
 import numpy as np
 import pandas as pd
 
-from marketlab import (config, events, forecast, fundamentals, indicators,
-                       levels, news, score_history, seasonality, signals)
+from marketlab import (config, drivers, events, forecast, fundamentals,
+                       indicators, levels, news, score_history, seasonality,
+                       signals)
 from marketlab.data import get_ohlcv
 
 JOURNAL = config.DATA_DIR / "journal_decisions.csv"
@@ -32,10 +33,11 @@ POIDS_APPRIS = config.DATA_DIR / "poids_appris.json"
 # Une fois le journal assez fourni, `calibrer()` les ajuste d'après le bilan
 # réel et le résultat prime (voir poids_effectifs()).
 POIDS = {
-    "technique": 0.30,
-    "prevision": 0.25,
+    "technique": 0.25,
+    "prevision": 0.20,
     "analogues": 0.15,
-    "fondamentaux": 0.20,
+    "fondamentaux": 0.15,   # actions uniquement
+    "moteurs": 0.15,        # forex (carry), métaux (taux réels), matières (structure)
     "saisonnalite": 0.05,
     "sentiment": 0.05,
 }
@@ -127,6 +129,37 @@ def _composante_saisonnalite(symbole: str) -> dict:
         "significatif et stable)"]}
 
 
+def _composante_moteurs(symbole: str) -> dict | None:
+    """Moteurs fondamentaux de la classe d'actif, convertis en note.
+
+    Barèmes explicites (clip ±100 au total) :
+    - forex : +20 par point de carry, +40 par point d'élargissement sur 6 mois
+      — la devise mieux rémunérée attire les capitaux ;
+    - métaux précieux : −150 par point de HAUSSE des taux réels sur 3 mois,
+      −10 par % de hausse du dollar — le coût d'opportunité de l'or ;
+    - matières : −3 par % de base annualisée — une backwardation (base
+      négative) est haussière, un contango marqué pèse sur le portage.
+    """
+    ms = drivers.moteurs(symbole)
+    ms = [m for m in ms if "differentiel_pts" in m
+          or m.get("outil") in ("taux réels + dollar", "structure à terme")]
+    if not ms:
+        return None  # action, indice, crypto : pas de moteur dédié
+
+    note, raisons = 0.0, []
+    for m in ms:
+        if "differentiel_pts" in m:
+            note += _clip(m["differentiel_pts"] * 20, 60)
+            note += _clip((m.get("variation_6m_pts") or 0) * 40, 40)
+        elif m["outil"] == "taux réels + dollar":
+            note += _clip(-m["variation_3m_pts"] * 150, 70)
+            note += _clip(-m["dollar_variation_3m_%"] * 10, 30)
+        elif m["outil"] == "structure à terme":
+            note += _clip(-m["base_annualisee_%"] * 3, 60)
+        raisons.append(m["lecture"])
+    return {"note": _clip(note), "raisons": raisons}
+
+
 def _composante_sentiment(symbole: str) -> dict:
     try:
         s = news.sentiment(symbole)
@@ -160,6 +193,12 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
     fonda = _composante_fondamentaux(symbole)
     if fonda:
         composantes["fondamentaux"] = fonda
+    try:
+        moteurs = _composante_moteurs(symbole)
+        if moteurs:
+            composantes["moteurs"] = moteurs
+    except Exception:
+        pass  # moteur indisponible : la composante s'absente, pas d'échec
     composantes["saisonnalite"] = _composante_saisonnalite(symbole)
     composantes["sentiment"] = _composante_sentiment(symbole)
 
@@ -217,6 +256,43 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
               if abs(c["note"]) >= 5]
     concordance = (abs(sum(signes)) / len(signes) * 100) if signes else 0.0
 
+    # --- conclusion synthétique : LA réponse hausse/baisse sur la période ---
+    # Probabilité simulée légèrement inclinée par le verdict multi-analyses
+    # (±8 pts au maximum) : les simulations restent la colonne vertébrale, le
+    # verdict apporte ce que les prix seuls ne voient pas.
+    p_simulee = proj["proba_hausse_%"]
+    p_combinee = float(np.clip(p_simulee + note_globale * 0.08, 5, 95))
+    if p_combinee >= 60:
+        tendance_attendue = "HAUSSE plus probable que baisse"
+    elif p_combinee <= 40:
+        tendance_attendue = "BAISSE plus probable que hausse"
+    else:
+        tendance_attendue = "aucune direction nettement favorisée"
+    conclusion = {
+        "periode_seances": horizon,
+        "proba_hausse_simulee_%": p_simulee,
+        "proba_hausse_combinee_%": round(p_combinee, 1),
+        "tendance_attendue": tendance_attendue,
+        "amplitude_mediane_%": proj["rendement_median_%"],
+        "intervalle_80": proj["intervalle_80"],
+        "scenario_porteur_%": round(
+            (proj["quantiles"]["q75"][-1] / prix - 1) * 100, 2),
+        "scenario_adverse_%": round(
+            (proj["quantiles"]["q25"][-1] / prix - 1) * 100, 2),
+        "var_95_%": proj["var_95_%"],
+        "texte": (
+            f"Sur {horizon} séances : {tendance_attendue} "
+            f"(probabilité de hausse {p_combinee:.0f} % en combinant "
+            f"{p_simulee} % simulés et le verdict multi-analyses "
+            f"{note_globale:+.0f}). Amplitude médiane attendue "
+            f"{proj['rendement_median_%']:+.1f} %, scénario porteur "
+            f"{(proj['quantiles']['q75'][-1] / prix - 1) * 100:+.1f} %, "
+            f"adverse {(proj['quantiles']['q25'][-1] / prix - 1) * 100:+.1f} % ; "
+            f"dans 80 % des simulations le prix finit entre "
+            f"{proj['intervalle_80'][0]:,.4g} et {proj['intervalle_80'][1]:,.4g}. "
+            f"Perte extrême (VaR 95 %) : {proj['var_95_%']} %."),
+    }
+
     return {
         "symbole": symbole,
         "date": pd.Timestamp.utcnow().strftime("%Y-%m-%d"),
@@ -224,6 +300,7 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
         "horizon": horizon,
         "note_globale": round(float(note_globale), 1),
         "avis": avis,
+        "conclusion": conclusion,
         "concordance_%": round(concordance, 0),
         "taille_multiplicateur": taille,
         "composantes": [

@@ -165,6 +165,10 @@ function PageTitre({ meta, symbole, setSymbole }) {
                   </div>
                 )}
               </div>
+              {f.strategie.verdict?.conclusion?.texte && (
+                <p style={{ marginTop: 10 }}>🧭 <strong>Conclusion</strong> —{" "}
+                  {f.strategie.verdict.conclusion.texte}</p>
+              )}
               {f.strategie.plan && (
                 <p style={{ marginTop: 10 }}>📋 Entrée {nb(f.strategie.plan.entree)} ·
                   stop {nb(f.strategie.plan.stop)} · objectif{" "}
@@ -510,6 +514,10 @@ function Verdict({ d, onTitre }) {
               {c.raisons.join(" · ")}
             </p>
           ))}
+          {d.conclusion?.texte && (
+            <p style={{ marginTop: 8 }}>🧭 <strong>Conclusion</strong> —{" "}
+              {d.conclusion.texte}</p>
+          )}
           {d.plan && (
             <p style={{ marginTop: 8 }}>📋 Plan : entrée {nb(d.plan.entree)} ·
               stop {nb(d.plan.stop)} · objectif {nb(d.plan.objectif)} ·
