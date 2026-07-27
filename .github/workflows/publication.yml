@@ -71,7 +71,7 @@ jobs:
         run: |
           git config user.name "marketlab-actions"
           git config user.email "actions@users.noreply.github.com"
-          git add data_local/journal_decisions.csv
+          git add data_local/journal_decisions.csv data_local/poids_appris.json 2>/dev/null || git add data_local/journal_decisions.csv
           if ! git diff --cached --quiet; then
             git commit -m "Journal des décisions du $(date -u +%F)"
             git pull --rebase origin master || true

@@ -179,6 +179,9 @@ def bloc_cot() -> list[dict]:
 
 
 BLOCS = {
+    # le calibrage s'exécute AVANT les verdicts : les dossiers du jour
+    # utilisent aussitôt les pondérations apprises du bilan réel
+    "apprentissage": decision.calibrer,
     "verdicts": bloc_verdicts,
     "cot": bloc_cot,
     "sentiment_marche": sentiment_marche.indice,

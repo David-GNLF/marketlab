@@ -15,6 +15,9 @@ data_local/*
 # (dates, avis, prix — aucun secret) et GitHub Actions doit pouvoir l'enrichir
 # chaque jour puis le committer.
 !data_local/journal_decisions.csv
+# Les pondérations apprises du bilan réel : dérivées du journal, committées
+# par le workflow pour persister d'un runner à l'autre.
+!data_local/poids_appris.json
 
 # --- Environnement et caches ---
 .venv/

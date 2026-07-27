@@ -25,9 +25,12 @@ from marketlab import (config, events, forecast, fundamentals, indicators,
 from marketlab.data import get_ohlcv
 
 JOURNAL = config.DATA_DIR / "journal_decisions.csv"
+POIDS_APPRIS = config.DATA_DIR / "poids_appris.json"
 
-# Pondérations des composantes (renormalisées si une composante est absente —
-# les fondamentaux n'existent pas pour une crypto ou une paire de devises).
+# Pondérations de BASE des composantes (renormalisées si une composante est
+# absente — les fondamentaux n'existent pas pour une crypto ou une devise).
+# Une fois le journal assez fourni, `calibrer()` les ajuste d'après le bilan
+# réel et le résultat prime (voir poids_effectifs()).
 POIDS = {
     "technique": 0.30,
     "prevision": 0.25,
@@ -36,6 +39,27 @@ POIDS = {
     "saisonnalite": 0.05,
     "sentiment": 0.05,
 }
+
+
+def poids_effectifs() -> tuple[dict, dict]:
+    """Pondérations réellement utilisées : apprises si disponibles, base sinon.
+
+    Renvoie (poids, meta) — meta documente la provenance pour l'affichage.
+    """
+    if POIDS_APPRIS.exists():
+        try:
+            import json
+            appris = json.loads(POIDS_APPRIS.read_text(encoding="utf-8"))
+            poids = appris.get("poids", {})
+            if set(poids) == set(POIDS) and abs(sum(poids.values()) - 1) < 0.01:
+                return poids, {"source": "apprise",
+                               "n_evalues": appris.get("n_evalues"),
+                               "lambda": appris.get("lambda"),
+                               "date": appris.get("date")}
+        except Exception:
+            pass
+    return dict(POIDS), {"source": "base",
+                         "detail": "pas encore assez de verdicts évalués"}
 
 MOIS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet",
            "août", "septembre", "octobre", "novembre", "décembre"]
@@ -139,8 +163,9 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
     composantes["saisonnalite"] = _composante_saisonnalite(symbole)
     composantes["sentiment"] = _composante_sentiment(symbole)
 
-    poids_total = sum(POIDS[c] for c in composantes)
-    note_globale = sum(composantes[c]["note"] * POIDS[c]
+    poids, poids_meta = poids_effectifs()
+    poids_total = sum(poids[c] for c in composantes)
+    note_globale = sum(composantes[c]["note"] * poids[c]
                        for c in composantes) / poids_total
 
     # --- vetos et modulateurs (ils priment sur la note) ---
@@ -202,9 +227,10 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
         "concordance_%": round(concordance, 0),
         "taille_multiplicateur": taille,
         "composantes": [
-            {"nom": nom, "poids": POIDS[nom],
+            {"nom": nom, "poids": round(poids[nom], 3),
              "note": round(c["note"], 1), "raisons": c["raisons"]}
             for nom, c in composantes.items()],
+        "ponderation": poids_meta,
         "vetos": vetos,
         "regime": regime,
         "plan": ({k: plan[k] for k in ("entree", "stop", "objectif",
@@ -233,11 +259,22 @@ def verdicts(symboles: list[str] | None = None, horizon: int = 20) -> list[dict]
 # --- Journal et bilan --------------------------------------------------------
 
 def journaliser(dossiers: list[dict]) -> int:
-    """Consigne les verdicts du jour (un par titre et par date, idempotent)."""
-    lignes = [{"date": d["date"], "symbole": d["symbole"], "avis": d["avis"],
-               "note": d["note_globale"], "prix": d["prix"],
-               "horizon": d["horizon"]}
-              for d in dossiers if "erreur" not in d]
+    """Consigne les verdicts du jour (un par titre et par date, idempotent).
+
+    Les notes de CHAQUE composante sont consignées (colonnes c_*) : c'est la
+    matière première de l'apprentissage des pondérations — sans elles, on ne
+    pourrait pas savoir quelle composante avait raison.
+    """
+    lignes = []
+    for d in dossiers:
+        if "erreur" in d:
+            continue
+        ligne = {"date": d["date"], "symbole": d["symbole"], "avis": d["avis"],
+                 "note": d["note_globale"], "prix": d["prix"],
+                 "horizon": d["horizon"]}
+        for c in d.get("composantes", []):
+            ligne[f"c_{c['nom']}"] = c["note"]
+        lignes.append(ligne)
     if not lignes:
         return 0
     nouveau = pd.DataFrame(lignes)
@@ -261,29 +298,11 @@ def bilan() -> dict:
     if not JOURNAL.exists():
         return {"verdicts_evalues": 0,
                 "message": "Aucun verdict journalisé pour l'instant."}
-    journal = pd.read_csv(JOURNAL)
-    journal["date"] = pd.to_datetime(journal["date"])
-
-    evalues = []
-    for symbole, groupe in journal.groupby("symbole"):
-        try:
-            cours = get_ohlcv(symbole)["close"]
-        except Exception:
-            continue
-        for _, ligne in groupe.iterrows():
-            futurs = cours[cours.index > ligne["date"]]
-            if len(futurs) < ligne["horizon"]:
-                continue  # horizon pas encore écoulé
-            realise = float(futurs.iloc[int(ligne["horizon"]) - 1]
-                            / ligne["prix"] - 1) * 100
-            evalues.append({**ligne.to_dict(), "rendement_reel_%": realise})
-
-    if not evalues:
+    df = _evaluer_journal()
+    if df.empty:
         return {"verdicts_evalues": 0,
                 "message": "Aucun verdict n'a encore atteint son horizon — "
                            "le bilan se remplira avec le temps."}
-
-    df = pd.DataFrame(evalues)
     par_avis = []
     for avis, groupe in df.groupby("avis"):
         r = groupe["rendement_reel_%"]
@@ -305,3 +324,122 @@ def bilan() -> dict:
                     "Tant que « Favorable » ne bat pas « Défavorable » sur la "
                     "durée, traiter les verdicts avec prudence."),
     }
+
+
+def _evaluer_journal() -> pd.DataFrame:
+    """Verdicts arrivés à leur horizon, avec le rendement réellement advenu.
+
+    Conserve toutes les colonnes du journal — dont les notes c_* par
+    composante, matière première de l'apprentissage des pondérations.
+    """
+    if not JOURNAL.exists():
+        return pd.DataFrame()
+    journal = pd.read_csv(JOURNAL)
+    journal["date"] = pd.to_datetime(journal["date"])
+
+    evalues = []
+    for symbole, groupe in journal.groupby("symbole"):
+        try:
+            cours = get_ohlcv(symbole)["close"]
+        except Exception:
+            continue
+        for _, ligne in groupe.iterrows():
+            futurs = cours[cours.index > ligne["date"]]
+            if len(futurs) < ligne["horizon"]:
+                continue  # horizon pas encore écoulé
+            realise = float(futurs.iloc[int(ligne["horizon"]) - 1]
+                            / ligne["prix"] - 1) * 100
+            evalues.append({**ligne.to_dict(), "rendement_reel_%": realise})
+    return pd.DataFrame(evalues)
+
+
+# --- Apprentissage des pondérations ------------------------------------------
+
+def _calculer_poids(df_evalues: pd.DataFrame, poids_base: dict | None = None,
+                    lam_max: float = 0.5, min_par_composante: int = 30,
+                    min_total: int = 60) -> dict:
+    """Le calcul pur : du journal évalué aux pondérations ajustées.
+
+    Méthode, volontairement conservatrice :
+    - chaque composante est jugée par l'IC de Spearman entre ses notes au
+      moment du verdict et les rendements réellement advenus ;
+    - seule la part POSITIVE de l'IC compte (une composante anti-corrélée ne
+      reçoit pas un poids négatif : elle tombe vers le plancher) ;
+    - le mélange est progressif : poids = (1−λ)·base + λ·performance, avec
+      λ = min(lam_max, n/400). À 60 verdicts, λ≈0,15 ; il faut 200 verdicts
+      pour atteindre la demi-influence. L'outil ne retourne pas sa veste sur
+      un petit échantillon ;
+    - plancher de 2 % par composante : aucune n'est jamais réduite au silence,
+      pour qu'elle puisse se racheter dans le bilan futur.
+    """
+    poids_base = poids_base or POIDS
+    n = len(df_evalues)
+    rapport = {"n_evalues": int(n), "ic_par_composante": {}, "poids": None}
+    if n < min_total:
+        rapport["statut"] = (f"échantillon insuffisant ({n} verdicts évalués, "
+                             f"minimum {min_total}) : pondérations de base "
+                             "conservées")
+        return rapport
+
+    rendement = df_evalues["rendement_reel_%"]
+    ics = {}
+    for nom in poids_base:
+        colonne = f"c_{nom}"
+        if colonne not in df_evalues.columns:
+            continue
+        paires = df_evalues[[colonne]].join(rendement).dropna()
+        if len(paires) < min_par_composante:
+            rapport["ic_par_composante"][nom] = {
+                "ic": None, "n": len(paires),
+                "note": "trop peu de données, poids de base conservé"}
+            continue
+        ic = float(paires[colonne].rank().corr(
+            paires["rendement_reel_%"].rank()))
+        ics[nom] = ic
+        rapport["ic_par_composante"][nom] = {"ic": round(ic, 3),
+                                             "n": int(len(paires))}
+
+    if len(ics) < 3:
+        rapport["statut"] = ("moins de 3 composantes mesurables : "
+                             "pondérations de base conservées")
+        return rapport
+
+    # performance : part positive de l'IC, plancher epsilon
+    perf = {nom: max(ics.get(nom, 0.0), 0.0) + 0.01 for nom in poids_base}
+    total_perf = sum(perf.values())
+    perf = {nom: v / total_perf for nom, v in perf.items()}
+
+    lam = min(lam_max, n / 400)
+    melange = {nom: (1 - lam) * poids_base[nom] + lam * perf[nom]
+               for nom in poids_base}
+    # plancher 2 % puis renormalisation
+    melange = {nom: max(v, 0.02) for nom, v in melange.items()}
+    total = sum(melange.values())
+    rapport["poids"] = {nom: round(v / total, 4) for nom, v in melange.items()}
+    rapport["lambda"] = round(lam, 3)
+    rapport["statut"] = (f"pondérations ajustées sur {n} verdicts évalués "
+                         f"(influence de l'apprentissage : {lam * 100:.0f} %)")
+    return rapport
+
+
+def calibrer() -> dict:
+    """Ré-étalonne les pondérations d'après le bilan réel et les persiste.
+
+    À exécuter avant la génération des verdicts du jour : les nouveaux
+    dossiers utilisent aussitôt les poids appris (via poids_effectifs()).
+    """
+    import json
+    df = _evaluer_journal()
+    rapport = _calculer_poids(df)
+    rapport["date"] = pd.Timestamp.utcnow().strftime("%Y-%m-%d %H:%M")
+    rapport["poids_base"] = POIDS
+    rapport["methode"] = (
+        "IC de Spearman entre la note de chaque composante au moment du "
+        "verdict et le rendement réellement advenu à l'horizon ; mélange "
+        "progressif (1−λ)·base + λ·performance, λ = min(0,5, n/400) ; "
+        "plancher 2 % par composante.")
+    if rapport["poids"]:
+        POIDS_APPRIS.parent.mkdir(parents=True, exist_ok=True)
+        POIDS_APPRIS.write_text(
+            json.dumps(rapport, ensure_ascii=False, indent=1), encoding="utf-8")
+    return rapport

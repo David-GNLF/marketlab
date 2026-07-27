@@ -520,6 +520,7 @@ function Verdict({ d, onTitre }) {
 
 function PageDecisions({ onTitre }) {
   const { donnees, erreur } = useDonnees(api.getVerdicts);
+  const app = useDonnees(api.getApprentissage);
   if (!donnees) return <Chargement erreur={erreur} />;
   const dossiers = [...(donnees.dossiers ?? [])].sort(
     (a, b) => (b.note_globale ?? -999) - (a.note_globale ?? -999));
@@ -539,6 +540,23 @@ function PageDecisions({ onTitre }) {
           <p className="note">{bilan?.message ?? "Bilan indisponible."} Chaque
             verdict est journalisé automatiquement : ce tableau mesurera le taux
             de réussite réel de l'outil, avis par avis.</p>
+        )}
+        {app.donnees && (
+          <>
+            <h4 style={{ marginBottom: 4 }}>Pondérations du verdict —
+              apprises du bilan réel</h4>
+            <p className="note">{app.donnees.statut}</p>
+            {app.donnees.poids && (
+              <Table lignes={Object.keys(app.donnees.poids_base).map((nom) => ({
+                composante: nom,
+                "poids de base": app.donnees.poids_base[nom],
+                "poids actuel": app.donnees.poids[nom],
+                "IC mesuré": app.donnees.ic_par_composante?.[nom]?.ic ?? "—",
+                n: app.donnees.ic_par_composante?.[nom]?.n ?? "—",
+              }))} />
+            )}
+            <p className="note">{app.donnees.methode}</p>
+          </>
         )}
       </div>
       {dossiers.map((d) => (
