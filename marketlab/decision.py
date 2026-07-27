@@ -417,7 +417,9 @@ def _evaluer_journal() -> pd.DataFrame:
     evalues = []
     for symbole, groupe in journal.groupby("symbole"):
         try:
-            cours = get_ohlcv(symbole)["close"]
+            # 1200 jours : il faut pouvoir évaluer des verdicts rétro-journalisés
+            # jusqu'à 2 ans en arrière, plus leur horizon
+            cours = get_ohlcv(symbole, lookback_days=1200)["close"]
         except Exception:
             continue
         for _, ligne in groupe.iterrows():

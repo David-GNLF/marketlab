@@ -1,0 +1,58 @@
+{
+ "n_evalues": 3231,
+ "ic_par_composante": {
+  "technique": {
+   "ic": -0.017,
+   "n": 3231
+  },
+  "prevision": {
+   "ic": 0.023,
+   "n": 3231
+  },
+  "analogues": {
+   "ic": 0.005,
+   "n": 3231
+  },
+  "fondamentaux": {
+   "ic": null,
+   "n": 0,
+   "note": "trop peu de données, poids de base conservé"
+  },
+  "moteurs": {
+   "ic": 0.016,
+   "n": 908
+  },
+  "saisonnalite": {
+   "ic": null,
+   "n": 0,
+   "note": "trop peu de données, poids de base conservé"
+  },
+  "sentiment": {
+   "ic": null,
+   "n": 0,
+   "note": "trop peu de données, poids de base conservé"
+  }
+ },
+ "poids": {
+  "technique": 0.1689,
+  "prevision": 0.2426,
+  "analogues": 0.1415,
+  "fondamentaux": 0.1189,
+  "moteurs": 0.1905,
+  "saisonnalite": 0.0689,
+  "sentiment": 0.0689
+ },
+ "lambda": 0.5,
+ "statut": "pondérations ajustées sur 3231 verdicts évalués (influence de l'apprentissage : 50 %)",
+ "date": "2026-07-27 07:50",
+ "poids_base": {
+  "technique": 0.25,
+  "prevision": 0.2,
+  "analogues": 0.15,
+  "fondamentaux": 0.15,
+  "moteurs": 0.15,
+  "saisonnalite": 0.05,
+  "sentiment": 0.05
+ },
+ "methode": "IC de Spearman entre la note de chaque composante au moment du verdict et le rendement réellement advenu à l'horizon ; mélange progressif (1−λ)·base + λ·performance, λ = min(0,5, n/400) ; plancher 2 % par composante."
+}
