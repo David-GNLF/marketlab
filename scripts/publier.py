@@ -29,6 +29,8 @@ def main() -> int:
                         help="limiter à certains blocs (screener, macro, …)")
     parser.add_argument("--titres", nargs="*", default=None,
                         help="limiter les fiches à ces symboles")
+    parser.add_argument("--sans-purge", action="store_true",
+                        help="ne pas effacer les bundles orphelins de assets/")
     args = parser.parse_args()
 
     if args.tester:
@@ -59,12 +61,22 @@ def main() -> int:
 
     print("\n== Publication FTPS ==")
     try:
-        bilan = ftps.publier()
+        bilan = ftps.publier(purger=not args.sans_purge)
     except Exception as exc:
         print(f"ECHEC : {exc}")
         return 1
     print(f"  {bilan['envoyes']} fichier(s) envoyé(s), "
           f"{bilan['inchanges']} inchangé(s) -> {bilan['destination']}")
+    purge = bilan.get("purge")
+    if purge:
+        if purge["abandon"]:
+            print(f"  purge assets/ non effectuée : {purge['abandon']}")
+        else:
+            print(f"  purge assets/ : {len(purge['supprimes'])} orphelin(s) "
+                  f"supprimé(s) ({purge['octets_liberes'] / 1e6:.1f} Mo), "
+                  f"{len(purge['conserves'])} conservé(s) en sursis")
+        for fichier, message in purge["echecs"].items():
+            print(f"    - suppression impossible : {fichier} : {message}")
     if bilan["echecs"]:
         print(f"  {len(bilan['echecs'])} échec(s) :")
         for fichier, message in list(bilan["echecs"].items())[:10]:

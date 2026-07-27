@@ -14,16 +14,39 @@ Configuration : `data_local/cpanel.json` (jamais versionné) —
 
 Le transfert est **différentiel** : seuls les fichiers dont la taille diffère
 sont renvoyés, ce qui évite de retransmettre le front à chaque publication.
+
+Il ne supprime rien non plus, sauf dans `assets/` : Vite y met une empreinte du
+contenu dans le nom du bundle, si bien qu'un fichier orphelin s'y accumule à
+chaque publication. La purge (voir `purger_assets`) y efface les .js/.css que
+le `index.html` publié ne référence plus — en gardant la génération
+précédente, pour les navigateurs qui ont encore l'ancien index.html en cache.
+Aucun autre dossier distant (donnees/, trading/, admin/, acces/, cache/…)
+n'est jamais touché.
 """
 
 import ftplib
 import json
 import os
+import re
+from datetime import datetime
 from pathlib import Path
 
 from marketlab import config
 
 CONFIG_PATH = config.DATA_DIR / "cpanel.json"
+
+# Extensions purgeables : uniquement les bundles versionnés par empreinte.
+# Tout le reste (polices, images, fichiers déposés à la main) est conservé.
+EXTENSIONS_PURGEABLES = (".js", ".css", ".map")
+
+# Deux fichiers envoyés au cours d'une même publication ont des dates de
+# modification distantes très proches. Cette fenêtre les regroupe en une
+# « génération », pour conserver le bundle précédent d'un seul tenant.
+FENETRE_GENERATION_S = 3600
+
+# Référence à un fichier de assets/ dans le index.html : src=, href=, import(),
+# preload… tous passent par la même sous-chaîne « assets/<nom> ».
+_MOTIF_ASSET = re.compile(r"assets/([A-Za-z0-9][A-Za-z0-9._-]*)")
 
 
 def charger_config() -> dict:
@@ -95,7 +118,149 @@ def _tailles_distantes(session: ftplib.FTP_TLS, dossier: str) -> dict[str, int]:
     return tailles
 
 
-def publier(dossier_local: Path | None = None, verbeux: bool = True) -> dict:
+def _lister_assets(session: ftplib.FTP_TLS, dossier: str) -> dict[str, dict]:
+    """Fichiers présents dans le `assets/` distant, avec leur date distante.
+
+    Volontairement non récursif : la purge ne descend pas dans d'éventuels
+    sous-dossiers, elle ne traite que les bundles posés à plat par Vite.
+    """
+    fichiers: dict[str, dict] = {}
+    try:
+        elements = list(session.mlsd(dossier))
+    except (ftplib.error_perm, ftplib.error_temp):
+        return fichiers
+    for nom, faits in elements:
+        if nom in (".", "..") or faits.get("type") != "file":
+            continue
+        modifie = None
+        brut = faits.get("modify")
+        if brut:
+            try:
+                modifie = datetime.strptime(brut[:14], "%Y%m%d%H%M%S")
+            except ValueError:
+                modifie = None
+        fichiers[nom] = {"taille": int(faits.get("size", -1)),
+                         "modifie": modifie}
+    return fichiers
+
+
+def _assets_references(dossier_local: Path) -> set[str]:
+    """Noms de `assets/` que le site publié utilise réellement.
+
+    Deux sources cumulées : le `index.html` qui vient d'être envoyé (c'est lui
+    qui fait foi côté navigateur) et le contenu local de `assets/`, qui est
+    reconstruit à neuf à chaque build. La seconde couvre les fichiers qu'un
+    éventuel découpage en morceaux (code splitting) chargerait depuis le
+    bundle plutôt que depuis le HTML.
+    """
+    references: set[str] = set()
+
+    index = dossier_local / "index.html"
+    if index.exists():
+        references |= set(_MOTIF_ASSET.findall(
+            index.read_text(encoding="utf-8", errors="replace")))
+
+    dossier_assets = dossier_local / "assets"
+    if dossier_assets.is_dir():
+        references |= {p.name for p in dossier_assets.iterdir() if p.is_file()}
+
+    return references
+
+
+def _generation_precedente(candidats: list[str],
+                           distants: dict[str, dict]) -> set[str]:
+    """Sursis accordé au bundle de la publication précédente.
+
+    Les orphelins les plus récents (à une heure près) sont ceux du dernier
+    déploiement : un navigateur qui a encore l'ancien index.html en cache les
+    réclame toujours.
+
+    Le sursis se calcule **par extension**, car les dates distantes ne sont pas
+    comparables d'un type à l'autre : le transfert différentiel ne renvoie pas
+    une feuille de style inchangée d'un build à l'autre, si bien que la date
+    d'un .css traîne loin derrière celle du .js de la même génération. Une
+    fenêtre unique effacerait ce .css tout en gardant son .js — et la page
+    reviendrait sans style chez qui a l'ancien index.html en cache.
+
+    Un fichier dont le serveur ne donne pas la date est conservé par principe.
+    """
+    sursis = {n for n in candidats if distants[n]["modifie"] is None}
+
+    par_extension: dict[str, list[str]] = {}
+    for nom in candidats:
+        if distants[nom]["modifie"] is not None:
+            par_extension.setdefault(Path(nom).suffix.lower(), []).append(nom)
+
+    for noms in par_extension.values():
+        plus_recent = max(distants[n]["modifie"] for n in noms)
+        sursis |= {n for n in noms
+                   if (plus_recent - distants[n]["modifie"]).total_seconds()
+                   <= FENETRE_GENERATION_S}
+    return sursis
+
+
+def purger_assets(session: ftplib.FTP_TLS, base: str, dossier_local: Path,
+                  verbeux: bool = True) -> dict:
+    """Efface les bundles orphelins du `assets/` distant. Renvoie le bilan.
+
+    La purge s'abstient au moindre doute : pas de référence lisible, ou bundle
+    courant introuvable côté serveur (transfert incomplet), et rien n'est
+    supprimé — mieux vaut laisser grossir le dossier que casser le site.
+    """
+    bilan: dict = {"supprimes": [], "conserves": [], "echecs": {},
+                   "octets_liberes": 0, "abandon": None}
+
+    references = _assets_references(dossier_local)
+    if not references:
+        bilan["abandon"] = ("aucune référence d'asset lisible dans "
+                            f"{dossier_local / 'index.html'}")
+        return bilan
+
+    distants = _lister_assets(session, f"{base}/assets")
+    if not distants:
+        bilan["abandon"] = f"{base}/assets illisible ou vide"
+        return bilan
+
+    manquants = sorted(n for n in references
+                       if n.lower().endswith(EXTENSIONS_PURGEABLES)
+                       and n not in distants)
+    if manquants:
+        bilan["abandon"] = ("bundle courant absent du serveur "
+                            f"({', '.join(manquants)}) — transfert incomplet ?")
+        return bilan
+
+    candidats = sorted(n for n in distants
+                       if n.lower().endswith(EXTENSIONS_PURGEABLES)
+                       and n not in references)
+    sursis = _generation_precedente(candidats, distants)
+    bilan["conserves"] = sorted(sursis)
+
+    for nom in candidats:
+        if nom in sursis:
+            if verbeux:
+                print(f"  conservé (génération précédente)  assets/{nom}",
+                      flush=True)
+            continue
+        try:
+            session.delete(f"{base}/assets/{nom}")
+        except ftplib.all_errors as exc:
+            bilan["echecs"][nom] = str(exc)[:100]
+            if verbeux:
+                print(f"  ECHEC purge  assets/{nom} : {str(exc)[:80]}",
+                      flush=True)
+            continue
+        bilan["supprimes"].append(nom)
+        taille = distants[nom]["taille"]
+        if taille > 0:
+            bilan["octets_liberes"] += taille
+        if verbeux:
+            print(f"  purgé   assets/{nom}", flush=True)
+
+    return bilan
+
+
+def publier(dossier_local: Path | None = None, verbeux: bool = True,
+            purger: bool = True) -> dict:
     """Envoie le contenu de `site/` vers l'hébergement. Renvoie le bilan."""
     dossier_local = Path(dossier_local or (config.ROOT / "site"))
     if not dossier_local.exists():
@@ -110,6 +275,7 @@ def publier(dossier_local: Path | None = None, verbeux: bool = True) -> dict:
 
     session = _connecter(cfg)
     envoyes, ignores, echecs = [], [], {}
+    purge: dict | None = None
     try:
         _assurer_dossier(session, base)
         distants = _tailles_distantes(session, base)
@@ -141,6 +307,13 @@ def publier(dossier_local: Path | None = None, verbeux: bool = True) -> dict:
                 echecs[relatif] = str(exc)[:100]
                 if verbeux:
                     print(f"  ECHEC   {relatif} : {str(exc)[:80]}", flush=True)
+
+        if purger and not echecs:
+            purge = purger_assets(session, base, dossier_local, verbeux)
+        elif purger:
+            purge = {"supprimes": [], "conserves": [], "echecs": {},
+                     "octets_liberes": 0,
+                     "abandon": "transfert incomplet (échecs d'envoi)"}
     finally:
         try:
             session.quit()
@@ -148,7 +321,8 @@ def publier(dossier_local: Path | None = None, verbeux: bool = True) -> dict:
             session.close()
 
     return {"envoyes": len(envoyes), "inchanges": len(ignores),
-            "echecs": echecs, "destination": f"{cfg['hote']}:{base}"}
+            "echecs": echecs, "destination": f"{cfg['hote']}:{base}",
+            "purge": purge}
 
 
 def tester_connexion() -> dict:
