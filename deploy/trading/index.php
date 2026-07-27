@@ -1,13 +1,17 @@
 <?php
 /**
- * MarketLab — environnement de trading virtuel avec levier.
+ * MarketLab — environnement de trading virtuel avec levier (v2, façon XM).
  *
- * Capital de départ 1 000 $ virtuels par compte. Ordres long/short avec
- * levier 1-20, stop et objectif optionnels. Exécution au DERNIER COURS
- * PUBLIÉ par le site (donnees/titres/*.json) : pas de flux temps réel, et
- * c'est assumé — l'environnement sert à juger des décisions à l'échelle de
- * jours, pas à scalper. Les stops/objectifs/liquidations sont appliqués par
- * le robot quotidien sur les extrêmes de séance.
+ * Capital de départ 1 000 $ virtuels par compte. Ordres au marché, limite et
+ * stop, levier 1-20, stop/objectif modifiables sur position ouverte, tableau
+ * de bord de marge (équité, marge utilisée, marge libre, niveau de marge) et
+ * espace « Mon compte » (levier par défaut, mot de passe, remise à zéro).
+ *
+ * Exécution au DERNIER COURS PUBLIÉ par le site (donnees/titres/*.json) :
+ * pas de flux temps réel, et c'est assumé — l'environnement sert à juger des
+ * décisions à l'échelle de jours, pas à scalper. Les ordres en attente,
+ * stops, objectifs et liquidations sont appliqués par le robot quotidien sur
+ * les extrêmes de séance.
  *
  * Un fichier JSON par compte (trading/comptes/<nom>.json) : le robot
  * n'écrit que le sien, cette page n'écrit que celui de l'utilisateur
@@ -60,13 +64,31 @@ function actifs_disponibles(): array {
     return $liste;
 }
 
-function dernier_cours(string $symbole): ?array {
+function fiche_titre(string $symbole): ?array {
+    static $cache = [];
+    if (array_key_exists($symbole, $cache)) return $cache[$symbole];
     $f = DOSSIER_DONNEES . '/titres/' . $symbole . '.json';
-    if (!is_file($f)) return null;
+    if (!is_file($f)) return $cache[$symbole] = null;
     $d = json_decode((string)file_get_contents($f), true);
     $prix = $d['signaux']['close'] ?? null;
-    return $prix ? ['prix' => (float)$prix,
-                    'nom' => $d['nom'] ?? $symbole] : null;
+    if (!$prix) return $cache[$symbole] = null;
+    $var = null;
+    $hist = $d['historique'] ?? [];
+    $n = count($hist);
+    if ($n >= 2 && !empty($hist[$n - 2]['close'])) {
+        $var = ((float)$hist[$n - 1]['close'] / (float)$hist[$n - 2]['close']
+                - 1) * 100;
+    }
+    return $cache[$symbole] = [
+        'prix' => (float)$prix,
+        'nom' => $d['nom'] ?? $symbole,
+        'avis' => $d['signaux']['avis'] ?? null,
+        'var_pct' => $var,
+    ];
+}
+
+function dernier_cours(string $symbole): ?array {
+    return fiche_titre($symbole);
 }
 
 function date_donnees(): string {
@@ -87,13 +109,35 @@ function pnl_position(array $p, float $prix): float {
     return ($prix - $p['prix_entree']) * $p['quantite'] * $sens;
 }
 
-function equite(array $compte): float {
-    $total = $compte['solde'];
-    foreach ($compte['positions'] as $p) {
+function prix_liquidation(array $p): float {
+    $sens = $p['sens'] === 'long' ? 1 : -1;
+    return $p['prix_entree'] - $sens * $p['prix_entree'] / max($p['levier'], 1);
+}
+
+function marge_utilisee(array $compte): float {
+    return array_sum(array_map(fn($p) => (float)$p['marge'],
+                     $compte['positions'] ?? []));
+}
+
+function marge_reservee(array $compte): float {
+    return array_sum(array_map(fn($o) => (float)$o['marge'],
+                     $compte['ordres'] ?? []));
+}
+
+function pnl_flottant(array $compte): float {
+    $total = 0.0;
+    foreach ($compte['positions'] ?? [] as $p) {
         $c = dernier_cours($p['symbole']);
-        $total += $p['marge'] + ($c ? pnl_position($p, $c['prix']) : 0);
+        if ($c) $total += pnl_position($p, $c['prix']);
     }
     return $total;
+}
+
+/** Équité = cash + marge réservée des ordres en attente + marges engagées
+ *  + P&L latent — la même définition que le robot et le panneau admin. */
+function equite(array $compte): float {
+    return $compte['solde'] + marge_reservee($compte)
+        + marge_utilisee($compte) + pnl_flottant($compte);
 }
 
 // ------------------------------------------------------------------- actions
@@ -117,7 +161,8 @@ if ($action === 'inscription') {
         ecrire_compte($nom, [
             'nom' => $nom, 'mdp' => password_hash($mdp, PASSWORD_BCRYPT),
             'capital_initial' => CAPITAL_DEPART, 'solde' => CAPITAL_DEPART,
-            'positions' => [], 'historique' => [],
+            'positions' => [], 'ordres' => [], 'historique' => [],
+            'levier_defaut' => 3,
             'equity' => [[date('Y-m-d H:i'), CAPITAL_DEPART]],
             'cree_le' => date('Y-m-d H:i'),
         ]);
@@ -146,32 +191,77 @@ if ($action === 'deconnexion') {
     exit;
 }
 
-if ($connecte && in_array($action, ['ouvrir', 'fermer'], true)) {
+$actions_protegees = ['ouvrir', 'fermer', 'modifier', 'annuler_ordre',
+                      'preferences', 'mdp', 'raz'];
+if ($connecte && in_array($action, $actions_protegees, true)) {
     if (!hash_equals($_SESSION['csrf_t'] ?? '', $_POST['csrf'] ?? '§')) {
         $message = ['erreur', 'Session expirée — recharger la page.'];
     } else {
         $compte = lire_compte($connecte);
+        $compte['ordres'] = $compte['ordres'] ?? [];
 
         if ($action === 'ouvrir') {
             $symbole = $_POST['symbole'] ?? '';
             $sens = $_POST['sens'] === 'short' ? 'short' : 'long';
+            $type = in_array($_POST['type_ordre'] ?? 'marche',
+                             ['marche', 'limite', 'stop'], true)
+                ? $_POST['type_ordre'] : 'marche';
             $mise = (float)($_POST['mise'] ?? 0);
             $levier = max(1, min(LEVIER_MAX, (int)($_POST['levier'] ?? 1)));
             $stop = (float)($_POST['stop'] ?? 0) ?: null;
             $objectif = (float)($_POST['objectif'] ?? 0) ?: null;
+            $prix_ordre = (float)($_POST['prix_ordre'] ?? 0) ?: null;
             $cours = dernier_cours($symbole);
+            $s = $sens === 'long' ? 1 : -1;
+            // pour un ordre en attente, stop/objectif se jugent par rapport
+            // au prix d'exécution demandé, pas au cours actuel
+            $ref = $type === 'marche' ? ($cours['prix'] ?? 0.0) : ($prix_ordre ?? 0.0);
 
             if (!$cours) {
                 $message = ['erreur', 'Actif inconnu.'];
             } elseif ($mise < MISE_MIN || $mise > $compte['solde']) {
                 $message = ['erreur', 'Mise invalide (min ' . MISE_MIN
                     . ' $, max solde disponible ' . round($compte['solde'], 2) . ' $).'];
-            } elseif ($stop !== null && (($sens === 'long' && $stop >= $cours['prix'])
-                       || ($sens === 'short' && $stop <= $cours['prix']))) {
+            } elseif ($type !== 'marche' && !$prix_ordre) {
+                $message = ['erreur', "Un ordre $type demande un prix de "
+                    . 'déclenchement.'];
+            } elseif ($type === 'limite' && $s * $prix_ordre >= $s * $cours['prix']) {
+                $message = ['erreur', $sens === 'long'
+                    ? 'Un achat limite se place SOUS le cours actuel '
+                      . '(acheter moins cher). Pour acheter au-dessus, '
+                      . 'utiliser un ordre stop.'
+                    : 'Une vente limite se place AU-DESSUS du cours actuel. '
+                      . 'Pour vendre en dessous, utiliser un ordre stop.'];
+            } elseif ($type === 'stop' && $s * $prix_ordre <= $s * $cours['prix']) {
+                $message = ['erreur', $sens === 'long'
+                    ? 'Un achat stop se place AU-DESSUS du cours actuel '
+                      . '(entrer sur cassure). Pour acheter en dessous, '
+                      . 'utiliser un ordre limite.'
+                    : 'Une vente stop se place SOUS le cours actuel.'];
+            } elseif ($stop !== null && $s * $stop >= $s * $ref) {
                 $message = ['erreur', 'Stop du mauvais côté du prix.'];
+            } elseif ($objectif !== null && $s * $objectif <= $s * $ref) {
+                $message = ['erreur', 'Objectif du mauvais côté du prix.'];
+            } elseif ($type !== 'marche') {
+                // ordre en attente : la mise est réservée immédiatement,
+                // l'exécution est vérifiée chaque soir sur haut/bas de séance
+                $compte['solde'] -= $mise;
+                $compte['ordres'][] = [
+                    'id' => substr(bin2hex(random_bytes(4)), 0, 8),
+                    'symbole' => $symbole, 'sens' => $sens, 'type' => $type,
+                    'prix' => $prix_ordre, 'marge' => $mise, 'levier' => $levier,
+                    'stop' => $stop, 'objectif' => $objectif,
+                    'cree_le' => date('Y-m-d H:i'), 'source' => 'manuel',
+                ];
+                $message = ecrire_compte($connecte, $compte)
+                    ? ['ok', 'Ordre ' . strtoupper($type) . ' '
+                       . strtoupper($sens) . " $symbole placé @ $prix_ordre "
+                       . "(mise $mise $ réservée × levier $levier). Il sera "
+                       . 'exécuté dès que la séance touche ce prix — '
+                       . 'vérification chaque soir.']
+                    : ['erreur', 'Écriture du compte impossible.'];
             } else {
-                $prix = $cours['prix'] * (1 + ($sens === 'long' ? 1 : -1)
-                        * SPREAD_PCT / 100);   // spread simulé défavorable
+                $prix = $cours['prix'] * (1 + $s * SPREAD_PCT / 100);
                 $notionnel = $mise * $levier;
                 $compte['solde'] -= $mise;
                 $compte['positions'][] = [
@@ -220,12 +310,91 @@ if ($connecte && in_array($action, ['ouvrir', 'fermer'], true)) {
                     : ['erreur', 'Écriture impossible.'];
                 break;
             }
+        } elseif ($action === 'modifier') {
+            $id = $_POST['id'] ?? '';
+            $stop = (float)($_POST['stop'] ?? 0) ?: null;
+            $objectif = (float)($_POST['objectif'] ?? 0) ?: null;
+            foreach ($compte['positions'] as $i => $p) {
+                if ($p['id'] !== $id) continue;
+                $cours = dernier_cours($p['symbole']);
+                $s = $p['sens'] === 'long' ? 1 : -1;
+                // le stop se juge par rapport au cours ACTUEL : il doit rester
+                // du côté perdant, l'objectif du côté gagnant
+                if ($cours && $stop !== null && $s * $stop >= $s * $cours['prix']) {
+                    $message = ['erreur', 'Stop du mauvais côté du cours actuel ('
+                        . round($cours['prix'], 4) . ').'];
+                } elseif ($cours && $objectif !== null
+                          && $s * $objectif <= $s * $cours['prix']) {
+                    $message = ['erreur', 'Objectif du mauvais côté du cours actuel ('
+                        . round($cours['prix'], 4) . ').'];
+                } else {
+                    $compte['positions'][$i]['stop'] = $stop;
+                    $compte['positions'][$i]['objectif'] = $objectif;
+                    $message = ecrire_compte($connecte, $compte)
+                        ? ['ok', "{$p['symbole']} : stop "
+                           . ($stop ?? 'retiré') . ', objectif '
+                           . ($objectif ?? 'retiré') . '.']
+                        : ['erreur', 'Écriture impossible.'];
+                }
+                break;
+            }
+        } elseif ($action === 'annuler_ordre') {
+            $id = $_POST['id'] ?? '';
+            foreach ($compte['ordres'] as $i => $o) {
+                if ($o['id'] !== $id) continue;
+                $compte['solde'] += $o['marge'];   // la réservation est rendue
+                unset($compte['ordres'][$i]);
+                $compte['ordres'] = array_values($compte['ordres']);
+                $message = ecrire_compte($connecte, $compte)
+                    ? ['ok', "Ordre {$o['symbole']} annulé — {$o['marge']} $ "
+                       . 'rendus au solde.']
+                    : ['erreur', 'Écriture impossible.'];
+                break;
+            }
+        } elseif ($action === 'preferences') {
+            $compte['levier_defaut'] = max(1, min(LEVIER_MAX,
+                (int)($_POST['levier_defaut'] ?? 3)));
+            $message = ecrire_compte($connecte, $compte)
+                ? ['ok', 'Levier par défaut : ×' . $compte['levier_defaut']
+                   . ' (pré-rempli dans le ticket d\'ordre).']
+                : ['erreur', 'Écriture impossible.'];
+        } elseif ($action === 'mdp') {
+            $actuel = $_POST['mdp_actuel'] ?? '';
+            $nouveau = $_POST['mdp_nouveau'] ?? '';
+            if (!password_verify($actuel, $compte['mdp'] ?? '')) {
+                $message = ['erreur', 'Mot de passe actuel incorrect.'];
+            } elseif (strlen($nouveau) < 8) {
+                $message = ['erreur', 'Nouveau mot de passe : 8 caractères minimum.'];
+            } else {
+                $compte['mdp'] = password_hash($nouveau, PASSWORD_BCRYPT);
+                $message = ecrire_compte($connecte, $compte)
+                    ? ['ok', 'Mot de passe changé.']
+                    : ['erreur', 'Écriture impossible.'];
+            }
+        } elseif ($action === 'raz') {
+            if (($_POST['confirmation'] ?? '') !== 'RAZ') {
+                $message = ['erreur', 'Pour confirmer, taper RAZ dans le champ.'];
+            } else {
+                $compte['solde'] = CAPITAL_DEPART;
+                $compte['capital_initial'] = CAPITAL_DEPART;
+                $compte['positions'] = [];
+                $compte['ordres'] = [];
+                $compte['historique'] = [];
+                $compte['equity'] = [[date('Y-m-d H:i'), CAPITAL_DEPART]];
+                $message = ecrire_compte($connecte, $compte)
+                    ? ['ok', 'Compte remis à ' . CAPITAL_DEPART . ' $ — '
+                       . 'positions, ordres et historique effacés.']
+                    : ['erreur', 'Écriture impossible.'];
+            }
         }
     }
 }
 
 $compte = $connecte ? lire_compte($connecte) : null;
+if ($compte) $compte['ordres'] = $compte['ordres'] ?? [];
 $actifs = actifs_disponibles();
+$symbole_choisi = $_GET['s'] ?? '';
+if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
 ?>
 <!doctype html>
 <html lang="fr">
@@ -237,7 +406,7 @@ $actifs = actifs_disponibles();
 <style>
   :root { color-scheme: light dark; }
   body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-         max-width: 860px; margin: 24px auto; padding: 0 16px;
+         max-width: 1080px; margin: 24px auto; padding: 0 16px;
          background: Canvas; color: CanvasText; }
   h1 { font-size: 20px; } h2 { font-size: 15px; margin: 20px 0 8px; }
   .carte { border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
@@ -249,6 +418,9 @@ $actifs = actifs_disponibles();
   button { cursor: pointer; background: #2a78d6; color: #fff; border: none;
            margin-top: 10px; }
   button.danger { background: #d03b3b; }
+  button.sobre { background: transparent; border: 1px solid
+    color-mix(in srgb, CanvasText 30%, transparent); color: CanvasText;
+    padding: 4px 8px; font-size: 12px; margin: 0; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   td, th { text-align: left; padding: 6px 4px; border-bottom:
            1px solid color-mix(in srgb, CanvasText 12%, transparent); }
@@ -259,6 +431,19 @@ $actifs = actifs_disponibles();
   .tuile .l { font-size: 12px; opacity: .65; }
   .tuile .v { font-size: 20px; font-weight: 600; }
   .pos { color: #0a7a0a; } .neg { color: #d03b3b; }
+  nav.ancres { display: flex; gap: 4px; flex-wrap: wrap; margin: 10px 0;
+    border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
+    padding-bottom: 8px; }
+  nav.ancres a { text-decoration: none; color: CanvasText; font-size: 13px;
+    padding: 5px 10px; border-radius: 6px;
+    background: color-mix(in srgb, CanvasText 7%, transparent); }
+  details.modif summary { cursor: pointer; font-size: 12px; opacity: .75; }
+  .defile { overflow-x: auto; }
+  #recap-ticket { font-size: 13px; background:
+    color-mix(in srgb, CanvasText 6%, transparent); border-radius: 6px;
+    padding: 10px 12px; margin-top: 10px; line-height: 1.6; }
+  .avis-achat { color: #0a7a0a; font-weight: 600; }
+  .avis-vente { color: #d03b3b; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -266,9 +451,11 @@ $actifs = actifs_disponibles();
 <p class="note">Argent 100 % virtuel — 1 000 $ de départ, levier jusqu'à
   ×<?= LEVIER_MAX ?>. Exécution au dernier cours publié
   (<?= h(date_donnees()) ?>) avec spread simulé de <?= SPREAD_PCT ?> % :
-  cet environnement juge des décisions de fond, pas du scalping. Le robot
-  « claude » trade selon les verdicts de l'outil ; comparez-vous à lui sur la
-  page Concours du site.</p>
+  cet environnement juge des décisions de fond, pas du scalping. Ordres en
+  attente, stops, objectifs et liquidations sont vérifiés chaque soir sur les
+  extrêmes de séance. Le robot « claude » trade selon les verdicts de
+  l'outil ; comparez-vous à lui sur la
+  <a href="../">page Concours du site</a>.</p>
 
 <?php if ($message): ?>
   <p class="<?= $message[0] ?>"><?= h($message[1]) ?></p>
@@ -299,39 +486,145 @@ $actifs = actifs_disponibles();
 
 <?php else: ?>
   <?php $eq = equite($compte);
-        $perf = ($eq / $compte['capital_initial'] - 1) * 100; ?>
+        $mu = marge_utilisee($compte);
+        $mr = marge_reservee($compte);
+        $pnl_f = pnl_flottant($compte);
+        $niveau = $mu > 0 ? $eq / $mu * 100 : null;
+        $perf = ($eq / $compte['capital_initial'] - 1) * 100;
+        $levier_defaut = (int)($compte['levier_defaut'] ?? 3); ?>
   <p>Compte : <strong><?= h($connecte) ?></strong>
     <form style="display:inline" method="post">
       <input type="hidden" name="a" value="deconnexion">
-      <button class="danger">Déconnexion</button>
+      <button class="sobre">Déconnexion</button>
     </form>
   </p>
+
+  <nav class="ancres">
+    <a href="#marche">👁 Marché</a>
+    <a href="#ticket">🧾 Nouvel ordre</a>
+    <a href="#positions">📌 Positions (<?= count($compte['positions']) ?>)</a>
+    <a href="#ordres">⏳ Ordres en attente (<?= count($compte['ordres']) ?>)</a>
+    <a href="#historique">📜 Historique</a>
+    <a href="#moncompte">⚙️ Mon compte</a>
+  </nav>
+
   <div class="carte grille">
     <div class="tuile"><div class="l">Équité</div>
       <div class="v"><?= number_format($eq, 2) ?> $</div></div>
+    <div class="tuile"><div class="l">Solde (marge libre)</div>
+      <div class="v"><?= number_format($compte['solde'], 2) ?> $</div></div>
+    <div class="tuile"><div class="l">Marge utilisée</div>
+      <div class="v"><?= number_format($mu, 2) ?> $</div></div>
+    <div class="tuile"><div class="l">Marge réservée (ordres)</div>
+      <div class="v"><?= number_format($mr, 2) ?> $</div></div>
+    <div class="tuile"><div class="l">P&amp;L flottant</div>
+      <div class="v <?= $pnl_f >= 0 ? 'pos' : 'neg' ?>">
+        <?= ($pnl_f >= 0 ? '+' : '') . number_format($pnl_f, 2) ?> $</div></div>
+    <div class="tuile"><div class="l">Niveau de marge</div>
+      <div class="v"><?= $niveau === null ? '—'
+          : number_format($niveau, 0) . ' %' ?></div></div>
     <div class="tuile"><div class="l">Performance</div>
       <div class="v <?= $perf >= 0 ? 'pos' : 'neg' ?>">
         <?= ($perf >= 0 ? '+' : '') . number_format($perf, 2) ?> %</div></div>
-    <div class="tuile"><div class="l">Solde disponible</div>
-      <div class="v"><?= number_format($compte['solde'], 2) ?> $</div></div>
-    <div class="tuile"><div class="l">Positions ouvertes</div>
-      <div class="v"><?= count($compte['positions']) ?></div></div>
   </div>
 
-  <div class="carte">
-    <h2>Positions ouvertes</h2>
+  <div class="carte" id="marche">
+    <h2>👁 Observation du marché</h2>
+    <p class="note">Dernier cours publié, variation de la dernière séance et
+      avis de l'outil. « Trader » pré-remplit le ticket d'ordre. Le détail
+      complet de chaque actif (salle de marché SENS / QUAND / MARGE) est sur
+      <a href="../">le site</a>, onglet Titre.</p>
+    <div class="defile">
+    <table>
+      <tr><th>Actif</th><th>Nom</th><th>Cours</th><th>Var. séance</th>
+          <th>Avis de l'outil</th><th></th></tr>
+      <?php foreach ($actifs as $sym): $f = fiche_titre($sym);
+            if (!$f) continue; ?>
+      <tr>
+        <td><strong><?= h($sym) ?></strong></td>
+        <td class="note"><?= h($f['nom']) ?></td>
+        <td><?= round($f['prix'], 4) ?></td>
+        <td class="<?= ($f['var_pct'] ?? 0) >= 0 ? 'pos' : 'neg' ?>">
+          <?= $f['var_pct'] === null ? '—'
+              : (($f['var_pct'] >= 0 ? '+' : '')
+                 . number_format($f['var_pct'], 2) . ' %') ?></td>
+        <td class="<?= str_starts_with((string)$f['avis'], 'Achat')
+            ? 'avis-achat' : (str_starts_with((string)$f['avis'], 'Vente')
+            ? 'avis-vente' : 'note') ?>"><?= h($f['avis'] ?? '—') ?></td>
+        <td><a class="sobre" style="text-decoration:none;padding:4px 8px;
+             border-radius:6px;border:1px solid
+             color-mix(in srgb, CanvasText 30%, transparent)"
+             href="?s=<?= urlencode($sym) ?>#ticket">Trader</a></td>
+      </tr>
+      <?php endforeach; ?>
+    </table>
+    </div>
+  </div>
+
+  <div class="carte" id="ticket">
+    <h2>🧾 Nouvel ordre</h2>
+    <form method="post" id="form-ticket">
+      <input type="hidden" name="a" value="ouvrir">
+      <input type="hidden" name="csrf" value="<?= jeton_csrf() ?>">
+      <div class="grille">
+        <div><label>Actif</label>
+          <select name="symbole" id="t-symbole">
+            <?php foreach ($actifs as $s): $f = fiche_titre($s); ?>
+              <option value="<?= h($s) ?>" data-prix="<?= $f['prix'] ?? '' ?>"
+                <?= $s === $symbole_choisi ? 'selected' : '' ?>>
+                <?= h($s) ?><?= $f ? ' — ' . round($f['prix'], 4) : '' ?></option>
+            <?php endforeach; ?>
+          </select></div>
+        <div><label>Sens</label>
+          <select name="sens" id="t-sens">
+            <option value="long">🟢 Acheter (long)</option>
+            <option value="short">🔴 Vendre (short)</option></select></div>
+        <div><label>Type d'ordre</label>
+          <select name="type_ordre" id="t-type">
+            <option value="marche">Au marché (immédiat)</option>
+            <option value="limite">Limite (meilleur prix)</option>
+            <option value="stop">Stop (sur cassure)</option></select></div>
+        <div id="bloc-prix" style="display:none"><label>Prix de déclenchement</label>
+          <input name="prix_ordre" id="t-prix" type="number" step="any"></div>
+        <div><label>Mise / marge ($)</label>
+          <input name="mise" id="t-mise" type="number" min="<?= MISE_MIN ?>"
+                 step="1" value="50" required></div>
+        <div><label>Levier (1-<?= LEVIER_MAX ?>)</label>
+          <input name="levier" id="t-levier" type="number" min="1"
+                 max="<?= LEVIER_MAX ?>" value="<?= $levier_defaut ?>" required></div>
+        <div><label>Stop (optionnel)</label>
+          <input name="stop" id="t-stop" type="number" step="any"></div>
+        <div><label>Objectif (optionnel)</label>
+          <input name="objectif" id="t-objectif" type="number" step="any"></div>
+      </div>
+      <div id="recap-ticket"></div>
+      <button>Passer l'ordre</button>
+      <p class="note">Perte maximale = la mise (liquidation automatique à
+        marge épuisée, contrôlée chaque soir sur les extrêmes de séance —
+        pas de solde négatif). Notionnel = mise × levier. Un ordre limite ou
+        stop réserve la mise immédiatement et s'exécute dès qu'une séance
+        touche le prix demandé (annulable tant qu'il n'est pas exécuté).</p>
+    </form>
+  </div>
+
+  <div class="carte" id="positions">
+    <h2>📌 Positions ouvertes</h2>
     <?php if (!$compte['positions']): ?>
       <p class="note">Aucune position.</p>
     <?php else: ?>
+    <div class="defile">
     <table>
       <tr><th>Actif</th><th>Sens</th><th>Levier</th><th>Marge</th>
           <th>Entrée</th><th>Cours</th><th>P&L</th><th>Stop</th>
-          <th>Objectif</th><th></th></tr>
+          <th>Objectif</th><th>Liquidation</th><th></th></tr>
       <?php foreach ($compte['positions'] as $p):
             $c = dernier_cours($p['symbole']);
             $pnl = $c ? pnl_position($p, $c['prix']) : null; ?>
       <tr>
-        <td><strong><?= h($p['symbole']) ?></strong></td>
+        <td><strong><?= h($p['symbole']) ?></strong>
+          <?php if (($p['source'] ?? '') === 'ordre'): ?>
+            <span class="note" title="issue d'un ordre en attente">⏳</span>
+          <?php endif; ?></td>
         <td><?= $p['sens'] === 'long' ? '🟢 long' : '🔴 short' ?></td>
         <td>×<?= (int)$p['levier'] ?></td>
         <td><?= number_format($p['marge'], 0) ?> $</td>
@@ -342,60 +635,97 @@ $actifs = actifs_disponibles();
               . number_format($pnl, 2) ?> $</td>
         <td><?= $p['stop'] ?? '—' ?></td>
         <td><?= $p['objectif'] ?? '—' ?></td>
-        <td>
+        <td class="note"><?= round(prix_liquidation($p), 4) ?></td>
+        <td style="white-space:nowrap">
+          <details class="modif">
+            <summary>Modifier</summary>
+            <form method="post">
+              <input type="hidden" name="a" value="modifier">
+              <input type="hidden" name="id" value="<?= h($p['id']) ?>">
+              <input type="hidden" name="csrf" value="<?= jeton_csrf() ?>">
+              <label>Stop</label>
+              <input name="stop" type="number" step="any"
+                     value="<?= $p['stop'] ?? '' ?>" style="width:110px">
+              <label>Objectif</label>
+              <input name="objectif" type="number" step="any"
+                     value="<?= $p['objectif'] ?? '' ?>" style="width:110px">
+              <button class="sobre">OK</button>
+              <p class="note">Champ vide = protection retirée.</p>
+            </form>
+          </details>
           <form method="post" onsubmit="return confirm('Fermer ?')">
             <input type="hidden" name="a" value="fermer">
             <input type="hidden" name="id" value="<?= h($p['id']) ?>">
             <input type="hidden" name="csrf" value="<?= jeton_csrf() ?>">
-            <button class="danger">Fermer</button>
+            <button class="danger" style="margin-top:4px">Fermer</button>
           </form>
         </td>
       </tr>
       <?php endforeach; ?>
     </table>
+    </div>
     <?php endif; ?>
   </div>
 
-  <div class="carte">
-    <h2>Ouvrir une position</h2>
-    <form method="post">
-      <input type="hidden" name="a" value="ouvrir">
-      <input type="hidden" name="csrf" value="<?= jeton_csrf() ?>">
-      <div class="grille">
-        <div><label>Actif</label>
-          <select name="symbole">
-            <?php foreach ($actifs as $s): ?>
-              <option><?= h($s) ?></option>
-            <?php endforeach; ?>
-          </select></div>
-        <div><label>Sens</label>
-          <select name="sens"><option value="long">Long (hausse)</option>
-            <option value="short">Short (baisse)</option></select></div>
-        <div><label>Mise / marge ($)</label>
-          <input name="mise" type="number" min="<?= MISE_MIN ?>" step="1"
-                 value="50" required></div>
-        <div><label>Levier (1-<?= LEVIER_MAX ?>)</label>
-          <input name="levier" type="number" min="1" max="<?= LEVIER_MAX ?>"
-                 value="3" required></div>
-        <div><label>Stop (optionnel)</label>
-          <input name="stop" type="number" step="any"></div>
-        <div><label>Objectif (optionnel)</label>
-          <input name="objectif" type="number" step="any"></div>
-      </div>
-      <button>Ouvrir la position</button>
-      <p class="note">Perte maximale = la mise (liquidation automatique à
-        marge épuisée, contrôlée chaque soir sur les extrêmes de séance —
-        pas de solde négatif). Notionnel = mise × levier.</p>
-    </form>
+  <div class="carte" id="ordres">
+    <h2>⏳ Ordres en attente</h2>
+    <?php if (!$compte['ordres']): ?>
+      <p class="note">Aucun ordre en attente. Un ordre limite ou stop placé
+        dans le ticket ci-dessus apparaîtra ici jusqu'à son exécution (dès
+        qu'une séance touche le prix) ou son annulation.</p>
+    <?php else: ?>
+    <div class="defile">
+    <table>
+      <tr><th>Actif</th><th>Sens</th><th>Type</th><th>Prix demandé</th>
+          <th>Cours actuel</th><th>Mise réservée</th><th>Levier</th>
+          <th>Stop</th><th>Objectif</th><th>Placé le</th><th></th></tr>
+      <?php foreach ($compte['ordres'] as $o):
+            $c = dernier_cours($o['symbole']); ?>
+      <tr>
+        <td><strong><?= h($o['symbole']) ?></strong></td>
+        <td><?= $o['sens'] === 'long' ? '🟢 long' : '🔴 short' ?></td>
+        <td><?= h($o['type']) ?></td>
+        <td><?= round($o['prix'], 4) ?></td>
+        <td><?= $c ? round($c['prix'], 4) : '—' ?></td>
+        <td><?= number_format($o['marge'], 0) ?> $</td>
+        <td>×<?= (int)$o['levier'] ?></td>
+        <td><?= $o['stop'] ?? '—' ?></td>
+        <td><?= $o['objectif'] ?? '—' ?></td>
+        <td class="note"><?= h($o['cree_le']) ?></td>
+        <td>
+          <form method="post" onsubmit="return confirm('Annuler cet ordre ?')">
+            <input type="hidden" name="a" value="annuler_ordre">
+            <input type="hidden" name="id" value="<?= h($o['id']) ?>">
+            <input type="hidden" name="csrf" value="<?= jeton_csrf() ?>">
+            <button class="danger">Annuler</button>
+          </form>
+        </td>
+      </tr>
+      <?php endforeach; ?>
+    </table>
+    </div>
+    <?php endif; ?>
   </div>
 
-  <?php if ($compte['historique']): ?>
-  <div class="carte">
-    <h2>Historique (<?= count($compte['historique']) ?> trades clos)</h2>
+  <div class="carte" id="historique">
+    <h2>📜 Historique
+      (<?= count($compte['historique'] ?? []) ?> trades clos)</h2>
+    <?php $hist = $compte['historique'] ?? [];
+          if (!$hist): ?>
+      <p class="note">Aucun trade clos pour l'instant.</p>
+    <?php else:
+          $gagnants = count(array_filter($hist, fn($t) => $t['pnl'] > 0));
+          $pnls = array_column($hist, 'pnl'); ?>
+    <p class="note">Trades gagnants : <?= $gagnants ?>/<?= count($hist) ?>
+      (<?= round($gagnants / count($hist) * 100) ?> %) ·
+      P&amp;L cumulé : <?= number_format(array_sum($pnls), 2) ?> $ ·
+      meilleur : <?= number_format(max($pnls), 2) ?> $ ·
+      pire : <?= number_format(min($pnls), 2) ?> $</p>
+    <div class="defile">
     <table>
       <tr><th>Actif</th><th>Sens</th><th>Levier</th><th>Entrée</th>
           <th>Sortie</th><th>P&L</th><th>Motif</th><th>Fermé le</th></tr>
-      <?php foreach (array_reverse($compte['historique']) as $t): ?>
+      <?php foreach (array_reverse($hist) as $t): ?>
       <tr>
         <td><?= h($t['symbole']) ?></td>
         <td><?= $t['sens'] ?></td>
@@ -409,8 +739,109 @@ $actifs = actifs_disponibles();
       </tr>
       <?php endforeach; ?>
     </table>
+    </div>
+    <?php endif; ?>
   </div>
-  <?php endif; ?>
+
+  <div class="carte" id="moncompte">
+    <h2>⚙️ Mon compte</h2>
+    <p class="note">Créé le <?= h($compte['cree_le'] ?? '?') ?> ·
+      capital initial <?= number_format($compte['capital_initial'], 0) ?> $.</p>
+    <div class="grille">
+      <form method="post">
+        <input type="hidden" name="a" value="preferences">
+        <input type="hidden" name="csrf" value="<?= jeton_csrf() ?>">
+        <label>Levier par défaut du ticket (1-<?= LEVIER_MAX ?>)</label>
+        <input name="levier_defaut" type="number" min="1"
+               max="<?= LEVIER_MAX ?>" value="<?= $levier_defaut ?>">
+        <button class="sobre" style="margin-top:8px">Enregistrer</button>
+      </form>
+      <form method="post">
+        <input type="hidden" name="a" value="mdp">
+        <input type="hidden" name="csrf" value="<?= jeton_csrf() ?>">
+        <label>Mot de passe actuel</label>
+        <input name="mdp_actuel" type="password" required>
+        <label>Nouveau mot de passe (≥ 8)</label>
+        <input name="mdp_nouveau" type="password" required minlength="8">
+        <button class="sobre" style="margin-top:8px">Changer</button>
+      </form>
+      <form method="post"
+            onsubmit="return confirm('Tout remettre à zéro ? Positions, ordres et historique seront définitivement effacés.')">
+        <input type="hidden" name="a" value="raz">
+        <input type="hidden" name="csrf" value="<?= jeton_csrf() ?>">
+        <label>Remise à zéro (repartir à <?= CAPITAL_DEPART ?> $) —
+          taper <strong>RAZ</strong> pour confirmer</label>
+        <input name="confirmation" pattern="RAZ" required
+               placeholder="RAZ">
+        <button class="danger" style="margin-top:8px">Remettre à zéro</button>
+      </form>
+    </div>
+  </div>
+
+<script>
+// Récapitulatif du ticket en direct : notionnel, quantité, prix de
+// liquidation approximatif et P&L projeté au stop / à l'objectif.
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const champs = ['t-symbole', 't-sens', 't-type', 't-prix', 't-mise',
+                  't-levier', 't-stop', 't-objectif'];
+  const fmt = (x, d = 2) => Number.isFinite(x)
+      ? x.toLocaleString('fr-FR', {maximumFractionDigits: d}) : '—';
+
+  function recalc() {
+    const type = $('t-type').value;
+    $('bloc-prix').style.display = type === 'marche' ? 'none' : '';
+    const opt = $('t-symbole').selectedOptions[0];
+    const cours = parseFloat(opt ? opt.dataset.prix : '');
+    const prixOrdre = parseFloat($('t-prix').value);
+    const ref = type === 'marche' ? cours : (prixOrdre || cours);
+    const mise = parseFloat($('t-mise').value);
+    const levier = parseInt($('t-levier').value, 10) || 1;
+    const sens = $('t-sens').value === 'short' ? -1 : 1;
+    const stop = parseFloat($('t-stop').value);
+    const objectif = parseFloat($('t-objectif').value);
+
+    const lignes = [];
+    if (Number.isFinite(mise) && Number.isFinite(ref) && ref > 0) {
+      const notionnel = mise * levier;
+      const qte = notionnel / ref;
+      const liq = ref - sens * ref / levier;
+      lignes.push(`Exposition : <strong>${fmt(notionnel)} $</strong>`
+        + ` (mise ${fmt(mise)} $ × levier ${levier})`
+        + ` ≈ ${fmt(qte, 4)} unité(s) @ ${fmt(ref, 4)}`);
+      lignes.push(`Liquidation approximative vers <strong>${fmt(liq, 4)}`
+        + `</strong> (marge épuisée — perte = la mise)`);
+      if (Number.isFinite(stop)) {
+        const p = (stop - ref) * qte * sens;
+        lignes.push(`Au stop ${fmt(stop, 4)} : P&L ≈ `
+          + `<strong>${p >= 0 ? '+' : ''}${fmt(p)} $</strong>`);
+      }
+      if (Number.isFinite(objectif)) {
+        const p = (objectif - ref) * qte * sens;
+        lignes.push(`À l'objectif ${fmt(objectif, 4)} : P&L ≈ `
+          + `<strong>${p >= 0 ? '+' : ''}${fmt(p)} $</strong>`);
+      }
+      if (Number.isFinite(stop) && Number.isFinite(objectif)) {
+        const risque = Math.abs((stop - ref) * qte);
+        const gain = Math.abs((objectif - ref) * qte);
+        if (risque > 0)
+          lignes.push(`Ratio gain/risque ≈ <strong>${fmt(gain / risque, 2)}`
+            + `</strong> (viser ≥ 1,5)`);
+      }
+    } else {
+      lignes.push('Renseigner la mise pour voir l\'exposition.');
+    }
+    $('recap-ticket').innerHTML = lignes.join('<br>');
+  }
+
+  champs.forEach((id) => {
+    const el = $(id);
+    if (el) { el.addEventListener('input', recalc);
+              el.addEventListener('change', recalc); }
+  });
+  recalc();
+})();
+</script>
 <?php endif; ?>
 </body>
 </html>

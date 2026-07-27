@@ -124,6 +124,48 @@ def tenir_compte(compte: dict) -> list[str]:
     return evenements
 
 
+def executer_ordres(compte: dict) -> list[str]:
+    """Ordres limite/stop placés sur la page trading : exécution dès que la
+    séance a touché le prix demandé (haut/bas réels). La mise a déjà été
+    réservée au placement ; la position ouverte ne sera confrontée aux
+    extrêmes qu'à partir du lendemain (l'heure de déclenchement dans la
+    séance est inconnue)."""
+    evenements = []
+    restants = []
+    for o in compte.get("ordres", []):
+        try:
+            df = get_ohlcv(o["symbole"], lookback_days=30)
+            jour = df.iloc[-1]
+            haut, bas = float(jour["high"]), float(jour["low"])
+        except Exception:
+            restants.append(o)
+            continue
+        sens = 1 if o["sens"] == "long" else -1
+        # achat limite / vente stop : le marché descend au prix (bas) ;
+        # achat stop / vente limite : le marché monte au prix (haut)
+        if (o["sens"] == "long") == (o["type"] == "limite"):
+            touche = bas <= float(o["prix"])
+        else:
+            touche = haut >= float(o["prix"])
+        if not touche:
+            restants.append(o)
+            continue
+        prix = float(o["prix"]) * (1 + sens * SPREAD_PCT / 100)
+        notionnel = float(o["marge"]) * float(o["levier"])
+        compte.setdefault("positions", []).append({
+            "id": o["id"], "symbole": o["symbole"], "sens": o["sens"],
+            "marge": o["marge"], "levier": o["levier"],
+            "notionnel": round(notionnel, 2),
+            "quantite": notionnel / prix, "prix_entree": prix,
+            "stop": o.get("stop"), "objectif": o.get("objectif"),
+            "ouvert_le": _maintenant(), "source": "ordre"})
+        evenements.append(f"{o['symbole']} : ordre {o['type']} {o['sens']} "
+                          f"exécuté @ {prix:.4f} (la séance a touché "
+                          f"{o['prix']})")
+    compte["ordres"] = restants
+    return evenements
+
+
 def _cours_publie(symbole: str) -> float | None:
     """Le dernier cours PUBLIÉ par le site — la référence de valorisation
     unique de toute la plateforme (page trading, panneau admin, concours).
@@ -145,6 +187,8 @@ def _cours_publie(symbole: str) -> float | None:
 
 def _equite(compte: dict) -> float:
     total = compte["solde"]
+    # la mise réservée par les ordres en attente reste la propriété du compte
+    total += sum(float(o.get("marge", 0)) for o in compte.get("ordres", []))
     for p in compte.get("positions", []):
         prix = _cours_publie(p["symbole"])
         if prix is None:
@@ -264,6 +308,7 @@ def main() -> int:
             if not compte:
                 continue
             evenements = tenir_compte(compte)
+            evenements += executer_ordres(compte)
             if compte["nom"] == "claude":
                 evenements += decisions_robot(compte, verdicts)
                 compte.setdefault("journal_robot", []).extend(

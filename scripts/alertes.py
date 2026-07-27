@@ -46,6 +46,18 @@ def main() -> int:
     if not bilan["configure"] and not args.dry_run:
         print("(aucun canal configuré : les alertes ont été affichées et RESTENT "
               "en attente ; lancer python scripts\\configurer_alertes.py)")
+
+    # fil des alertes récentes sur le site : chaque passage réel horodate le
+    # fil et y verse ce qui vient d'être envoyé. Un échec ici ne doit jamais
+    # compromettre la livraison des alertes elle-même.
+    if not args.dry_run:
+        try:
+            from marketlab import fil_alertes
+            r = fil_alertes.publier(bilan.get("messages_envoyes", []))
+            print(f"Fil du site : {r['publiees']} publiée(s), "
+                  f"{r['total_fil']} au fil.")
+        except Exception as exc:
+            print(f"Fil du site indisponible (non bloquant) : {str(exc)[:80]}")
     return 0
 
 

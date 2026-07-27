@@ -778,9 +778,49 @@ function PageConcours() {
   );
 }
 
+// ---------------------------------------------------------------- Alertes
+function PageAlertes() {
+  const { donnees, erreur } = useDonnees(api.getAlertes);
+  if (erreur) {
+    return <div className="carte"><p className="note">Aucune alerte publiée
+      pour l'instant — le fil se remplit au premier passage horaire du
+      scanner.</p></div>;
+  }
+  if (!donnees) return <Chargement />;
+  return (
+    <>
+      <div className="carte">
+        <h3>🔔 Fil des alertes</h3>
+        <p className="note">Le scanner passe chaque heure avec des cours
+          frais : ce fil est donc EN AVANCE sur le reste du site, régénéré
+          une fois par jour (l'instantané daté en haut de page). Dernier
+          passage du scanner : <strong>{donnees.dernier_passage ?? "?"}</strong>
+          {" "}({donnees.fuseau ?? "UTC"}). Les mêmes alertes arrivent en
+          notification ntfy.</p>
+      </div>
+      {(donnees.alertes ?? []).length === 0 && (
+        <div className="carte"><p className="note">Rien à signaler pour le
+          moment — le silence est l'état normal du système.</p></div>
+      )}
+      {(donnees.alertes ?? []).map((a, i) => (
+        <div key={i} className="carte" style={{
+          padding: "10px 16px",
+          borderLeft: a.urgent ? "4px solid var(--critical)"
+                               : "4px solid var(--grid)" }}>
+          <div className="note">{a.quand}
+            {a.urgent && <strong style={{ color: "var(--critical)" }}>
+              {" "}· URGENT</strong>}</div>
+          <div style={{ whiteSpace: "pre-wrap" }}>{a.texte}</div>
+        </div>
+      ))}
+    </>
+  );
+}
+
 // ---------------------------------------------------------------- App
 const PAGES = {
   "🎯 Décisions": PageDecisions,
+  "🔔 Alertes": PageAlertes,
   "🏆 Concours": PageConcours,
   "Marchés": PageMarches,
   "Titre": PageTitre,
@@ -810,6 +850,7 @@ export default function App() {
           <button key={p} className={p === page ? "actif" : ""}
                   onClick={() => setPage(p)}>{p}</button>
         ))}
+        <a href="trading/" className="ml-nav-lien">🏦 Trader</a>
       </nav>
       {erreur && <p className="erreur">Données indisponibles : {erreur}</p>}
       {meta && (

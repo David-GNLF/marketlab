@@ -241,14 +241,17 @@ def run(universes: list[str] | None = None, dry_run: bool = False) -> dict:
     etat_avant = _load_state()  # pour rétablir si un envoi échoue
     messages = build_alerts(universes, persist=livraison_reelle)
     sent = 0
+    envoyes: list[tuple[str, bool]] = []
     for texte, urgent in messages:
         if not livraison_reelle:
             etiquette = " [URGENT]" if urgent else ""
             print(f"--- ALERTE{etiquette} ---\n{texte}\n")
         elif envoyer_message(texte, urgent=urgent):
             sent += 1
+            envoyes.append((notify.html_vers_texte(texte), urgent))
     if livraison_reelle and sent < len(messages):
         _save_state(etat_avant)  # envoi partiel : le prochain passage réessaiera
     return {"alertes": len(messages), "envoyees": sent,
+            "messages_envoyes": envoyes,
             "canaux": notify.canaux_actifs(), "configure": configured,
             "dry_run": dry_run}

@@ -163,6 +163,10 @@ function ml_lien_invitation(string $jeton): string {
  *  cours publié — la MÊME définition que la page trading et le concours. */
 function ml_equite_trading(array $compte): float {
     $total = (float)($compte['solde'] ?? 0);
+    // mise réservée par les ordres en attente : toujours au compte
+    foreach ($compte['ordres'] ?? [] as $o) {
+        $total += (float)($o['marge'] ?? 0);
+    }
     foreach ($compte['positions'] ?? [] as $p) {
         $total += (float)$p['marge'];
         $f = __DIR__ . '/../donnees/titres/' . $p['symbole'] . '.json';

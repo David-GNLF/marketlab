@@ -54,6 +54,11 @@ nav.ml-nav button {
   color: var(--text-secondary); padding: 8px 12px; cursor: pointer; font-size: 14px;
 }
 nav.ml-nav button.actif { color: var(--text-primary); border-bottom-color: var(--series-1); }
+nav.ml-nav { flex-wrap: wrap; }
+nav.ml-nav .ml-nav-lien {
+  margin-left: auto; text-decoration: none; color: var(--text-primary);
+  padding: 8px 12px; font-size: 14px; font-weight: 600;
+}
 
 .carte {
   background: var(--surface); border: 1px solid var(--border);

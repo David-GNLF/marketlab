@@ -70,6 +70,7 @@ function trading_raz(string $nom): bool {
     $c['solde'] = ML_CAPITAL_TRADING;
     $c['capital_initial'] = ML_CAPITAL_TRADING;
     $c['positions'] = [];
+    $c['ordres'] = [];
     $c['historique'] = [];
     $c['equity'] = [[date('Y-m-d H:i'), ML_CAPITAL_TRADING]];
     if ($nom === 'claude') $c['journal_robot'] = ['compte remis à zéro'];

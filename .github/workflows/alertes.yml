@@ -42,4 +42,9 @@ jobs:
       - name: Évaluer et envoyer les alertes
         env:
           MARKETLAB_NTFY_TOPIC: ${{ secrets.MARKETLAB_NTFY_TOPIC }}
+          # accès FTPS : le passage publie aussi le fil des alertes sur le site
+          MARKETLAB_FTP_HOTE: ${{ secrets.MARKETLAB_FTP_HOTE }}
+          MARKETLAB_FTP_UTILISATEUR: ${{ secrets.MARKETLAB_FTP_UTILISATEUR }}
+          MARKETLAB_FTP_MOT_DE_PASSE: ${{ secrets.MARKETLAB_FTP_MOT_DE_PASSE }}
+          MARKETLAB_FTP_DOSSIER: ${{ secrets.MARKETLAB_FTP_DOSSIER }}
         run: python scripts/alertes.py
