@@ -730,9 +730,58 @@ function PageDecisions({ onTitre }) {
   );
 }
 
+// ---------------------------------------------------------------- Concours
+function PageConcours() {
+  const { donnees, erreur } = useDonnees(api.getConcours);
+  if (!donnees) return <Chargement erreur={erreur} />;
+  const robot = donnees.comptes?.find((c) => c.est_robot);
+  return (
+    <>
+      <div className="carte">
+        <h3>🏆 Concours de trading virtuel</h3>
+        <p className="note">Chaque compte part avec{" "}
+          {nb(donnees.capital_depart)} $ virtuels. Le robot « claude » applique
+          les verdicts de l'outil — le battre, c'est battre la machine.
+          Créer votre compte : <a href="trading/">espace de trading</a>.
+          Mis à jour le {donnees.date}.</p>
+        <Table lignes={donnees.comptes?.map((c, i) => ({
+          "#": i + 1,
+          compte: (c.est_robot ? "🤖 " : "👤 ") + c.nom,
+          "équité $": c.equite,
+          "perf %": c["perf_%"],
+          positions: c.n_positions,
+          "trades clos": c.n_trades,
+        }))} />
+      </div>
+      {robot && (
+        <div className="carte">
+          <h3>🤖 Le robot en transparence totale</h3>
+          <p className="note">{donnees.regles_robot}</p>
+          {robot.positions?.length > 0 && (
+            <>
+              <h4>Positions ouvertes</h4>
+              <Table lignes={robot.positions} />
+            </>
+          )}
+          {robot.journal?.length > 0 && (
+            <>
+              <h4>Journal des décisions</h4>
+              {robot.journal.map((l, i) => (
+                <p key={i} className="note" style={{ margin: "3px 0" }}>{l}</p>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+      <p className="note">{donnees.avertissement}</p>
+    </>
+  );
+}
+
 // ---------------------------------------------------------------- App
 const PAGES = {
   "🎯 Décisions": PageDecisions,
+  "🏆 Concours": PageConcours,
   "Marchés": PageMarches,
   "Titre": PageTitre,
   "Macro & agenda": PageMacro,

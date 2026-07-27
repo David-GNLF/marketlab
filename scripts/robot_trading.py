@@ -1,0 +1,302 @@
+"""Le robot de trading virtuel « claude » + tenue quotidienne des comptes.
+
+Rôle 1 — TENUE DES COMPTES (tous, robot et humains) : chaque soir, les
+positions ouvertes sont confrontées aux extrêmes de la séance (plus haut /
+plus bas réels) : stop touché → clôture au stop ; objectif touché → clôture
+à l'objectif ; si les deux le même jour, le STOP est réputé touché en
+premier (hypothèse prudente) ; marge épuisée → liquidation à zéro (pas de
+solde négatif). Un point d'équité est ajouté à chaque compte.
+
+Rôle 2 — LE ROBOT : le compte « claude » (1 000 $ virtuels) applique les
+verdicts de l'outil, avec des règles ÉCRITES :
+- n'ouvre que sur avis Favorable avec plan et taille > 0 (les vetos du
+  verdict s'appliquent donc d'office) ;
+- LONG uniquement — le bilan sur 2 ans a montré que les avis Défavorable
+  précédaient des hausses : pas de short tant que le bilan ne le justifie pas ;
+- mise = 5 % de l'équité × multiplicateur de taille du verdict ; levier par
+  classe d'actif (forex ×5, matières ×3, actions/crypto ×2) ; 4 positions
+  maximum ; jamais deux fois le même actif ;
+- stop et objectif = ceux du plan du verdict ; clôture anticipée si l'avis
+  retombe à Défavorable ou S'abstenir ;
+- chaque décision est journalisée avec sa raison — l'inaction aussi.
+
+Les comptes vivent sur l'hébergement (trading/comptes/*.json) : lecture et
+écriture par FTPS. Cette page et le robot n'écrivent jamais le même fichier
+en dehors de la fenêtre de tenue quotidienne, brève et nocturne.
+"""
+
+import io
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import pandas as pd
+
+from marketlab import config, ftps
+from marketlab.data import get_ohlcv
+
+CAPITAL_DEPART = 1000.0
+SPREAD_PCT = 0.05
+MAX_POSITIONS = 4
+PART_EQUITE = 0.05
+LEVIERS = {"Forex": 5, "Matières": 3, "Actions": 2, "Crypto": 2, "Indices": 2}
+VERDICTS_LOCAL = config.ROOT / "site" / "donnees" / "verdicts.json"
+CONCOURS_LOCAL = config.ROOT / "site" / "donnees" / "concours.json"
+
+
+def _maintenant() -> str:
+    return pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")
+
+
+# ------------------------------------------------------------------- comptes
+
+def _lister_comptes(session, base: str) -> list[str]:
+    try:
+        return [n for n, f in session.mlsd(f"{base}/trading/comptes")
+                if f.get("type") == "file" and n.endswith(".json")]
+    except Exception:
+        return []
+
+
+def _telecharger(session, base: str, nom_fichier: str) -> dict | None:
+    tampon = io.BytesIO()
+    try:
+        session.retrbinary(f"RETR {base}/trading/comptes/{nom_fichier}",
+                           tampon.write)
+        return json.loads(tampon.getvalue().decode("utf-8"))
+    except Exception:
+        return None
+
+
+def _televerser(session, base: str, nom_fichier: str, compte: dict) -> None:
+    contenu = json.dumps(compte, ensure_ascii=False, indent=1).encode("utf-8")
+    session.storbinary(f"STOR {base}/trading/comptes/{nom_fichier}",
+                       io.BytesIO(contenu))
+
+
+# --------------------------------------------------------------- tenue du jour
+
+def tenir_compte(compte: dict) -> list[str]:
+    """Stops, objectifs et liquidations sur les extrêmes de séance."""
+    evenements = []
+    restantes = []
+    for p in compte.get("positions", []):
+        try:
+            df = get_ohlcv(p["symbole"], lookback_days=30)
+            jour = df.iloc[-1]
+            haut, bas, clot = float(jour["high"]), float(jour["low"]), \
+                float(jour["close"])
+        except Exception:
+            restantes.append(p)
+            continue
+        sens = 1 if p["sens"] == "long" else -1
+        prix_liquidation = p["prix_entree"] - sens * p["prix_entree"] \
+            / max(p["levier"], 1)
+
+        sortie, motif = None, None
+        # ordre prudent : liquidation puis stop puis objectif
+        if (sens == 1 and bas <= prix_liquidation) or \
+           (sens == -1 and haut >= prix_liquidation):
+            sortie, motif = prix_liquidation, "LIQUIDATION (marge épuisée)"
+        elif p.get("stop") and ((sens == 1 and bas <= p["stop"])
+                                or (sens == -1 and haut >= p["stop"])):
+            sortie, motif = float(p["stop"]), "stop touché"
+        elif p.get("objectif") and ((sens == 1 and haut >= p["objectif"])
+                                    or (sens == -1 and bas <= p["objectif"])):
+            sortie, motif = float(p["objectif"]), "objectif atteint"
+
+        if sortie is not None:
+            pnl = (sortie - p["prix_entree"]) * p["quantite"] * sens
+            compte["solde"] += max(0.0, p["marge"] + pnl)
+            compte.setdefault("historique", []).append({
+                "symbole": p["symbole"], "sens": p["sens"], "marge": p["marge"],
+                "levier": p["levier"], "entree": p["prix_entree"],
+                "sortie": round(sortie, 4), "pnl": round(pnl, 2),
+                "ouvert_le": p["ouvert_le"], "ferme_le": _maintenant(),
+                "motif": motif})
+            evenements.append(f"{p['symbole']} {p['sens']} : {motif} "
+                              f"(P&L {pnl:+.2f} $)")
+        else:
+            restantes.append(p)
+    compte["positions"] = restantes
+    return evenements
+
+
+def _equite(compte: dict) -> float:
+    total = compte["solde"]
+    for p in compte.get("positions", []):
+        try:
+            prix = float(get_ohlcv(p["symbole"],
+                                   lookback_days=30)["close"].iloc[-1])
+            sens = 1 if p["sens"] == "long" else -1
+            total += p["marge"] + (prix - p["prix_entree"]) * p["quantite"] * sens
+        except Exception:
+            total += p["marge"]
+    return total
+
+
+# ------------------------------------------------------------------- le robot
+
+def decisions_robot(compte: dict, verdicts: list[dict]) -> list[str]:
+    journal = []
+    par_symbole = {d["symbole"]: d for d in verdicts if "erreur" not in d}
+
+    # 1. clôtures : le verdict s'est retourné
+    restantes = []
+    for p in compte["positions"]:
+        d = par_symbole.get(p["symbole"])
+        if d and d["avis"] in ("Défavorable", "S'abstenir"):
+            try:
+                prix = float(get_ohlcv(p["symbole"],
+                                       lookback_days=30)["close"].iloc[-1])
+            except Exception:
+                restantes.append(p)
+                continue
+            prix *= 1 - SPREAD_PCT / 100
+            sens = 1 if p["sens"] == "long" else -1
+            pnl = (prix - p["prix_entree"]) * p["quantite"] * sens
+            compte["solde"] += max(0.0, p["marge"] + pnl)
+            compte.setdefault("historique", []).append({
+                "symbole": p["symbole"], "sens": p["sens"], "marge": p["marge"],
+                "levier": p["levier"], "entree": p["prix_entree"],
+                "sortie": round(prix, 4), "pnl": round(pnl, 2),
+                "ouvert_le": p["ouvert_le"], "ferme_le": _maintenant(),
+                "motif": f"verdict retombé à « {d['avis']} »"})
+            journal.append(f"FERMÉ {p['symbole']} (verdict « {d['avis']} ») : "
+                           f"P&L {pnl:+.2f} $")
+        else:
+            restantes.append(p)
+    compte["positions"] = restantes
+
+    # 2. ouvertures : Favorable + plan + taille > 0
+    detenues = {p["symbole"] for p in compte["positions"]}
+    candidats = sorted(
+        [d for d in verdicts if "erreur" not in d
+         and d["avis"] == "Favorable" and d.get("plan")
+         and d.get("taille_multiplicateur", 0) > 0
+         and d["symbole"] not in detenues],
+        key=lambda d: -d["note_globale"])
+
+    for d in candidats:
+        if len(compte["positions"]) >= MAX_POSITIONS:
+            journal.append(f"IGNORÉ {d['symbole']} (Favorable "
+                           f"{d['note_globale']:+.0f}) : {MAX_POSITIONS} "
+                           "positions déjà ouvertes")
+            continue
+        equite = _equite(compte)
+        mise = round(equite * PART_EQUITE * d["taille_multiplicateur"], 2)
+        if mise < 10 or mise > compte["solde"]:
+            journal.append(f"IGNORÉ {d['symbole']} : mise calculée {mise} $ "
+                           "hors limites")
+            continue
+        levier = LEVIERS.get(d.get("classe", "Actions"), 2)
+        prix = float(d["plan"]["entree"]) * (1 + SPREAD_PCT / 100)
+        notionnel = mise * levier
+        compte["solde"] -= mise
+        compte["positions"].append({
+            "id": f"rb{len(compte.get('historique', [])) + len(compte['positions'])}",
+            "symbole": d["symbole"], "sens": "long", "marge": mise,
+            "levier": levier, "notionnel": round(notionnel, 2),
+            "quantite": notionnel / prix, "prix_entree": prix,
+            "stop": d["plan"]["stop"], "objectif": d["plan"]["objectif"],
+            "ouvert_le": _maintenant(), "source": "robot",
+            "raison": f"verdict Favorable {d['note_globale']:+.0f} "
+                      f"(concordance {d.get('concordance_%', '?')} %), "
+                      f"taille ×{d['taille_multiplicateur']}"})
+        journal.append(f"OUVERT long {d['symbole']} : {mise} $ × {levier} "
+                       f"(note {d['note_globale']:+.0f}, stop "
+                       f"{d['plan']['stop']}, objectif {d['plan']['objectif']})")
+
+    if not journal:
+        journal.append("aucune action : pas de signal exploitable aujourd'hui")
+    return journal
+
+
+# ---------------------------------------------------------------------- main
+
+def main() -> int:
+    if not VERDICTS_LOCAL.exists():
+        print("verdicts.json absent : lancer la génération d'abord")
+        return 1
+    verdicts = json.loads(VERDICTS_LOCAL.read_text(encoding="utf-8"))["dossiers"]
+
+    cfg = ftps.charger_config()
+    session = ftps._connecter(cfg)
+    base = cfg["dossier_distant"].rstrip("/")
+    classement = []
+    try:
+        ftps._assurer_dossier(session, f"{base}/trading/comptes")
+        fichiers = _lister_comptes(session, base)
+
+        # le compte du robot est créé au premier passage
+        if "claude.json" not in fichiers:
+            _televerser(session, base, "claude.json", {
+                "nom": "claude", "capital_initial": CAPITAL_DEPART,
+                "solde": CAPITAL_DEPART, "positions": [], "historique": [],
+                "equity": [[_maintenant(), CAPITAL_DEPART]],
+                "journal_robot": ["compte du robot créé"],
+                "cree_le": _maintenant()})
+            fichiers.append("claude.json")
+            print("compte robot « claude » créé (1 000 $ virtuels)")
+
+        for fichier in fichiers:
+            compte = _telecharger(session, base, fichier)
+            if not compte:
+                continue
+            evenements = tenir_compte(compte)
+            if compte["nom"] == "claude":
+                evenements += decisions_robot(compte, verdicts)
+                compte.setdefault("journal_robot", []).extend(
+                    [f"[{_maintenant()}] {e}" for e in evenements])
+                compte["journal_robot"] = compte["journal_robot"][-60:]
+            equite = round(_equite(compte), 2)
+            compte.setdefault("equity", []).append([_maintenant(), equite])
+            compte["equity"] = compte["equity"][-400:]
+            _televerser(session, base, fichier, compte)
+            for e in evenements:
+                print(f"  {compte['nom']} : {e}")
+
+            classement.append({
+                "nom": compte["nom"], "est_robot": compte["nom"] == "claude",
+                "equite": equite,
+                "perf_%": round((equite / compte["capital_initial"] - 1) * 100, 2),
+                "n_positions": len(compte["positions"]),
+                "n_trades": len(compte.get("historique", [])),
+                "positions": ([{k: p.get(k) for k in
+                                ("symbole", "sens", "levier", "marge",
+                                 "prix_entree", "stop", "objectif", "raison")}
+                               for p in compte["positions"]]
+                              if compte["nom"] == "claude" else None),
+                "journal": (compte.get("journal_robot", [])[-15:]
+                            if compte["nom"] == "claude" else None),
+                "equity": compte["equity"][-120:],
+            })
+    finally:
+        try:
+            session.quit()
+        except Exception:
+            session.close()
+
+    classement.sort(key=lambda c: -c["perf_%"])
+    CONCOURS_LOCAL.parent.mkdir(parents=True, exist_ok=True)
+    CONCOURS_LOCAL.write_text(json.dumps({
+        "date": _maintenant(),
+        "capital_depart": CAPITAL_DEPART,
+        "comptes": classement,
+        "regles_robot": ("long uniquement sur verdict Favorable avec plan ; "
+                         "mise 5 % de l'équité × taille du verdict ; levier "
+                         "forex ×5, matières ×3, actions/crypto ×2 ; 4 "
+                         "positions max ; stop/objectif du plan ; clôture si "
+                         "le verdict se retourne ; tout est journalisé."),
+        "avertissement": "Argent virtuel — l'environnement mesure la "
+                         "fiabilité de l'outil, il ne constitue pas un "
+                         "conseil en investissement.",
+    }, ensure_ascii=False), encoding="utf-8")
+    print(f"\nconcours.json écrit : {len(classement)} compte(s)")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

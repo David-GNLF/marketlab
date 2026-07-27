@@ -57,13 +57,28 @@ jobs:
           key: cours-${{ github.run_id }}
           restore-keys: cours-
 
-      - name: Générer et publier
+      - name: Générer l'instantané
+        run: python scripts/publier.py --generer-seul
+
+      # Le robot lit les verdicts frais, tient TOUS les comptes de trading
+      # virtuel (stops/objectifs/liquidations sur les extrêmes de séance),
+      # prend ses positions selon ses règles écrites, et produit le
+      # classement (concours.json) publié avec le reste du site.
+      - name: Robot de trading virtuel
         env:
           MARKETLAB_FTP_HOTE: ${{ secrets.MARKETLAB_FTP_HOTE }}
           MARKETLAB_FTP_UTILISATEUR: ${{ secrets.MARKETLAB_FTP_UTILISATEUR }}
           MARKETLAB_FTP_MOT_DE_PASSE: ${{ secrets.MARKETLAB_FTP_MOT_DE_PASSE }}
           MARKETLAB_FTP_DOSSIER: ${{ secrets.MARKETLAB_FTP_DOSSIER }}
-        run: python scripts/publier.py
+        run: python scripts/robot_trading.py
+
+      - name: Publier le site
+        env:
+          MARKETLAB_FTP_HOTE: ${{ secrets.MARKETLAB_FTP_HOTE }}
+          MARKETLAB_FTP_UTILISATEUR: ${{ secrets.MARKETLAB_FTP_UTILISATEUR }}
+          MARKETLAB_FTP_MOT_DE_PASSE: ${{ secrets.MARKETLAB_FTP_MOT_DE_PASSE }}
+          MARKETLAB_FTP_DOSSIER: ${{ secrets.MARKETLAB_FTP_DOSSIER }}
+        run: python scripts/publier.py --publier-seul
 
       # Le journal des décisions est le track record de l'outil : il doit
       # survivre au runner éphémère, donc il est commité dans le dépôt.

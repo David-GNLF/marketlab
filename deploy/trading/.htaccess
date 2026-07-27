@@ -1,0 +1,5 @@
+# Environnement de trading virtuel — les comptes ne sont JAMAIS servis par
+# le web : PHP et le robot (FTPS) y accèdent seuls.
+<FilesMatch "\.(json|tmp|log)$">
+  Require all denied
+</FilesMatch>
