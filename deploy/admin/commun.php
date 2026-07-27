@@ -159,6 +159,26 @@ function ml_lien_invitation(string $jeton): string {
     return ML_URL . '/acces/?j=' . $jeton;
 }
 
+/** Équité d'un compte de trading : cash + marges + P&L latent, au dernier
+ *  cours publié — la MÊME définition que la page trading et le concours. */
+function ml_equite_trading(array $compte): float {
+    $total = (float)($compte['solde'] ?? 0);
+    foreach ($compte['positions'] ?? [] as $p) {
+        $total += (float)$p['marge'];
+        $f = __DIR__ . '/../donnees/titres/' . $p['symbole'] . '.json';
+        $prix = is_file($f)
+            ? (json_decode((string)file_get_contents($f), true)['signaux']['close'] ?? null)
+            : null;
+        if ($prix) {
+            $sens = ($p['sens'] ?? 'long') === 'long' ? 1 : -1;
+            $total += ((float)$prix - (float)$p['prix_entree'])
+                      * (float)$p['quantite'] * $sens;
+        }
+    }
+    return $total;
+}
+
+
 function ml_envoyer_invitation(string $email, string $nom, string $jeton,
                                string $type): bool {
     $lien = ml_lien_invitation($jeton);
@@ -176,6 +196,8 @@ function ml_envoyer_invitation(string $email, string $nom, string $jeton,
         . "automatique, ne pas répondre)";
     $entetes = "From: MarketLab <noreply@gnlfconsult.com>\r\n"
         . "Content-Type: text/plain; charset=UTF-8\r\n";
+    // enveloppe -f explicite : requise par nombre de configurations Exim
+    // pour que le message parte réellement (et aligne le Return-Path)
     return @mail($email, '=?UTF-8?B?' . base64_encode($sujet) . '?=',
-                 $corps, $entetes);
+                 $corps, $entetes, '-fnoreply@gnlfconsult.com');
 }

@@ -427,13 +427,16 @@ $audit = ($connecte && is_file(ML_AUDIT))
 
   <div class="carte">
     <h2>🏦 Comptes de trading virtuel (<?= count($comptes_trading) ?>)</h2>
+    <p class="note">Équité = cash + marges engagées + P&amp;L latent (la mesure
+      du concours). Solde dispo = cash utilisable pour de nouveaux ordres.</p>
     <table>
-      <tr><th>Compte</th><th>Solde</th><th>Positions</th><th>Trades</th>
-          <th>Actions</th></tr>
+      <tr><th>Compte</th><th>Équité</th><th>Solde dispo</th><th>Positions</th>
+          <th>Trades</th><th>Actions</th></tr>
       <?php foreach ($comptes_trading as $n => $c): ?>
       <tr>
         <td><?= $n === 'claude' ? '🤖 ' : '👤 ' ?><strong><?= h($n) ?></strong></td>
-        <td><?= number_format($c['solde'] ?? 0, 2) ?> $</td>
+        <td><strong><?= number_format(ml_equite_trading($c), 2) ?> $</strong></td>
+        <td class="note"><?= number_format($c['solde'] ?? 0, 2) ?> $</td>
         <td><?= count($c['positions'] ?? []) ?></td>
         <td><?= count($c['historique'] ?? []) ?></td>
         <td>
