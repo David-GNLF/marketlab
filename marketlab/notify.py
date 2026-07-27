@@ -104,7 +104,8 @@ def _titre(texte: str) -> str:
 
 # --- Canaux -----------------------------------------------------------------
 
-def _envoyer_ntfy(cfg: dict, titre: str, texte: str, html: str) -> bool:
+def _envoyer_ntfy(cfg: dict, titre: str, texte: str, html: str,
+                  urgent: bool = False) -> bool:
     topic = cfg.get("topic")
     if not topic:
         return False
@@ -113,8 +114,10 @@ def _envoyer_ntfy(cfg: dict, titre: str, texte: str, html: str) -> bool:
         serveur = "https://" + serveur  # tolère « ntfy.sh » saisi sans schéma
     entetes = {
         "Title": titre.encode("utf-8").decode("latin-1", "ignore"),  # en-têtes = latin-1
-        "Tags": "chart_with_upwards_trend",
-        "Priority": str(cfg.get("priorite", "default")),
+        "Tags": "rotating_light" if urgent else "chart_with_upwards_trend",
+        # « urgent » sonne même en mode silencieux : réservé aux mouvements
+        # exceptionnels, jamais aux messages de routine
+        "Priority": "urgent" if urgent else str(cfg.get("priorite", "default")),
     }
     if cfg.get("jeton"):  # serveur ntfy protégé (auto-hébergé)
         entetes["Authorization"] = f"Bearer {cfg['jeton']}"
@@ -183,11 +186,13 @@ CANAUX = {
 
 # --- Point d'entrée ---------------------------------------------------------
 
-def envoyer(message_html: str) -> bool:
+def envoyer(message_html: str, urgent: bool = False) -> bool:
     """Envoie sur tous les canaux actifs. True si AU MOINS un a réussi.
 
     Un canal en échec n'empêche pas les autres ; le résultat pilote la
-    conservation de l'état anti-doublon côté alerts.py.
+    conservation de l'état anti-doublon côté alerts.py. `urgent=True` fait
+    sonner ntfy même en mode silencieux — à réserver aux mouvements
+    exceptionnels.
     """
     cfg = charger_config()
     actifs = canaux_actifs()
@@ -198,7 +203,12 @@ def envoyer(message_html: str) -> bool:
     succes = False
     for nom in actifs:
         try:
-            if CANAUX[nom](cfg.get(nom, {}), titre, texte, message_html):
+            if nom == "ntfy":
+                ok = _envoyer_ntfy(cfg.get(nom, {}), titre, texte,
+                                   message_html, urgent=urgent)
+            else:
+                ok = CANAUX[nom](cfg.get(nom, {}), titre, texte, message_html)
+            if ok:
                 succes = True
         except Exception as exc:
             print(f"[{nom}] échec de l'envoi : {str(exc)[:120]}")
