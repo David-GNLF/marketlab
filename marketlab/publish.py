@@ -32,10 +32,10 @@ from pathlib import Path
 
 import pandas as pd
 
-from marketlab import (config, correlations, cot, decision, drivers,
-                       eco_calendar, events, forecast, fundamentals, indicators,
-                       levels, macro, news, paper, position, screener,
-                       seasonality, sentiment_marche, signals)
+from marketlab import (broker_tools, config, correlations, cot, decision,
+                       drivers, eco_calendar, events, forecast, fundamentals,
+                       indicators, levels, macro, news, paper, position,
+                       screener, seasonality, sentiment_marche, signals)
 from marketlab.data import get_ohlcv
 
 RACINE_SITE = config.ROOT / "site"
@@ -132,6 +132,8 @@ def fiche_titre(symbole: str) -> dict:
     historique = df[colonnes].tail(260).round(4)
     fiche["historique"] = _table(historique)
 
+    fiche["brokers"] = broker_tools.analyse(df)
+
     for nom, calcul in (
         # la stratégie répond aux 3 questions (quand / quel sens / quelle
         # marge) et embarque le verdict complet du moteur de décision
@@ -162,14 +164,38 @@ def fiche_titre(symbole: str) -> dict:
     return fiche
 
 
+def _classe_actif(symbole: str) -> str:
+    if symbole.endswith("=X"):
+        return "Forex"
+    if symbole.endswith("=F"):
+        return "Matières"
+    if symbole.endswith("USDT"):
+        return "Crypto"
+    if symbole.startswith("^"):
+        return "Indices"
+    return "Actions"
+
+
 def bloc_verdicts() -> dict:
     """Dossiers de décision + journalisation + bilan des verdicts passés.
 
     C'est le bloc central du site : la synthèse motivée de toutes les
     analyses, et le tableau qui mesure ce que valaient les verdicts
-    précédents une fois leur horizon écoulé.
+    précédents une fois leur horizon écoulé. Chaque dossier est enrichi de
+    la classe d'actif (filtres du front) et du consensus des six outils
+    brokers (ADX, Supertrend, Ichimoku, Fibonacci, Stochastique, OBV).
     """
     dossiers = decision.verdicts(TITRES_DETAILLES)
+    for d in dossiers:
+        if "erreur" in d:
+            continue
+        d["classe"] = _classe_actif(d["symbole"])
+        d["nom"] = config.NOMS_ACTIFS.get(d["symbole"], d["symbole"])
+        try:
+            df = indicators.enrich(get_ohlcv(d["symbole"], lookback_days=1825))
+            d["brokers"] = broker_tools.consensus(df)
+        except Exception as exc:
+            d["brokers"] = {"texte": f"indisponible : {str(exc)[:60]}"}
     decision.journaliser(dossiers)
     return {"dossiers": dossiers, "bilan": decision.bilan()}
 

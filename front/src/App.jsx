@@ -239,6 +239,30 @@ function PageTitre({ meta, symbole, setSymbole }) {
             </div>
           )}
 
+          {f.brokers?.outils && (
+            <div className="carte">
+              <h3>🧰 Les outils des brokers</h3>
+              <p className="note">Les six indicateurs les plus utilisés sur les
+                plateformes professionnelles. Ils décrivent — le verdict et ses
+                garde-fous restent seuls décideurs.</p>
+              {f.brokers.outils.map((o) => (
+                <p key={o.outil} style={{ margin: "5px 0" }}>
+                  <strong style={{ display: "inline-block", minWidth: 110 }}>
+                    {o.outil}</strong>
+                  <span className="badge" style={{ marginRight: 8,
+                    color: o.signal === "haussier" ? "var(--good)"
+                      : o.signal === "baissier" ? "var(--critical)"
+                      : "var(--muted)" }}>{o.signal}</span>
+                  <span className="note">{o.lecture}</span>
+                </p>
+              ))}
+              <p style={{ fontWeight: 600 }}>Consensus :{" "}
+                {f.brokers.consensus?.texte}</p>
+              {f.brokers.avertissement_regime && (
+                <p className="erreur">⚠️ {f.brokers.avertissement_regime}</p>
+              )}
+            </div>
+          )}
           <div className="carte">
             <h3>Contexte</h3>
             {f.analogues && !f.analogues.erreur && (
@@ -478,28 +502,112 @@ const COULEUR_AVIS = {
   "Neutre": "var(--muted)",
 };
 
-function Verdict({ d, onTitre }) {
+// Ce qu'il faut FAIRE, écrit en toutes lettres : n'importe qui doit
+// comprendre la carte sans connaître la mécanique interne.
+function actionExplicite(d) {
+  if (d.avis === "S'abstenir") {
+    return { texte: "⛔ NE PAS TRADER — un garde-fou bloque ce dossier",
+             couleur: "var(--critical)" };
+  }
+  if (d.avis === "Favorable" && d.plan) {
+    const t = d.taille_multiplicateur < 1
+      ? ` à taille réduite (×${d.taille_multiplicateur})` : "";
+    return { texte: `🟢 ACHAT envisageable${t} — entrée ${nb(d.plan.entree)}, `
+             + `stop ${nb(d.plan.stop)}, objectif ${nb(d.plan.objectif)}`,
+             couleur: "var(--good)" };
+  }
+  if (d.avis === "Défavorable") {
+    return { texte: "🔴 ÉVITER À L'ACHAT — analyses défavorables (le bilan "
+             + "déconseille aussi la vente à découvert : rester à l'écart)",
+             couleur: "var(--critical)" };
+  }
+  return { texte: "⚪ SURVEILLER — les analyses ne convergent pas assez pour agir",
+           couleur: "var(--muted)" };
+}
+
+function BarreNote({ note }) {
+  const pct = Math.min(100, Math.max(0, (note + 100) / 2));
+  return (
+    <div style={{ background: "var(--grid)", borderRadius: 4, height: 8,
+                  width: 120, position: "relative" }}
+         title={`note ${note} sur une échelle de −100 à +100`}>
+      <div style={{ position: "absolute", left: "50%", top: -2, width: 1,
+                    height: 12, background: "var(--baseline)" }} />
+      <div style={{ position: "absolute", left: `${pct}%`, top: -3, width: 6,
+                    height: 14, borderRadius: 3, transform: "translateX(-50%)",
+                    background: note >= 30 ? "var(--good)"
+                      : note <= -30 ? "var(--critical)" : "var(--series-1)" }} />
+    </div>
+  );
+}
+
+function Verdict({ d, rang, onTitre }) {
   const [ouvert, setOuvert] = useState(false);
   if (d.erreur) {
     return <div className="carte"><strong>{d.symbole}</strong>{" "}
       <span className="note">indisponible : {d.erreur}</span></div>;
   }
+  const action = actionExplicite(d);
+  const c = d.conclusion;
   return (
-    <div className="carte">
+    <div className="carte" style={{ borderLeft: `4px solid ${
+        d.avis === "Favorable" ? "var(--good)"
+        : d.avis === "Défavorable" || d.avis === "S'abstenir"
+          ? "var(--critical)" : "var(--grid)"}` }}>
       <div className="rangee" style={{ alignItems: "center", cursor: "pointer" }}
            onClick={() => setOuvert(!ouvert)}>
-        <strong style={{ minWidth: 90 }}>{d.symbole}</strong>
-        <span className="badge"
-              style={{ color: COULEUR_AVIS[d.avis] ?? "inherit",
-                       fontWeight: 600 }}>{d.avis}</span>
-        <span>note <strong>{d.note_globale > 0 ? "+" : ""}{d.note_globale}</strong></span>
-        <span className="note">concordance {d["concordance_%"]} % ·
-          taille ×{d.taille_multiplicateur} · cours {nb(d.prix)}</span>
+        <span className="note" style={{ minWidth: 28 }}>#{rang}</span>
+        <div style={{ minWidth: 150 }}>
+          <strong>{d.nom ?? d.symbole}</strong>
+          <div className="note">{d.symbole}{d.classe ? ` · ${d.classe}` : ""} ·
+            cours {nb(d.prix)}</div>
+        </div>
+        <span className="badge" style={{ color: COULEUR_AVIS[d.avis] ?? "inherit",
+                                         fontWeight: 700, fontSize: 14 }}>
+          {d.avis}</span>
+        <div>
+          <BarreNote note={d.note_globale} />
+          <div className="note">note {d.note_globale > 0 ? "+" : ""}
+            {d.note_globale} · accord {d["concordance_%"]} %</div>
+        </div>
+        {c && (
+          <div className="tuile" style={{ minWidth: 100 }}>
+            <div className="libelle">P(hausse) · {c.periode_seances} séances</div>
+            <div className="valeur" style={{ fontSize: 18 }}>
+              {c["proba_hausse_combinee_%"]} %</div>
+          </div>
+        )}
+        {c && (
+          <div className="tuile" style={{ minWidth: 128 }}>
+            <div className="libelle">potentiel / risque extrême</div>
+            <div style={{ fontSize: 14 }}>
+              <span className="delta positif">▲ {c["scenario_porteur_%"]} %</span>
+              {" / "}
+              <span className="delta negatif">{c["var_95_%"]} %</span>
+            </div>
+          </div>
+        )}
+        {d.brokers?.tendance && (
+          <div className="tuile" style={{ minWidth: 112 }}
+               title="ADX/DMI, Supertrend, Ichimoku, Fibonacci, Stochastique, OBV">
+            <div className="libelle">outils brokers</div>
+            <div style={{ fontSize: 13 }}>{d.brokers.haussiers} 🟢 ·{" "}
+              {d.brokers.baissiers} 🔴 <span className="note">
+                ({d.brokers.tendance})</span></div>
+          </div>
+        )}
         <span className="note" style={{ marginLeft: "auto" }}>
-          {ouvert ? "▲ replier" : "▼ détails"}</span>
+          {ouvert ? "▲ replier" : "▼ pourquoi ?"}</span>
       </div>
+
+      <p style={{ margin: "8px 0 0", fontWeight: 600, color: action.couleur }}>
+        {action.texte}</p>
+      {d.brokers?.avertissement && (
+        <p className="note" style={{ margin: "4px 0 0" }}>
+          ⚠️ {d.brokers.avertissement}</p>
+      )}
       {d.vetos?.length > 0 && d.vetos.map((v, i) => (
-        <p key={i} className="erreur" style={{ margin: "6px 0 0" }}>⚠️ {v}</p>
+        <p key={i} className="erreur" style={{ margin: "4px 0 0" }}>⚠️ {v}</p>
       ))}
       {ouvert && (
         <div style={{ marginTop: 10 }}>
@@ -536,15 +644,53 @@ function Verdict({ d, onTitre }) {
   );
 }
 
+const TRIS = {
+  "avis (favorable → défavorable)":
+    (a, b) => (b.note_globale ?? -999) - (a.note_globale ?? -999),
+  "probabilité de hausse":
+    (a, b) => (b.conclusion?.["proba_hausse_combinee_%"] ?? -1)
+      - (a.conclusion?.["proba_hausse_combinee_%"] ?? -1),
+  "potentiel de gain":
+    (a, b) => (b.conclusion?.["scenario_porteur_%"] ?? -999)
+      - (a.conclusion?.["scenario_porteur_%"] ?? -999),
+  "risque le plus faible":
+    (a, b) => (b.conclusion?.["var_95_%"] ?? -999)
+      - (a.conclusion?.["var_95_%"] ?? -999),
+};
+
 function PageDecisions({ onTitre }) {
   const { donnees, erreur } = useDonnees(api.getVerdicts);
   const app = useDonnees(api.getApprentissage);
+  const [tri, setTri] = useState(Object.keys(TRIS)[0]);
+  const [classe, setClasse] = useState("Tous");
   if (!donnees) return <Chargement erreur={erreur} />;
-  const dossiers = [...(donnees.dossiers ?? [])].sort(
-    (a, b) => (b.note_globale ?? -999) - (a.note_globale ?? -999));
+  const tous = donnees.dossiers ?? [];
+  const classes = ["Tous",
+                   ...new Set(tous.map((d) => d.classe).filter(Boolean))];
+  const dossiers = tous
+    .filter((d) => classe === "Tous" || d.classe === classe)
+    .sort(TRIS[tri]);
   const bilan = donnees.bilan;
   return (
     <>
+      <div className="carte">
+        <div className="rangee" style={{ alignItems: "end" }}>
+          <label className="champ">Classer par
+            <select value={tri} onChange={(e) => setTri(e.target.value)}>
+              {Object.keys(TRIS).map((t) => <option key={t}>{t}</option>)}
+            </select>
+          </label>
+          <label className="champ">Classe d'actif
+            <select value={classe} onChange={(e) => setClasse(e.target.value)}>
+              {classes.map((cl) => <option key={cl}>{cl}</option>)}
+            </select>
+          </label>
+          <span className="note">{dossiers.length} actif(s) — la liste se
+            réordonne du plus favorable au plus défavorable selon le critère
+            choisi. Chaque carte dit explicitement quoi faire, et « pourquoi ? »
+            ouvre le détail.</span>
+        </div>
+      </div>
       <div className="carte">
         <h3>Bilan des verdicts passés</h3>
         {bilan?.verdicts_evalues > 0 ? (
@@ -577,8 +723,8 @@ function PageDecisions({ onTitre }) {
           </>
         )}
       </div>
-      {dossiers.map((d) => (
-        <Verdict key={d.symbole} d={d} onTitre={onTitre} />
+      {dossiers.map((d, i) => (
+        <Verdict key={d.symbole} d={d} rang={i + 1} onTitre={onTitre} />
       ))}
     </>
   );
