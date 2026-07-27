@@ -32,10 +32,10 @@ from pathlib import Path
 
 import pandas as pd
 
-from marketlab import (config, correlations, cot, decision, eco_calendar,
-                       events, forecast, fundamentals, indicators, levels,
-                       macro, news, paper, position, screener, seasonality,
-                       sentiment_marche, signals)
+from marketlab import (config, correlations, cot, decision, drivers,
+                       eco_calendar, events, forecast, fundamentals, indicators,
+                       levels, macro, news, paper, position, screener,
+                       seasonality, sentiment_marche, signals)
 from marketlab.data import get_ohlcv
 
 RACINE_SITE = config.ROOT / "site"
@@ -136,6 +136,9 @@ def fiche_titre(symbole: str) -> dict:
         # la stratégie répond aux 3 questions (quand / quel sens / quelle
         # marge) et embarque le verdict complet du moteur de décision
         ("strategie", lambda: position.strategie(symbole)),
+        # moteurs fondamentaux propres à la classe d'actif (carry, taux
+        # réels, structure à terme) — liste vide pour une action, c'est normal
+        ("moteurs", lambda: drivers.moteurs(symbole)),
         ("regime", lambda: forecast.regime(df)),
         ("projection", lambda: {k: v for k, v in
                                 forecast.projeter(df, horizon=20).items()
@@ -185,6 +188,7 @@ BLOCS = {
     "verdicts": bloc_verdicts,
     "cot": bloc_cot,
     "sentiment_marche": sentiment_marche.indice,
+    "barometres": drivers.barometres,
     "screener": bloc_screener,
     "macro": bloc_macro,
     "calendrier": bloc_calendrier,

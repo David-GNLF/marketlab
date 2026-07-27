@@ -255,6 +255,9 @@ function PageTitre({ meta, symbole, setSymbole }) {
               <p className={f.resultats.dans_horizon ? "erreur" : ""}>
                 📣 <strong>Résultats</strong> — {f.resultats.message}</p>
             )}
+            {f.moteurs?.length > 0 && f.moteurs.map((m, i) => (
+              <p key={i}>⚙️ <strong>{m.outil}</strong> — {m.lecture}</p>
+            ))}
             {f.saisonnalite && !f.saisonnalite.erreur && (
               <p>🗓️ <strong>Saisonnalité</strong> — {f.saisonnalite.conclusion}</p>
             )}
@@ -277,6 +280,7 @@ function PageMacro() {
   const res = useDonnees(api.getResultats);
   const cotD = useDonnees(api.getCot);
   const fg = useDonnees(api.getSentimentMarche);
+  const baro = useDonnees(api.getBarometres);
   return (
     <>
       <div className="carte">
@@ -345,6 +349,12 @@ function PageMacro() {
                             "amplitude_historique_%"]} />
         )}
       </div>
+      {baro.donnees && (
+        <div className="carte">
+          <h3>Baromètres cross-asset</h3>
+          <p>{baro.donnees.lecture}</p>
+        </div>
+      )}
       <div className="carte">
         <h3>Positionnement des spéculateurs (COT, CFTC)</h3>
         <p className="note">Rapport hebdomadaire officiel : position nette des
