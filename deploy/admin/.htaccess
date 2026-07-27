@@ -1,0 +1,6 @@
+# Espace d'administration MarketLab.
+# Les fichiers de données (comptes administrateurs, compteur d'échecs) ne
+# doivent JAMAIS être servis par le web — PHP seul y accède.
+<FilesMatch "\.(json|tmp|log)$">
+  Require all denied
+</FilesMatch>
