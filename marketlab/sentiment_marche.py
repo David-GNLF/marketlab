@@ -1,8 +1,8 @@
-"""Indice Peur & Avidité maison : cinq mesures objectives, zéro sondage.
+"""Indice Peur & Avidité maison : sept mesures objectives, zéro sondage.
 
 Les sources classiques de sentiment (sondage AAII, ratio put/call CBOE) sont
 devenues payantes. Plutôt qu'un sondage déclaratif hebdomadaire, cet indice
-agrège CINQ mesures de comportement réel des marchés, toutes gratuites et
+agrège SEPT mesures de comportement réel des marchés, toutes gratuites et
 quotidiennes :
 
 1. **Niveau du VIX** (percentile 2 ans, inversé) — volatilité payée pour se
@@ -18,6 +18,13 @@ quotidiennes :
    la même santé qu'une hausse portée par cinq titres.
 5. **Refuge or vs actions** — performance relative 20 séances du S&P 500 face
    à l'or : quand l'or bat nettement les actions, l'argent cherche un abri.
+6. **VVIX** (volatilité du VIX, percentile 2 ans inversé) — la nervosité de
+   ceux qui se couvrent : quand même les couvertures deviennent chères à
+   assurer, la peur est profonde.
+7. **SKEW** (percentile 2 ans inversé) — le surcoût des puts très
+   hors-la-monnaie : ce que le marché paie pour s'assurer contre un krach.
+   Indicatif : son pouvoir prédictif est débattu dans la littérature, d'où
+   un rôle de simple composante parmi sept.
 
 Chaque composante est notée de 0 (peur extrême) à 100 (avidité extrême), la
 moyenne fait l'indice. Usage CONTRARIEN aux extrêmes : sous ~20, la peur est
@@ -106,13 +113,32 @@ def composante_refuge() -> dict:
             "detail": f"S&P {perf_spx:+.1f} % vs or {perf_or:+.1f} % sur 20 séances"}
 
 
+def composante_vvix() -> dict:
+    df = get_ohlcv("^VVIX", lookback_days=730)
+    vvix = float(df["close"].iloc[-1])
+    note = _clip(100 - _percentile(df["close"], vvix))
+    return {"nom": "VVIX (vol du VIX)", "note": round(note, 0),
+            "detail": f"VVIX {vvix:.1f} (percentile 2 ans : {100 - note:.0f}) — "
+                      "le coût d'assurer les couvertures elles-mêmes"}
+
+
+def composante_skew() -> dict:
+    df = get_ohlcv("^SKEW", lookback_days=730)
+    skew = float(df["close"].iloc[-1])
+    note = _clip(100 - _percentile(df["close"], skew))
+    return {"nom": "SKEW (risque de queue)", "note": round(note, 0),
+            "detail": f"SKEW {skew:.1f} (percentile 2 ans : {100 - note:.0f}) — "
+                      "le surcoût de l'assurance anti-krach ; indicatif"}
+
+
 # --- Indice ------------------------------------------------------------------
 
 def indice() -> dict:
     """L'indice agrégé, chaque composante restant lisible et critiquable."""
     composantes = []
     for calc in (composante_vix, composante_structure_vix, composante_credit,
-                 composante_largeur, composante_refuge):
+                 composante_largeur, composante_refuge, composante_vvix,
+                 composante_skew):
         try:
             composantes.append(calc())
         except Exception as exc:
@@ -145,6 +171,6 @@ def indice() -> dict:
         "zone": zone,
         "lecture": lecture,
         "composantes": composantes,
-        "methode": "Moyenne de 5 mesures de comportement réel (0 = peur "
+        "methode": "Moyenne de 7 mesures de comportement réel (0 = peur "
                    "extrême, 100 = avidité extrême) — pas un sondage.",
     }
