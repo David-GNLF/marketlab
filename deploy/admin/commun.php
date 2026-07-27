@@ -6,6 +6,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../cours_lib.php';
+
 const ML_HTPASSWD    = __DIR__ . '/../.htpasswd';
 const ML_ROLES       = __DIR__ . '/roles.json';
 const ML_INVITATIONS = __DIR__ . '/invitations.json';
@@ -16,6 +18,11 @@ const ML_EXP_INVITATION = 72 * 3600;   // 72 h
 const ML_CAPITAL_TRADING = 1000.0;
 
 // ------------------------------------------------------------------ fichiers
+
+/** Montants au format français, comme la page trading. */
+function ml_montant(float $x, int $decimales = 2): string {
+    return number_format($x, $decimales, ',', "\u{202F}");
+}
 
 function ml_lire(string $chemin): array {
     if (!is_file($chemin)) return [];
@@ -159,20 +166,24 @@ function ml_lien_invitation(string $jeton): string {
     return ML_URL . '/acces/?j=' . $jeton;
 }
 
-/** Équité d'un compte de trading : cash + marges + P&L latent, au dernier
- *  cours publié — la MÊME définition que la page trading et le concours. */
+/** Équité d'un compte de trading : cash + marge réservée + marges engagées
+ *  + P&L latent, au COURS FRAIS du relais (cours_lib.php) — exactement la
+ *  même définition et la même source de prix que la page trading. C'est
+ *  cette règle unique qui empêche deux montants de diverger. */
 function ml_equite_trading(array $compte): float {
     $total = (float)($compte['solde'] ?? 0);
     // mise réservée par les ordres en attente : toujours au compte
     foreach ($compte['ordres'] ?? [] as $o) {
         $total += (float)($o['marge'] ?? 0);
     }
-    foreach ($compte['positions'] ?? [] as $p) {
+    $positions = $compte['positions'] ?? [];
+    if (!$positions) return $total;
+
+    $cours = ml_cours(array_values(array_unique(
+        array_column($positions, 'symbole'))));
+    foreach ($positions as $p) {
         $total += (float)$p['marge'];
-        $f = __DIR__ . '/../donnees/titres/' . $p['symbole'] . '.json';
-        $prix = is_file($f)
-            ? (json_decode((string)file_get_contents($f), true)['signaux']['close'] ?? null)
-            : null;
+        $prix = $cours[$p['symbole']]['prix'] ?? null;
         if ($prix) {
             $sens = ($p['sens'] ?? 'long') === 'long' ? 1 : -1;
             $total += ((float)$prix - (float)$p['prix_entree'])

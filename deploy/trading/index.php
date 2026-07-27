@@ -7,11 +7,12 @@
  * de bord de marge (équité, marge utilisée, marge libre, niveau de marge) et
  * espace « Mon compte » (levier par défaut, mot de passe, remise à zéro).
  *
- * Exécution au DERNIER COURS PUBLIÉ par le site (donnees/titres/*.json) :
- * pas de flux temps réel, et c'est assumé — l'environnement sert à juger des
- * décisions à l'échelle de jours, pas à scalper. Les ordres en attente,
+ * Exécution au COURS FRAIS servi par le relais (cours_lib.php) : crypto en
+ * temps réel, forex à la minute, actions et matières au différé de ~15 min
+ * des sources gratuites. Chaque prix est affiché avec son âge, et le repli
+ * sur le dernier cours publié est signalé comme tel. Les ordres en attente,
  * stops, objectifs et liquidations sont appliqués par le robot quotidien sur
- * les extrêmes de séance.
+ * les extrêmes de séance officiels.
  *
  * Un fichier JSON par compte (trading/comptes/<nom>.json) : le robot
  * n'écrit que le sien, cette page n'écrit que celui de l'utilisateur
@@ -19,6 +20,8 @@
  */
 
 declare(strict_types=1);
+
+require_once __DIR__ . '/../cours_lib.php';
 
 const DOSSIER_COMPTES = __DIR__ . '/comptes';
 const DOSSIER_DONNEES = __DIR__ . '/../donnees';
@@ -35,6 +38,13 @@ session_start();
 // ---------------------------------------------------------------- utilitaires
 
 function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
+
+/** Format français des montants, IDENTIQUE à celui du rafraîchissement en
+ *  JavaScript (toLocaleString « fr-FR ») : sans cela le même nombre changerait
+ *  d'apparence à chaque mise à jour automatique. */
+function montant(float $x, int $decimales = 2): string {
+    return number_format($x, $decimales, ',', "\u{202F}");
+}
 
 function chemin_compte(string $nom): string {
     return DOSSIER_COMPTES . '/' . $nom . '.json';
@@ -64,32 +74,53 @@ function actifs_disponibles(): array {
     return $liste;
 }
 
-function fiche_titre(string $symbole): ?array {
+/** Cotations fraîches de tous les actifs, chargées une seule fois par page
+ *  (un appel réseau groupé, mis en cache 60 s côté serveur). */
+function cotations(): array {
+    static $cotations = null;
+    if ($cotations === null) $cotations = ml_cours(actifs_disponibles());
+    return $cotations;
+}
+
+/** Identité de l'actif (nom, avis de l'outil) : elle vient de l'instantané
+ *  publié, qui est le travail d'analyse — seul le PRIX est rafraîchi. */
+function identite_titre(string $symbole): ?array {
     static $cache = [];
     if (array_key_exists($symbole, $cache)) return $cache[$symbole];
     $f = DOSSIER_DONNEES . '/titres/' . $symbole . '.json';
     if (!is_file($f)) return $cache[$symbole] = null;
     $d = json_decode((string)file_get_contents($f), true);
-    $prix = $d['signaux']['close'] ?? null;
-    if (!$prix) return $cache[$symbole] = null;
-    $var = null;
-    $hist = $d['historique'] ?? [];
-    $n = count($hist);
-    if ($n >= 2 && !empty($hist[$n - 2]['close'])) {
-        $var = ((float)$hist[$n - 1]['close'] / (float)$hist[$n - 2]['close']
-                - 1) * 100;
-    }
     return $cache[$symbole] = [
-        'prix' => (float)$prix,
         'nom' => $d['nom'] ?? $symbole,
         'avis' => $d['signaux']['avis'] ?? null,
-        'var_pct' => $var,
+        'close_publie' => $d['signaux']['close'] ?? null,
     ];
 }
 
+/**
+ * LE prix de référence de la plateforme : cotation fraîche du relais, repli
+ * sur le dernier cours publié. Utilisé pour l'exécution, la valorisation et
+ * l'affichage — une seule définition, donc jamais deux montants différents.
+ */
 function dernier_cours(string $symbole): ?array {
-    return fiche_titre($symbole);
+    $cote = cotations()[$symbole] ?? null;
+    $identite = identite_titre($symbole);
+    if (!$cote) {
+        $cote = ml_cours_un($symbole);          // actif hors liste chargée
+        if (!$cote) return null;
+    }
+    return [
+        'prix' => (float)$cote['prix'],
+        'var_pct' => $cote['var_pct'],
+        'age_s' => $cote['age_s'],
+        'source' => $cote['source'],
+        'frais' => $cote['frais'],
+        'nom' => $identite['nom'] ?? $symbole,
+        'avis' => $identite['avis'] ?? null,
+    ];
 }
+
+function fiche_titre(string $symbole): ?array { return dernier_cours($symbole); }
 
 function date_donnees(): string {
     $meta = json_decode((string)@file_get_contents(
@@ -274,12 +305,15 @@ if ($connecte && in_array($action, $actions_protegees, true)) {
                     'stop' => $stop, 'objectif' => $objectif,
                     'ouvert_le' => date('Y-m-d H:i'),
                     'source' => 'manuel',
+                    'base_prix' => $cours['source'],
+                    'age_prix_s' => $cours['age_s'],
                 ];
                 $message = ecrire_compte($connecte, $compte)
                     ? ['ok', strtoupper($sens) . " $symbole ouvert : marge $mise $ "
                        . "× levier $levier = notionnel " . round($notionnel)
                        . " $ @ " . round($prix, 4)
-                       . " (spread " . SPREAD_PCT . " % inclus)"]
+                       . " (spread " . SPREAD_PCT . " % inclus) — cotation "
+                       . $cours['source'] . ', ' . ml_cours_age_texte($cours['age_s'])]
                     : ['erreur', 'Écriture du compte impossible.'];
             }
         } elseif ($action === 'fermer') {
@@ -444,18 +478,32 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
     padding: 10px 12px; margin-top: 10px; line-height: 1.6; }
   .avis-achat { color: #0a7a0a; font-weight: 600; }
   .avis-vente { color: #d03b3b; font-weight: 600; }
+  @keyframes ml-flash { from { background: color-mix(in srgb,
+      #2a78d6 35%, transparent); } to { background: transparent; } }
+  .clignote { animation: ml-flash 1s ease-out; }
+  .pouls { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+    background: #0a7a0a; animation: ml-pouls 2s infinite; vertical-align: middle; }
+  @keyframes ml-pouls { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+  @media (prefers-reduced-motion: reduce) {
+    .clignote, .pouls { animation: none; }
+  }
 </style>
 </head>
 <body>
 <h1>🏦 MarketLab — trading virtuel</h1>
 <p class="note">Argent 100 % virtuel — 1 000 $ de départ, levier jusqu'à
-  ×<?= LEVIER_MAX ?>. Exécution au dernier cours publié
-  (<?= h(date_donnees()) ?>) avec spread simulé de <?= SPREAD_PCT ?> % :
-  cet environnement juge des décisions de fond, pas du scalping. Ordres en
-  attente, stops, objectifs et liquidations sont vérifiés chaque soir sur les
-  extrêmes de séance. Le robot « claude » trade selon les verdicts de
-  l'outil ; comparez-vous à lui sur la
-  <a href="../">page Concours du site</a>.</p>
+  ×<?= LEVIER_MAX ?>, spread simulé de <?= SPREAD_PCT ?> %.
+  <strong>Cotations rafraîchies en continu</strong> : crypto en temps réel,
+  forex à la minute, actions et matières au différé de ~15 min imposé par les
+  bourses aux sources gratuites. L'âge de chaque cotation est affiché — rien
+  n'est présenté comme « direct » sans l'être. L'analyse (avis, verdicts),
+  elle, date de l'instantané du <?= h(date_donnees()) ?>.
+  Ordres en attente, stops, objectifs et liquidations sont vérifiés chaque
+  soir sur les extrêmes de séance officiels. Le robot « claude » trade selon
+  les verdicts de l'outil ; comparez-vous à lui sur la
+  <a href="../">page Concours du site</a> — dont le classement est un
+  <em>arrêté du soir</em>, alors que cette page vaut en direct : un écart
+  entre les deux pendant la journée est normal.</p>
 
 <?php if ($message): ?>
   <p class="<?= $message[0] ?>"><?= h($message[1]) ?></p>
@@ -509,45 +557,54 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
   </nav>
 
   <div class="carte grille">
-    <div class="tuile"><div class="l">Équité</div>
-      <div class="v"><?= number_format($eq, 2) ?> $</div></div>
+    <div class="tuile"><div class="l">Équité <span class="pouls"></span></div>
+      <div class="v" id="v-equite"><?= montant($eq, 2) ?> $</div></div>
     <div class="tuile"><div class="l">Solde (marge libre)</div>
-      <div class="v"><?= number_format($compte['solde'], 2) ?> $</div></div>
+      <div class="v"><?= montant($compte['solde'], 2) ?> $</div></div>
     <div class="tuile"><div class="l">Marge utilisée</div>
-      <div class="v"><?= number_format($mu, 2) ?> $</div></div>
+      <div class="v"><?= montant($mu, 2) ?> $</div></div>
     <div class="tuile"><div class="l">Marge réservée (ordres)</div>
-      <div class="v"><?= number_format($mr, 2) ?> $</div></div>
-    <div class="tuile"><div class="l">P&amp;L flottant</div>
-      <div class="v <?= $pnl_f >= 0 ? 'pos' : 'neg' ?>">
-        <?= ($pnl_f >= 0 ? '+' : '') . number_format($pnl_f, 2) ?> $</div></div>
+      <div class="v"><?= montant($mr, 2) ?> $</div></div>
+    <div class="tuile"><div class="l">P&amp;L flottant <span class="pouls"></span></div>
+      <div class="v <?= $pnl_f >= 0 ? 'pos' : 'neg' ?>" id="v-pnl">
+        <?= ($pnl_f >= 0 ? '+' : '') . montant($pnl_f, 2) ?> $</div></div>
     <div class="tuile"><div class="l">Niveau de marge</div>
-      <div class="v"><?= $niveau === null ? '—'
-          : number_format($niveau, 0) . ' %' ?></div></div>
+      <div class="v" id="v-niveau"><?= $niveau === null ? '—'
+          : montant($niveau, 0) . ' %' ?></div></div>
     <div class="tuile"><div class="l">Performance</div>
-      <div class="v <?= $perf >= 0 ? 'pos' : 'neg' ?>">
-        <?= ($perf >= 0 ? '+' : '') . number_format($perf, 2) ?> %</div></div>
+      <div class="v <?= $perf >= 0 ? 'pos' : 'neg' ?>" id="v-perf">
+        <?= ($perf >= 0 ? '+' : '') . montant($perf, 2) ?> %</div></div>
   </div>
+  <p class="note" id="etat-flux">Cotations mises à jour automatiquement
+    toutes les 30 secondes.</p>
 
   <div class="carte" id="marche">
     <h2>👁 Observation du marché</h2>
-    <p class="note">Dernier cours publié, variation de la dernière séance et
-      avis de l'outil. « Trader » pré-remplit le ticket d'ordre. Le détail
-      complet de chaque actif (salle de marché SENS / QUAND / MARGE) est sur
+    <p class="note">Cours rafraîchis automatiquement, avec l'âge réel de
+      chaque cotation (🟢 = direct, ⏳ = différé de la source gratuite,
+      📄 = repli sur l'instantané publié). L'avis, lui, vient de l'analyse
+      quotidienne. « Trader » pré-remplit le ticket d'ordre ; le détail
+      complet (salle de marché SENS / QUAND / MARGE) est sur
       <a href="../">le site</a>, onglet Titre.</p>
     <div class="defile">
     <table>
       <tr><th>Actif</th><th>Nom</th><th>Cours</th><th>Var. séance</th>
-          <th>Avis de l'outil</th><th></th></tr>
+          <th>Fraîcheur</th><th>Avis de l'outil</th><th></th></tr>
       <?php foreach ($actifs as $sym): $f = fiche_titre($sym);
             if (!$f) continue; ?>
       <tr>
         <td><strong><?= h($sym) ?></strong></td>
         <td class="note"><?= h($f['nom']) ?></td>
-        <td><?= round($f['prix'], 4) ?></td>
-        <td class="<?= ($f['var_pct'] ?? 0) >= 0 ? 'pos' : 'neg' ?>">
+        <td data-prix="<?= h($sym) ?>"><?= round($f['prix'], 4) ?></td>
+        <td data-var="<?= h($sym) ?>"
+            class="<?= ($f['var_pct'] ?? 0) >= 0 ? 'pos' : 'neg' ?>">
           <?= $f['var_pct'] === null ? '—'
               : (($f['var_pct'] >= 0 ? '+' : '')
-                 . number_format($f['var_pct'], 2) . ' %') ?></td>
+                 . montant($f['var_pct'], 2) . ' %') ?></td>
+        <td class="note" data-age="<?= h($sym) ?>">
+          <?= $f['source'] === 'publié' ? '📄 publié'
+              : (($f['frais'] ? '🟢 ' : '⏳ ')
+                 . h(ml_cours_age_texte($f['age_s']))) ?></td>
         <td class="<?= str_starts_with((string)$f['avis'], 'Achat')
             ? 'avis-achat' : (str_starts_with((string)$f['avis'], 'Vente')
             ? 'avis-vente' : 'note') ?>"><?= h($f['avis'] ?? '—') ?></td>
@@ -620,19 +677,25 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
       <?php foreach ($compte['positions'] as $p):
             $c = dernier_cours($p['symbole']);
             $pnl = $c ? pnl_position($p, $c['prix']) : null; ?>
-      <tr>
+      <tr data-position="<?= h($p['id']) ?>"
+          data-symbole="<?= h($p['symbole']) ?>"
+          data-quantite="<?= $p['quantite'] ?>"
+          data-entree="<?= $p['prix_entree'] ?>"
+          data-marge="<?= $p['marge'] ?>"
+          data-sens="<?= $p['sens'] === 'long' ? 1 : -1 ?>">
         <td><strong><?= h($p['symbole']) ?></strong>
           <?php if (($p['source'] ?? '') === 'ordre'): ?>
             <span class="note" title="issue d'un ordre en attente">⏳</span>
           <?php endif; ?></td>
         <td><?= $p['sens'] === 'long' ? '🟢 long' : '🔴 short' ?></td>
         <td>×<?= (int)$p['levier'] ?></td>
-        <td><?= number_format($p['marge'], 0) ?> $</td>
+        <td><?= montant($p['marge'], 0) ?> $</td>
         <td><?= round($p['prix_entree'], 4) ?></td>
-        <td><?= $c ? round($c['prix'], 4) : '—' ?></td>
-        <td class="<?= $pnl >= 0 ? 'pos' : 'neg' ?>">
+        <td data-prix="<?= h($p['symbole']) ?>">
+          <?= $c ? round($c['prix'], 4) : '—' ?></td>
+        <td class="<?= $pnl >= 0 ? 'pos' : 'neg' ?>" data-pnl>
           <?= $pnl === null ? '—' : ($pnl >= 0 ? '+' : '')
-              . number_format($pnl, 2) ?> $</td>
+              . montant($pnl, 2) ?> $</td>
         <td><?= $p['stop'] ?? '—' ?></td>
         <td><?= $p['objectif'] ?? '—' ?></td>
         <td class="note"><?= round(prix_liquidation($p), 4) ?></td>
@@ -686,8 +749,9 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
         <td><?= $o['sens'] === 'long' ? '🟢 long' : '🔴 short' ?></td>
         <td><?= h($o['type']) ?></td>
         <td><?= round($o['prix'], 4) ?></td>
-        <td><?= $c ? round($c['prix'], 4) : '—' ?></td>
-        <td><?= number_format($o['marge'], 0) ?> $</td>
+        <td data-prix="<?= h($o['symbole']) ?>">
+          <?= $c ? round($c['prix'], 4) : '—' ?></td>
+        <td><?= montant($o['marge'], 0) ?> $</td>
         <td>×<?= (int)$o['levier'] ?></td>
         <td><?= $o['stop'] ?? '—' ?></td>
         <td><?= $o['objectif'] ?? '—' ?></td>
@@ -718,9 +782,9 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
           $pnls = array_column($hist, 'pnl'); ?>
     <p class="note">Trades gagnants : <?= $gagnants ?>/<?= count($hist) ?>
       (<?= round($gagnants / count($hist) * 100) ?> %) ·
-      P&amp;L cumulé : <?= number_format(array_sum($pnls), 2) ?> $ ·
-      meilleur : <?= number_format(max($pnls), 2) ?> $ ·
-      pire : <?= number_format(min($pnls), 2) ?> $</p>
+      P&amp;L cumulé : <?= montant(array_sum($pnls), 2) ?> $ ·
+      meilleur : <?= montant(max($pnls), 2) ?> $ ·
+      pire : <?= montant(min($pnls), 2) ?> $</p>
     <div class="defile">
     <table>
       <tr><th>Actif</th><th>Sens</th><th>Levier</th><th>Entrée</th>
@@ -733,7 +797,7 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
         <td><?= round($t['entree'], 4) ?></td>
         <td><?= round($t['sortie'], 4) ?></td>
         <td class="<?= $t['pnl'] >= 0 ? 'pos' : 'neg' ?>">
-          <?= ($t['pnl'] >= 0 ? '+' : '') . number_format($t['pnl'], 2) ?> $</td>
+          <?= ($t['pnl'] >= 0 ? '+' : '') . montant($t['pnl'], 2) ?> $</td>
         <td class="note"><?= h($t['motif']) ?></td>
         <td class="note"><?= h($t['ferme_le']) ?></td>
       </tr>
@@ -746,7 +810,7 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
   <div class="carte" id="moncompte">
     <h2>⚙️ Mon compte</h2>
     <p class="note">Créé le <?= h($compte['cree_le'] ?? '?') ?> ·
-      capital initial <?= number_format($compte['capital_initial'], 0) ?> $.</p>
+      capital initial <?= montant($compte['capital_initial'], 0) ?> $.</p>
     <div class="grille">
       <form method="post">
         <input type="hidden" name="a" value="preferences">
@@ -779,6 +843,121 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
   </div>
 
 <script>
+// --------------------------------------------------------------- cotations
+// La page se met à jour toute seule : prix, variations, P&L des positions,
+// P&L flottant, équité et niveau de marge. Le serveur mutualise les appels
+// (cache de 60 s) : ce sondage ne coûte donc presque rien au fournisseur.
+const ML = {
+  solde: <?= json_encode(round($compte['solde'], 6)) ?>,
+  margeUtilisee: <?= json_encode(round($mu, 6)) ?>,
+  margeReservee: <?= json_encode(round($mr, 6)) ?>,
+  capitalInitial: <?= json_encode((float)$compte['capital_initial']) ?>,
+  symboles: <?= json_encode(array_values($actifs), JSON_UNESCAPED_UNICODE) ?>,
+  intervalle: 30000,
+};
+
+(function () {
+  const nf = (x, d = 2) => Number(x).toLocaleString('fr-FR',
+      {minimumFractionDigits: d, maximumFractionDigits: d});
+
+  function ageTexte(s) {
+    if (s === null || s === undefined) return 'âge inconnu';
+    if (s < 90) return `il y a ${s} s`;
+    if (s < 5400) return `il y a ${Math.round(s / 60)} min`;
+    if (s < 172800) return `il y a ${Math.round(s / 3600)} h`;
+    return `il y a ${Math.round(s / 86400)} j`;
+  }
+
+  function peindre(el, valeur, texte) {
+    if (!el) return;
+    if (el.textContent.trim() !== texte.trim()) {
+      el.classList.remove('clignote');
+      void el.offsetWidth;              // redémarre l'animation
+      el.classList.add('clignote');
+    }
+    el.textContent = texte;
+    if (valeur !== null) {
+      el.classList.toggle('pos', valeur >= 0);
+      el.classList.toggle('neg', valeur < 0);
+    }
+  }
+
+  function appliquer(cours) {
+    // prix et variations partout où le symbole apparaît
+    for (const [sym, c] of Object.entries(cours)) {
+      document.querySelectorAll(`[data-prix="${CSS.escape(sym)}"]`)
+        .forEach((el) => peindre(el, null, nf(c.prix, 4)));
+      document.querySelectorAll(`[data-var="${CSS.escape(sym)}"]`)
+        .forEach((el) => peindre(el, c.var_pct,
+          c.var_pct === null ? '—'
+            : `${c.var_pct >= 0 ? '+' : ''}${nf(c.var_pct, 2)} %`));
+      document.querySelectorAll(`[data-age="${CSS.escape(sym)}"]`)
+        .forEach((el) => {
+          el.textContent = c.source === 'publié' ? '📄 publié'
+            : `${c.frais ? '🟢 ' : '⏳ '}${ageTexte(c.age_s)}`;
+        });
+      // le ticket doit calculer sur le prix vivant
+      document.querySelectorAll(`#t-symbole option[value="${CSS.escape(sym)}"]`)
+        .forEach((o) => { o.dataset.prix = c.prix; });
+    }
+
+    // P&L de chaque position, puis les tuiles du tableau de bord
+    let pnlTotal = 0;
+    document.querySelectorAll('[data-position]').forEach((tr) => {
+      const c = cours[tr.dataset.symbole];
+      if (!c) return;
+      const pnl = (c.prix - parseFloat(tr.dataset.entree))
+                * parseFloat(tr.dataset.quantite) * parseFloat(tr.dataset.sens);
+      pnlTotal += pnl;
+      peindre(tr.querySelector('[data-pnl]'), pnl,
+              `${pnl >= 0 ? '+' : ''}${nf(pnl)} $`);
+    });
+
+    const equite = ML.solde + ML.margeReservee + ML.margeUtilisee + pnlTotal;
+    const perf = (equite / ML.capitalInitial - 1) * 100;
+    peindre(document.getElementById('v-pnl'), pnlTotal,
+            `${pnlTotal >= 0 ? '+' : ''}${nf(pnlTotal)} $`);
+    peindre(document.getElementById('v-equite'), null, `${nf(equite)} $`);
+    peindre(document.getElementById('v-perf'), perf,
+            `${perf >= 0 ? '+' : ''}${nf(perf)} %`);
+    peindre(document.getElementById('v-niveau'), null,
+            ML.margeUtilisee > 0
+              ? `${nf(equite / ML.margeUtilisee * 100, 0)} %` : '—');
+
+    const etat = document.getElementById('etat-flux');
+    if (etat) {
+      const n = Object.values(cours).filter((c) => c.frais).length;
+      etat.textContent = `Cotations actualisées à ${new Date()
+        .toLocaleTimeString('fr-FR')} — ${n}/${Object.keys(cours).length} `
+        + `en direct. Rafraîchissement toutes les ${ML.intervalle / 1000} s.`;
+    }
+  }
+
+  let enCours = false;
+  // `premier` : un onglet ouvert en arrière-plan doit tout de même se mettre
+  // à jour une fois ; l'économie ne commence qu'après.
+  async function rafraichir(premier = false) {
+    if (enCours || (document.hidden && !premier)) return;
+    enCours = true;
+    try {
+      const r = await fetch('../cours.php?s='
+        + encodeURIComponent(ML.symboles.join(',')), {cache: 'no-store'});
+      if (r.ok) appliquer((await r.json()).cours || {});
+    } catch (e) {
+      const etat = document.getElementById('etat-flux');
+      if (etat) etat.textContent = 'Cotations momentanément indisponibles — '
+        + 'les montants affichés restent ceux du dernier rafraîchissement.';
+    } finally {
+      enCours = false;
+    }
+  }
+
+  setInterval(rafraichir, ML.intervalle);
+  document.addEventListener('visibilitychange',
+    () => { if (!document.hidden) rafraichir(); });
+  setTimeout(() => rafraichir(true), 1500);
+})();
+
 // Récapitulatif du ticket en direct : notionnel, quantité, prix de
 // liquidation approximatif et P&L projeté au stop / à l'objectif.
 (function () {

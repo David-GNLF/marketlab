@@ -437,8 +437,8 @@ $audit = ($connecte && is_file(ML_AUDIT))
       <?php foreach ($comptes_trading as $n => $c): ?>
       <tr>
         <td><?= $n === 'claude' ? '🤖 ' : '👤 ' ?><strong><?= h($n) ?></strong></td>
-        <td><strong><?= number_format(ml_equite_trading($c), 2) ?> $</strong></td>
-        <td class="note"><?= number_format($c['solde'] ?? 0, 2) ?> $</td>
+        <td><strong><?= ml_montant(ml_equite_trading($c)) ?> $</strong></td>
+        <td class="note"><?= ml_montant((float)($c['solde'] ?? 0)) ?> $</td>
         <td><?= count($c['positions'] ?? []) ?></td>
         <td><?= count($c['historique'] ?? []) ?></td>
         <td>

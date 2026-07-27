@@ -32,6 +32,19 @@ async function charger(chemin) {
   }
 }
 
+// Cotations fraîches : seul appel qui ne lit PAS un fichier publié mais le
+// relais PHP (cache serveur de 60 s). Renvoie {} en cas d'indisponibilité —
+// l'affichage retombe alors sur les cours de l'instantané, sans casser.
+export async function getCoursDirect() {
+  try {
+    const r = await fetch("cours.php", { cache: "no-store" });
+    if (!r.ok) return {};
+    return (await r.json()).cours ?? {};
+  } catch {
+    return {};
+  }
+}
+
 export const getMeta = () => charger("meta.json");
 export const getScreener = () => charger("screener.json");
 export const getMacro = () => charger("macro.json");

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import * as api from "./api";
 import { GraphiqueCone, GraphiquePrix } from "./charts";
 
@@ -48,6 +48,71 @@ function Table({ lignes, colonnes, max }) {
 function Chargement({ erreur }) {
   if (erreur) return <p className="erreur">{erreur}</p>;
   return <p className="note">Chargement…</p>;
+}
+
+// ------------------------------------------------------- cotations vivantes
+// L'analyse date de l'instantané quotidien, mais les PRIX peuvent vivre :
+// un seul sondage pour toute l'application, partagé par contexte.
+const CoursContext = createContext({ cours: {}, actualise: null });
+const useCours = () => useContext(CoursContext);
+
+function FournisseurCours({ children }) {
+  const [etat, setEtat] = useState({ cours: {}, actualise: null });
+  useEffect(() => {
+    let actif = true;
+    // `premier` : un onglet ouvert en arrière-plan doit quand même afficher
+    // des prix ; ce n'est qu'ENSUITE qu'on économise pendant qu'il est caché.
+    const tirer = async (premier = false) => {
+      if (document.hidden && !premier) return;
+      const cours = await api.getCoursDirect();
+      if (actif && Object.keys(cours).length) {
+        setEtat({ cours, actualise: new Date() });
+      }
+    };
+    tirer(true);
+    const t = setInterval(tirer, 60000);
+    const reveil = () => { if (!document.hidden) tirer(); };
+    document.addEventListener("visibilitychange", reveil);
+    return () => { actif = false; clearInterval(t);
+                   document.removeEventListener("visibilitychange", reveil); };
+  }, []);
+  return <CoursContext.Provider value={etat}>{children}</CoursContext.Provider>;
+}
+
+function ageTexte(s) {
+  if (s == null) return "âge inconnu";
+  if (s < 90) return `il y a ${s} s`;
+  if (s < 5400) return `il y a ${Math.round(s / 60)} min`;
+  if (s < 172800) return `il y a ${Math.round(s / 3600)} h`;
+  return `il y a ${Math.round(s / 86400)} j`;
+}
+
+/** Prix vivant d'un symbole, avec repli explicite sur le cours de
+ *  l'instantané : on n'affiche jamais « direct » sans que ce soit vrai. */
+function PrixVivant({ symbole, secours, avecAge = true }) {
+  const { cours } = useCours();
+  const c = cours[symbole];
+  if (!c) return <>{nb(secours)}</>;
+  return (
+    <>
+      {nb(c.prix)}
+      {c.var_pct != null && (
+        <span className={"delta " + (c.var_pct >= 0 ? "positif" : "negatif")}
+              style={{ marginLeft: 6 }}>
+          {c.var_pct >= 0 ? "+" : ""}{c.var_pct.toFixed(2)} %
+        </span>
+      )}
+      {avecAge && (
+        <span className="note" style={{ marginLeft: 6 }}
+              title={c.source === "publié"
+                ? "repli sur le dernier cours publié par le site"
+                : "cotation du fournisseur"}>
+          {c.source === "publié" ? "📄" : (c.frais ? "🟢" : "⏳")}{" "}
+          {ageTexte(c.age_s)}
+        </span>
+      )}
+    </>
+  );
 }
 
 // Petit hook : charge une ressource et expose {donnees, erreur}
@@ -102,7 +167,8 @@ function PageMarches({ onTitre }) {
                 <td><strong>{l.symbole}</strong></td>
                 <td>{l.score ?? "—"}</td>
                 <td><span className="badge">{l.avis ?? "—"}</span></td>
-                <td>{nb(l.cours)}</td>
+                <td><PrixVivant symbole={l.symbole} secours={l.cours}
+                                avecAge={false} /></td>
                 <td>{l.rsi14 ?? "—"}</td>
                 <td>{l["perf_20j_%"] ?? "—"}</td>
                 <td>{l["vol_ann_%"] ?? "—"}</td>
@@ -112,7 +178,9 @@ function PageMarches({ onTitre }) {
           </tbody>
         </table>
       </div>
-      <p className="note">Cliquer sur une ligne pour ouvrir la fiche du titre.</p>
+      <p className="note">Cliquer sur une ligne pour ouvrir la fiche du titre.
+        La colonne « cours » est rafraîchie en continu ; les indicateurs
+        (score, avis, RSI…) datent de l'instantané quotidien.</p>
     </div>
   );
 }
@@ -560,7 +628,7 @@ function Verdict({ d, rang, onTitre }) {
         <div style={{ minWidth: 150 }}>
           <strong>{d.nom ?? d.symbole}</strong>
           <div className="note">{d.symbole}{d.classe ? ` · ${d.classe}` : ""} ·
-            cours {nb(d.prix)}</div>
+            cours <PrixVivant symbole={d.symbole} secours={d.prix} /></div>
         </div>
         <span className="badge" style={{ color: COULEUR_AVIS[d.avis] ?? "inherit",
                                          fontWeight: 700, fontSize: 14 }}>
@@ -830,6 +898,20 @@ const PAGES = {
   "Portefeuille": PagePortefeuille,
 };
 
+function BandeauFlux() {
+  const { cours, actualise } = useCours();
+  if (!actualise) return null;
+  const total = Object.keys(cours).length;
+  const direct = Object.values(cours).filter((c) => c.frais).length;
+  return (
+    <p className="note">Cours actualisés à{" "}
+      {actualise.toLocaleTimeString("fr-FR")} — {direct}/{total} en direct.
+      Crypto en temps réel, forex à la minute, actions et matières au différé
+      de ~15 min des sources gratuites ; l'âge de chaque cotation est affiché.
+    </p>
+  );
+}
+
 export default function App() {
   const [page, setPage] = useState("🎯 Décisions");
   const [symbole, setSymbole] = useState(null);
@@ -839,7 +921,7 @@ export default function App() {
   const Page = PAGES[page];
 
   return (
-    <>
+    <FournisseurCours>
       <header className="ml-header">
         <h1>📈 MarketLab</h1>
         <span className="ml-disclaimer">Analyses statistiques, pas des
@@ -854,14 +936,15 @@ export default function App() {
       </nav>
       {erreur && <p className="erreur">Données indisponibles : {erreur}</p>}
       {meta && (
-        <p className="note">Instantané du {meta.genere_le} ({meta.fuseau}).
+        <p className="note">Analyse de l'instantané du {meta.genere_le} ({meta.fuseau}).
           {meta.erreurs && Object.keys(meta.erreurs).length > 0 &&
             ` ${Object.keys(meta.erreurs).length} bloc(s) en erreur lors de la génération.`}
         </p>
       )}
+      <BandeauFlux />
       {meta && (page === "Titre"
         ? <Page meta={meta} symbole={symbole} setSymbole={setSymbole} />
         : <Page onTitre={ouvrirTitre} />)}
-    </>
+    </FournisseurCours>
   );
 }
