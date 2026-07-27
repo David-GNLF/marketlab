@@ -1,17 +1,17 @@
 {
- "n_evalues": 3231,
+ "n_evalues": 3232,
  "ic_par_composante": {
   "technique": {
-   "ic": -0.017,
-   "n": 3231
+   "ic": -0.018,
+   "n": 3232
   },
   "prevision": {
-   "ic": 0.023,
-   "n": 3231
+   "ic": 0.022,
+   "n": 3232
   },
   "analogues": {
    "ic": 0.005,
-   "n": 3231
+   "n": 3232
   },
   "fondamentaux": {
    "ic": null,
@@ -20,7 +20,7 @@
   },
   "moteurs": {
    "ic": 0.016,
-   "n": 908
+   "n": 909
   },
   "saisonnalite": {
    "ic": null,
@@ -36,15 +36,15 @@
  "poids": {
   "technique": 0.1689,
   "prevision": 0.2426,
-  "analogues": 0.1415,
+  "analogues": 0.1418,
   "fondamentaux": 0.1189,
-  "moteurs": 0.1905,
+  "moteurs": 0.1901,
   "saisonnalite": 0.0689,
   "sentiment": 0.0689
  },
  "lambda": 0.5,
- "statut": "pondérations ajustées sur 3231 verdicts évalués (influence de l'apprentissage : 50 %)",
- "date": "2026-07-27 09:23",
+ "statut": "pondérations ajustées sur 3232 verdicts évalués (influence de l'apprentissage : 50 %)",
+ "date": "2026-07-27 11:42",
  "poids_base": {
   "technique": 0.25,
   "prevision": 0.2,
