@@ -9,6 +9,7 @@
  */
 
 declare(strict_types=1);
+header('Cache-Control: no-store');
 require __DIR__ . '/../admin/commun.php';
 
 function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }

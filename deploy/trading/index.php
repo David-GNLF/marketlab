@@ -25,6 +25,7 @@ const MISE_MIN = 10.0;
 
 session_set_cookie_params(['httponly' => true,
     'secure' => !empty($_SERVER['HTTPS']), 'samesite' => 'Strict']);
+header('Cache-Control: no-store');
 session_start();
 
 // ---------------------------------------------------------------- utilitaires

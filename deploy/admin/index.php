@@ -26,6 +26,7 @@ const ROLES_DISPONIBLES = ['site', 'trading', 'admin'];
 
 session_set_cookie_params(['httponly' => true,
     'secure' => !empty($_SERVER['HTTPS']), 'samesite' => 'Strict']);
+header('Cache-Control: no-store');
 session_start();
 
 function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }

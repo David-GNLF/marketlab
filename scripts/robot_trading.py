@@ -124,16 +124,34 @@ def tenir_compte(compte: dict) -> list[str]:
     return evenements
 
 
+def _cours_publie(symbole: str) -> float | None:
+    """Le dernier cours PUBLIÉ par le site — la référence de valorisation
+    unique de toute la plateforme (page trading, panneau admin, concours).
+    Repli sur le cours frais si la fiche manque."""
+    fiche = config.ROOT / "site" / "donnees" / "titres" / f"{symbole}.json"
+    try:
+        if fiche.exists():
+            prix = json.loads(fiche.read_text(encoding="utf-8"))
+            valeur = prix.get("signaux", {}).get("close")
+            if valeur:
+                return float(valeur)
+    except Exception:
+        pass
+    try:
+        return float(get_ohlcv(symbole, lookback_days=30)["close"].iloc[-1])
+    except Exception:
+        return None
+
+
 def _equite(compte: dict) -> float:
     total = compte["solde"]
     for p in compte.get("positions", []):
-        try:
-            prix = float(get_ohlcv(p["symbole"],
-                                   lookback_days=30)["close"].iloc[-1])
-            sens = 1 if p["sens"] == "long" else -1
-            total += p["marge"] + (prix - p["prix_entree"]) * p["quantite"] * sens
-        except Exception:
+        prix = _cours_publie(p["symbole"])
+        if prix is None:
             total += p["marge"]
+            continue
+        sens = 1 if p["sens"] == "long" else -1
+        total += p["marge"] + (prix - p["prix_entree"]) * p["quantite"] * sens
     return total
 
 
