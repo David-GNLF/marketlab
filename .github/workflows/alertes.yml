@@ -2,11 +2,20 @@ name: Alertes horaires
 
 # Les alertes tournent ici, chez GitHub : le poste de travail peut rester
 # éteint. L'état anti-doublon est conservé d'une exécution à l'autre via le
-# cache d'Actions — sans lui, chaque heure renverrait les mêmes alertes.
+# cache d'Actions — sans lui, chaque passage renverrait les mêmes alertes.
+#
+# TROIS déclenchements par heure, et non un seul. Mesuré sur 24 h avec un
+# unique cron horaire : 10 passages effectifs au lieu de 24, avec des écarts
+# allant jusqu'à 4 h 30. Les exécutions planifiées gratuites de GitHub sont
+# au mieux-effort — la moitié environ est retardée ou sautée. En programmer
+# trois par heure ne garantit rien, mais ramène l'intervalle typique bien en
+# deçà de l'heure. Ce n'est pas gênant s'ils passent tous : l'état
+# anti-doublon empêche de renvoyer deux fois la même alerte, et le verrou de
+# concurrence empêche deux passages simultanés.
 on:
   workflow_dispatch:
   schedule:
-    - cron: "5 * * * *"   # heure pleine + 5 min (les crons GitHub dérivent)
+    - cron: "5,20,40 * * * *"
 
 concurrency:
   group: alertes
