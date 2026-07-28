@@ -1086,6 +1086,13 @@ export default function App() {
       {meta && (page === "Titre"
         ? <Page meta={meta} symbole={symbole} setSymbole={setSymbole} />
         : <Page onTitre={ouvrirTitre} />)}
+      {/* Accès discret à l'administration : volontairement en pied de page et
+          non dans la navigation. Il ne donne aucun droit — l'espace admin a sa
+          propre connexion, réservée au rôle « admin », avec verrouillage après
+          échecs répétés. */}
+      <footer className="ml-pied">
+        <a href="admin/" title="Espace d'administration">⚙ Administration</a>
+      </footer>
     </FournisseurCours>
   );
 }

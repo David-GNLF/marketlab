@@ -95,6 +95,20 @@ button.action {
 button.action.secondaire { background: transparent; color: var(--text-primary); border: 1px solid var(--baseline); }
 button.action:disabled { opacity: 0.5; cursor: default; }
 
+/* Pied de page : accès discret à l'administration. Assez visible pour être
+   trouvé quand on le cherche, assez effacé pour ne pas encombrer. */
+footer.ml-pied {
+  margin: 28px 0 12px; padding-top: 12px;
+  border-top: 1px solid var(--border); text-align: right;
+}
+footer.ml-pied a {
+  color: var(--muted); font-size: 12px; text-decoration: none;
+  padding: 4px 8px; border-radius: 6px;
+}
+footer.ml-pied a:hover, footer.ml-pied a:focus-visible {
+  color: var(--text-primary); background: var(--surface);
+}
+
 .badge { padding: 2px 8px; border-radius: 10px; font-size: 12px; border: 1px solid var(--border); }
 .erreur { color: var(--critical); }
 .note { color: var(--muted); font-size: 12px; }

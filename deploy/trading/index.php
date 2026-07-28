@@ -497,6 +497,12 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
     padding: 10px 12px; margin-top: 10px; line-height: 1.6; }
   .avis-achat { color: #0a7a0a; font-weight: 600; }
   .avis-vente { color: #d03b3b; font-weight: 600; }
+  footer.pied { margin: 28px 0 12px; padding-top: 12px; text-align: right;
+    border-top: 1px solid color-mix(in srgb, CanvasText 15%, transparent); }
+  footer.pied a { font-size: 12px; text-decoration: none; opacity: .6;
+    padding: 4px 8px; border-radius: 6px; color: CanvasText; margin-left: 6px; }
+  footer.pied a:hover, footer.pied a:focus-visible { opacity: 1;
+    background: color-mix(in srgb, CanvasText 8%, transparent); }
   @keyframes ml-flash { from { background: color-mix(in srgb,
       #2a78d6 35%, transparent); } to { background: transparent; } }
   .clignote { animation: ml-flash 1s ease-out; }
@@ -1044,5 +1050,12 @@ const ML = {
 })();
 </script>
 <?php endif; ?>
+
+<!-- Accès discret à l'administration, comme sur le site : l'espace admin a sa
+     propre connexion réservée au rôle « admin ». -->
+<footer class="pied">
+  <a href="../" title="Retour au site">← Le site</a>
+  <a href="../admin/" title="Espace d'administration">⚙ Administration</a>
+</footer>
 </body>
 </html>
