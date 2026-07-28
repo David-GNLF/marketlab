@@ -1,17 +1,23 @@
 {
- "n_evalues": 3228,
+ "n_evalues": 3232,
  "ic_par_composante": {
   "technique": {
-   "ic": -0.018,
-   "n": 3228
+   "ic": -0.079,
+   "n": 3232,
+   "ic_borne_basse_95": -0.113,
+   "prouve": false
   },
   "prevision": {
-   "ic": 0.022,
-   "n": 3228
+   "ic": -0.075,
+   "n": 3232,
+   "ic_borne_basse_95": -0.11,
+   "prouve": false
   },
   "analogues": {
-   "ic": 0.005,
-   "n": 3228
+   "ic": -0.037,
+   "n": 3232,
+   "ic_borne_basse_95": -0.071,
+   "prouve": false
   },
   "fondamentaux": {
    "ic": null,
@@ -19,8 +25,10 @@
    "note": "trop peu de données, poids de base conservé"
   },
   "moteurs": {
-   "ic": 0.016,
-   "n": 909
+   "ic": 0.011,
+   "n": 909,
+   "ic_borne_basse_95": -0.054,
+   "prouve": false
   },
   "saisonnalite": {
    "ic": null,
@@ -33,18 +41,11 @@
    "note": "trop peu de données, poids de base conservé"
   }
  },
- "poids": {
-  "technique": 0.1691,
-  "prevision": 0.2411,
-  "analogues": 0.1417,
-  "fondamentaux": 0.1191,
-  "moteurs": 0.1906,
-  "saisonnalite": 0.0691,
-  "sentiment": 0.0691
- },
- "lambda": 0.5,
- "statut": "pondérations ajustées sur 3228 verdicts évalués (influence de l'apprentissage : 50 %)",
- "date": "2026-07-27 23:02",
+ "poids": null,
+ "cible": "rendement_relatif_%",
+ "candidats": {},
+ "statut": "aucune composante n'a démontré de pouvoir prédictif sur 3232 verdicts (aucun IC significativement positif à 95 %) : pondérations de base conservées",
+ "date": "2026-07-28 15:43",
  "poids_base": {
   "technique": 0.25,
   "prevision": 0.2,
@@ -54,5 +55,5 @@
   "saisonnalite": 0.05,
   "sentiment": 0.05
  },
- "methode": "IC de Spearman entre la note de chaque composante au moment du verdict et le rendement réellement advenu à l'horizon ; mélange progressif (1−λ)·base + λ·performance, λ = min(0,5, n/400) ; plancher 2 % par composante."
+ "methode": "IC de Spearman entre la note de chaque composante au moment du verdict et le rendement RELATIF advenu à l'horizon (dérive propre de l'actif retirée, pour ne pas récompenser un simple marché haussier). Une composante ne gagne du poids que si la borne basse de son IC à 95 % est positive — autrement dit si sa valeur est démontrée, pas seulement observée. Mélange progressif (1−λ)·base + λ·performance, λ = min(0,5, n/400) ; plancher 2 %."
 }

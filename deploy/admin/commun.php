@@ -171,26 +171,7 @@ function ml_lien_invitation(string $jeton): string {
  *  même définition et la même source de prix que la page trading. C'est
  *  cette règle unique qui empêche deux montants de diverger. */
 function ml_equite_trading(array $compte): float {
-    $total = (float)($compte['solde'] ?? 0);
-    // mise réservée par les ordres en attente : toujours au compte
-    foreach ($compte['ordres'] ?? [] as $o) {
-        $total += (float)($o['marge'] ?? 0);
-    }
-    $positions = $compte['positions'] ?? [];
-    if (!$positions) return $total;
-
-    $cours = ml_cours(array_values(array_unique(
-        array_column($positions, 'symbole'))));
-    foreach ($positions as $p) {
-        $total += (float)$p['marge'];
-        $prix = $cours[$p['symbole']]['prix'] ?? null;
-        if ($prix) {
-            $sens = ($p['sens'] ?? 'long') === 'long' ? 1 : -1;
-            $total += ((float)$prix - (float)$p['prix_entree'])
-                      * (float)$p['quantite'] * $sens;
-        }
-    }
-    return $total;
+    return ml_equite_compte($compte);   // définition unique : cours_lib.php
 }
 
 

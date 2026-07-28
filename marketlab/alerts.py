@@ -72,8 +72,12 @@ def _save_state(state: dict) -> None:
 # --- Règles -----------------------------------------------------------------
 
 def build_alerts(universes: list[str] | None = None, event_hours: int = 24,
-                 persist: bool = True) -> list[tuple[str, bool]]:
-    """Évalue toutes les règles ; renvoie des couples (message, urgent).
+                 persist: bool = True) -> list[tuple[str, bool, dict]]:
+    """Évalue toutes les règles ; renvoie (message, urgent, métadonnées).
+
+    Les métadonnées (règle, symbole, prix, sens attendu) sont ce qui rend
+    l'alerte JUGEABLE plus tard : sans elles, impossible de savoir quelle
+    règle mérite d'être gardée et laquelle ne fait que du bruit.
 
     persist=False évalue sans consommer l'état anti-doublon : les mêmes
     alertes ressortiront au prochain passage. Indispensable tant que la
@@ -82,7 +86,7 @@ def build_alerts(universes: list[str] | None = None, event_hours: int = 24,
     """
     universes = universes or DEFAULT_UNIVERSES
     state = _load_state()
-    messages: list[tuple[str, bool]] = []
+    messages: list[tuple[str, bool, dict]] = []
     today = pd.Timestamp.today().date().isoformat()
 
     # 1+2. Signaux techniques sur les univers suivis
@@ -98,14 +102,19 @@ def build_alerts(universes: list[str] | None = None, event_hours: int = 24,
             messages.append((
                 f"{arrow} <b>{sym}</b> : {prev or 'nouveau'} → <b>{avis}</b>\n"
                 f"Score {row['score']} · cours {row['cours']} · RSI {row['rsi14']} "
-                f"· perf 20 j {row['perf_20j_%']} %", False))
+                f"· perf 20 j {row['perf_20j_%']} %", False,
+                {"regle": "bascule_avis", "symbole": sym, "prix": row["cours"],
+                 "sens": "hausse" if "Achat" in avis else
+                         "baisse" if "Vente" in avis else "neutre"}))
         state["avis"][sym] = avis
 
         rsi = row["rsi14"]
         if rsi is not None and (rsi < 25 or rsi > 75) \
                 and state["rsi_jour"].get(sym) != today:
             zone = "survente extrême" if rsi < 25 else "surachat extrême"
-            messages.append((f"⚠️ <b>{sym}</b> : RSI {rsi} — {zone}", False))
+            messages.append((f"⚠️ <b>{sym}</b> : RSI {rsi} — {zone}", False,
+                {"regle": "rsi_extreme", "symbole": sym, "prix": row["cours"],
+                 "sens": "hausse" if rsi < 25 else "baisse"}))
             state["rsi_jour"][sym] = today
 
     # 3. Événements macro à fort impact imminents
@@ -120,11 +129,12 @@ def build_alerts(universes: list[str] | None = None, event_hours: int = 24,
                      for r in fresh]
             messages.append((
                 f"📅 <b>Événements à fort impact — prochaines {event_hours} h</b> "
-                f"(heure Bénin)\n" + "\n".join(lines), False))
+                f"(heure Bénin)\n" + "\n".join(lines), False,
+                {"regle": "agenda_macro"}))
             state["evenements"] += [eco_calendar.event_key(r) for r in fresh]
     except Exception as exc:
         messages.append((f"⚠️ Calendrier économique indisponible : "
-                         f"{str(exc)[:100]}", False))
+                         f"{str(exc)[:100]}", False, {"regle": "incident"}))
 
     # 4. Publications de résultats imminentes sur les titres qui comptent :
     #    positions détenues en papier + titres à avis fort. Un écart de
@@ -155,7 +165,8 @@ def build_alerts(universes: list[str] | None = None, event_hours: int = 24,
             messages.append((
                 f"📣 <b>{sym}</b> : publication de résultats le "
                 f"{prochaine['date']} (dans {prochaine['dans_jours']} j)."
-                f"{detail}", False))
+                f"{detail}", False,
+                {"regle": "resultats_proches", "symbole": sym}))
             state["evenements"].append(cle)
     except Exception as exc:
         print(f"[resultats] règle ignorée : {str(exc)[:100]}")
@@ -169,7 +180,8 @@ def build_alerts(universes: list[str] | None = None, event_hours: int = 24,
             if cle not in state["evenements"]:
                 messages.append((
                     f"🌡️ <b>Sentiment de marché : {fg['zone'].upper()}</b> "
-                    f"({fg['valeur']:.0f}/100)\n{fg['lecture']}", False))
+                    f"({fg['valeur']:.0f}/100)\n{fg['lecture']}", False,
+                    {"regle": "sentiment_extreme"}))
                 state["evenements"].append(cle)
     except Exception as exc:
         print(f"[sentiment] règle ignorée : {str(exc)[:80]}")
@@ -202,7 +214,10 @@ def build_alerts(universes: list[str] | None = None, event_hours: int = 24,
                     f"{abs(z):.1f} écarts-types de sa volatilité habituelle "
                     f"(cours {float(cours.iloc[-1]):,.4g}).\n"
                     f"Fait rare — à examiner rapidement ; la décision reste "
-                    f"la tienne.", True))
+                    f"la tienne.", True,
+                    {"regle": "mouvement_flash", "symbole": sym,
+                     "prix": float(cours.iloc[-1]),
+                     "sens": "hausse" if z > 0 else "baisse"}))
                 state["evenements"].append(cle)
     except Exception as exc:
         print(f"[flash] règle ignorée : {str(exc)[:80]}")
@@ -219,7 +234,8 @@ def build_alerts(universes: list[str] | None = None, event_hours: int = 24,
                 f"🚨 <b>VIX en BACKWARDATION</b> (VIX {vix:.1f} / VIX3M "
                 f"{vix3m:.1f} = {ratio:.2f})\nLa peur immédiate dépasse la "
                 f"peur à terme : régime de stress. Historiquement : "
-                f"volatilité forte, stops élargis, tailles réduites.", True))
+                f"volatilité forte, stops élargis, tailles réduites.", True,
+                {"regle": "vix_backwardation"}))
             state["evenements"].append(cle)
     except Exception as exc:
         print(f"[vix] règle ignorée : {str(exc)[:80]}")
@@ -242,16 +258,107 @@ def run(universes: list[str] | None = None, dry_run: bool = False) -> dict:
     messages = build_alerts(universes, persist=livraison_reelle)
     sent = 0
     envoyes: list[tuple[str, bool]] = []
-    for texte, urgent in messages:
+    livrees: list[dict] = []
+    for texte, urgent, meta in messages:
         if not livraison_reelle:
             etiquette = " [URGENT]" if urgent else ""
             print(f"--- ALERTE{etiquette} ---\n{texte}\n")
         elif envoyer_message(texte, urgent=urgent):
             sent += 1
             envoyes.append((notify.html_vers_texte(texte), urgent))
+            livrees.append({**meta, "urgent": urgent})
     if livraison_reelle and sent < len(messages):
         _save_state(etat_avant)  # envoi partiel : le prochain passage réessaiera
+    if livrees:
+        # Une alerte envoyée est une prédiction implicite : on la consigne
+        # pour pouvoir la juger plus tard, comme on juge les verdicts.
+        try:
+            journaliser_alertes(livrees)
+        except Exception as exc:
+            print(f"journal des alertes indisponible : {str(exc)[:80]}")
     return {"alertes": len(messages), "envoyees": sent,
             "messages_envoyes": envoyes,
             "canaux": notify.canaux_actifs(), "configure": configured,
             "dry_run": dry_run}
+
+
+# --- Le tribunal des alertes -------------------------------------------------
+#
+# Les verdicts ont leur bilan depuis le début ; les alertes, non. Une règle qui
+# crie pour rien coûte l'attention de son lecteur — c'est la ressource la plus
+# rare. On consigne donc chaque alerte livrée, et on mesure ce qui s'est passé
+# ensuite pour les règles qui portent une direction (bascule d'avis, RSI
+# extrême, mouvement flash). Les règles de contexte (agenda macro, sentiment,
+# VIX) sont consignées mais non notées : elles n'annoncent pas un sens.
+
+JOURNAL_ALERTES = config.DATA_DIR / "journal_alertes.csv"
+REGLES_DIRECTIONNELLES = {"bascule_avis", "rsi_extreme", "mouvement_flash"}
+HORIZON_ALERTE = 5          # séances : une alerte parle du court terme
+
+
+def journaliser_alertes(alertes: list[dict]) -> int:
+    """Consigne les alertes livrées (une ligne par alerte)."""
+    lignes = [{"date": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"),
+               "regle": a.get("regle", "?"), "symbole": a.get("symbole"),
+               "prix": a.get("prix"), "sens": a.get("sens"),
+               "urgent": bool(a.get("urgent"))} for a in alertes]
+    nouveau = pd.DataFrame(lignes)
+    if JOURNAL_ALERTES.exists():
+        nouveau = pd.concat([pd.read_csv(JOURNAL_ALERTES), nouveau],
+                            ignore_index=True)
+    JOURNAL_ALERTES.parent.mkdir(parents=True, exist_ok=True)
+    nouveau.to_csv(JOURNAL_ALERTES, index=False)
+    return len(lignes)
+
+
+def bilan_alertes(horizon: int = HORIZON_ALERTE) -> dict:
+    """Ce que les alertes ont annoncé, et ce qui s'est réellement passé.
+
+    Pour chaque alerte directionnelle, on mesure le rendement de l'actif sur
+    les `horizon` séances suivantes et on regarde s'il est allé dans le sens
+    annoncé. Une règle sous 50 % de justesse sur un échantillon suffisant est
+    une règle à revoir — ou à supprimer.
+    """
+    from marketlab.data import get_ohlcv
+    if not JOURNAL_ALERTES.exists():
+        return {"n": 0, "message": "Aucune alerte journalisée pour l'instant : "
+                                   "le bilan se remplira au fil des passages."}
+    j = pd.read_csv(JOURNAL_ALERTES)
+    j["date"] = pd.to_datetime(j["date"])
+    total = len(j)
+    jugeables = j[j["regle"].isin(REGLES_DIRECTIONNELLES)
+                  & j["symbole"].notna() & j["prix"].notna()].copy()
+
+    evalues = []
+    for symbole, groupe in jugeables.groupby("symbole"):
+        try:
+            cours = get_ohlcv(str(symbole), lookback_days=400)["close"]
+        except Exception:
+            continue
+        for _, l in groupe.iterrows():
+            futurs = cours[cours.index > l["date"]]
+            if len(futurs) < horizon:
+                continue
+            rendement = float(futurs.iloc[horizon - 1] / l["prix"] - 1) * 100
+            attendu = 1 if l["sens"] == "hausse" else -1 if l["sens"] == "baisse" else 0
+            evalues.append({"regle": l["regle"], "rendement_%": rendement,
+                            "juste": (rendement * attendu > 0) if attendu else None})
+    if not evalues:
+        return {"n": total, "evaluees": 0,
+                "message": f"{total} alerte(s) consignée(s) ; aucune n'a encore "
+                           f"atteint son horizon de {horizon} séances."}
+    df = pd.DataFrame(evalues)
+    par_regle = []
+    for regle, g in df.groupby("regle"):
+        justes = g["juste"].dropna()
+        par_regle.append({
+            "regle": regle, "n": len(g),
+            "justesse_%": round(float(justes.mean()) * 100, 1) if len(justes) else None,
+            "mouvement_moyen_%": round(float(g["rendement_%"].mean()), 2),
+        })
+    return {"n": total, "evaluees": len(df), "horizon_seances": horizon,
+            "par_regle": par_regle,
+            "lecture": ("Une alerte est une prédiction implicite : ce tableau "
+                        "dit si elle s'est vérifiée. Sous 50 % de justesse sur "
+                        "un échantillon suffisant, la règle coûte plus "
+                        "d'attention qu'elle n'en mérite.")}

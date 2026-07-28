@@ -17,12 +17,14 @@ Deux principes non négociables :
    site. L'outil rend des comptes.
 """
 
+import math
+
 import numpy as np
 import pandas as pd
 
-from marketlab import (config, drivers, events, forecast, fundamentals,
-                       indicators, levels, news, score_history, seasonality,
-                       signals)
+from marketlab import (broker_tools, config, drivers, events, forecast,
+                       fundamentals, indicators, levels, news, score_history,
+                       seasonality, signals)
 from marketlab.data import get_ohlcv
 
 JOURNAL = config.DATA_DIR / "journal_decisions.csv"
@@ -52,7 +54,11 @@ def poids_effectifs() -> tuple[dict, dict]:
         try:
             import json
             appris = json.loads(POIDS_APPRIS.read_text(encoding="utf-8"))
-            poids = appris.get("poids", {})
+            poids = appris.get("poids") or {}
+            # « poids: null » = la calibration a conclu que rien n'est démontré.
+            # Il faut alors revenir aux pondérations de BASE : sans ce chemin,
+            # un ancien fichier de poids appris survivrait à la conclusion qui
+            # l'invalide et continuerait de piloter le verdict.
             if set(poids) == set(POIDS) and abs(sum(poids.values()) - 1) < 0.01:
                 return poids, {"source": "apprise",
                                "n_evalues": appris.get("n_evalues"),
@@ -202,6 +208,19 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
     composantes["saisonnalite"] = _composante_saisonnalite(symbole)
     composantes["sentiment"] = _composante_sentiment(symbole)
 
+    # Consensus des outils de courtier : CANDIDAT, pas encore une composante.
+    # Il est journalisé (colonne c_brokers) pour que son IC se mesure comme
+    # celui des autres, mais il ne pèse rien tant qu'il n'a pas fait ses
+    # preuves. Une brique doit gagner sa place, pas la recevoir.
+    candidats = {}
+    try:
+        cons = broker_tools.consensus(df)
+        if cons.get("total"):
+            candidats["brokers"] = round(
+                (cons["haussiers"] - cons["baissiers"]) / cons["total"] * 100, 1)
+    except Exception:
+        pass
+
     poids, poids_meta = poids_effectifs()
     poids_total = sum(poids[c] for c in composantes)
     note_globale = sum(composantes[c]["note"] * poids[c]
@@ -307,6 +326,7 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
             {"nom": nom, "poids": round(poids[nom], 3),
              "note": round(c["note"], 1), "raisons": c["raisons"]}
             for nom, c in composantes.items()],
+        "candidats": candidats,
         "ponderation": poids_meta,
         "vetos": vetos,
         "regime": regime,
@@ -351,6 +371,10 @@ def journaliser(dossiers: list[dict]) -> int:
                  "horizon": d["horizon"]}
         for c in d.get("composantes", []):
             ligne[f"c_{c['nom']}"] = c["note"]
+        # candidats : journalisés comme les autres pour pouvoir être jugés,
+        # même s'ils ne pèsent encore rien dans la note
+        for nom, note in (d.get("candidats") or {}).items():
+            ligne[f"c_{nom}"] = note
         lignes.append(ligne)
     if not lignes:
         return 0
@@ -383,6 +407,7 @@ def bilan() -> dict:
     par_avis = []
     for avis, groupe in df.groupby("avis"):
         r = groupe["rendement_reel_%"]
+        rel = groupe.get("rendement_relatif_%", r)
         attendu_hausse = avis == "Favorable"
         reussite = (r > 0).mean() if attendu_hausse else \
             (r < 0).mean() if avis == "Défavorable" else np.nan
@@ -390,6 +415,8 @@ def bilan() -> dict:
             "avis": avis, "n": len(groupe),
             "rendement_moyen_%": round(float(r.mean()), 2),
             "rendement_median_%": round(float(r.median()), 2),
+            "relatif_moyen_%": round(float(rel.mean()), 2),
+            "relatif_median_%": round(float(rel.median()), 2),
             "taux_reussite_%": (round(float(reussite) * 100, 1)
                                 if reussite == reussite else None),
         })
@@ -397,10 +424,49 @@ def bilan() -> dict:
         "verdicts_evalues": len(df),
         "premiere_date": df["date"].min().strftime("%Y-%m-%d"),
         "par_avis": par_avis,
+        "competence": _mesurer_competence(df),
         "lecture": ("Un outil honnête montre son bilan, bon ou mauvais. "
-                    "Tant que « Favorable » ne bat pas « Défavorable » sur la "
-                    "durée, traiter les verdicts avec prudence."),
+                    "Deux colonnes à ne pas confondre : le rendement BRUT "
+                    "dit ce qu'a fait le marché, le rendement RELATIF (dérive "
+                    "propre de chaque actif retirée) dit ce qu'a apporté le "
+                    "verdict lui-même. C'est le second qui juge l'outil."),
     }
+
+
+def _mesurer_competence(df: pd.DataFrame) -> dict:
+    """La note globale prédit-elle quoi que ce soit, et est-ce démontré ?
+
+    Le test décisif de l'outil : corrélation entre la note qu'il a donnée et
+    le rendement relatif qui a suivi. Positive et significative = l'outil
+    sait choisir. Négative et significative = il se trompe SYSTÉMATIQUEMENT
+    (ce qui est une information, pas une fatalité). Non significative = on ne
+    sait pas encore.
+    """
+    if "rendement_relatif_%" not in df.columns or len(df) < 60:
+        return {"statut": "pas encore mesurable"}
+    paires = df[["note", "rendement_relatif_%"]].dropna()
+    n = len(paires)
+    ic = float(paires["note"].rank().corr(paires["rendement_relatif_%"].rank()))
+    err = 1.0 / math.sqrt(max(n - 3, 1))
+    bas, haut = (math.tanh(math.atanh(max(min(ic, 0.999), -0.999)) + s * 1.96 * err)
+                 for s in (-1, 1))
+    if bas > 0:
+        sens, lecture = "positif", ("la note prédit dans le bon sens : "
+                                    "plus elle est haute, plus le titre bat "
+                                    "sa propre tendance.")
+    elif haut < 0:
+        sens, lecture = "négatif", (
+            "ATTENTION : la note prédit à l'ENVERS de façon démontrée. Sur la "
+            "période mesurée, les titres les mieux notés ont fait MOINS BIEN "
+            "que leur propre tendance, et les moins bien notés mieux. Le "
+            "gain affiché des avis « Favorable » vient de la hausse générale "
+            "du marché, pas de la sélection.")
+    else:
+        sens, lecture = "indéterminé", ("aucun pouvoir prédictif démontré ni "
+                                        "infirmé : l'échantillon ne tranche pas.")
+    return {"n": n, "ic_note_vs_relatif": round(ic, 4),
+            "intervalle_95": [round(bas, 4), round(haut, 4)],
+            "sens": sens, "lecture": lecture}
 
 
 def _evaluer_journal() -> pd.DataFrame:
@@ -429,20 +495,37 @@ def _evaluer_journal() -> pd.DataFrame:
             realise = float(futurs.iloc[int(ligne["horizon"]) - 1]
                             / ligne["prix"] - 1) * 100
             evalues.append({**ligne.to_dict(), "rendement_reel_%": realise})
-    return pd.DataFrame(evalues)
+    df = pd.DataFrame(evalues)
+    if df.empty:
+        return df
+
+    # Rendement RELATIF : on retire de chaque verdict la dérive propre de son
+    # actif (médiane de tous les verdicts portant sur lui). Sans cela on
+    # confond deux choses très différentes : « le marché est monté » et « le
+    # verdict a bien choisi ». Un outil qui note tout à la hausse pendant un
+    # marché haussier paraît bon sur le rendement brut ; c'est le rendement
+    # relatif qui mesure la part réellement attribuable au verdict.
+    derive = df.groupby("symbole")["rendement_reel_%"].transform("median")
+    df["rendement_relatif_%"] = df["rendement_reel_%"] - derive
+    return df
 
 
 # --- Apprentissage des pondérations ------------------------------------------
 
 def _calculer_poids(df_evalues: pd.DataFrame, poids_base: dict | None = None,
                     lam_max: float = 0.5, min_par_composante: int = 30,
-                    min_total: int = 60) -> dict:
+                    min_total: int = 60, cible: str = "rendement_relatif_%") -> dict:
     """Le calcul pur : du journal évalué aux pondérations ajustées.
 
     Méthode, volontairement conservatrice :
     - chaque composante est jugée par l'IC de Spearman entre ses notes au
-      moment du verdict et les rendements réellement advenus ;
-    - seule la part POSITIVE de l'IC compte (une composante anti-corrélée ne
+      moment du verdict et le rendement RELATIF advenu — dérive propre de
+      l'actif retirée. Juger sur le rendement brut récompenserait un outil
+      qui se contente de suivre un marché haussier ;
+    - l'IC est borné par le bas à 95 % : une composante ne gagne du poids que
+      si sa valeur est DÉMONTRÉE, jamais sur un IC de ±0,02 qui n'est que du
+      bruit. Si aucune ne démontre rien, les pondérations ne bougent pas ;
+    - seule la part POSITIVE compte (une composante anti-corrélée ne
       reçoit pas un poids négatif : elle tombe vers le plancher) ;
     - le mélange est progressif : poids = (1−λ)·base + λ·performance, avec
       λ = min(lam_max, n/400). À 60 verdicts, λ≈0,15 ; il faut 200 verdicts
@@ -460,7 +543,10 @@ def _calculer_poids(df_evalues: pd.DataFrame, poids_base: dict | None = None,
                              "conservées")
         return rapport
 
-    rendement = df_evalues["rendement_reel_%"]
+    if cible not in df_evalues.columns:
+        cible = "rendement_reel_%"
+    rendement = df_evalues[cible]
+    rapport["cible"] = cible
     ics = {}
     for nom in poids_base:
         colonne = f"c_{nom}"
@@ -472,18 +558,55 @@ def _calculer_poids(df_evalues: pd.DataFrame, poids_base: dict | None = None,
                 "ic": None, "n": len(paires),
                 "note": "trop peu de données, poids de base conservé"}
             continue
-        ic = float(paires[colonne].rank().corr(
-            paires["rendement_reel_%"].rank()))
-        ics[nom] = ic
-        rapport["ic_par_composante"][nom] = {"ic": round(ic, 3),
-                                             "n": int(len(paires))}
+        ic = float(paires[colonne].rank().corr(paires[cible].rank()))
+        # Un IC nu ne dit pas s'il est réel : ±0,02 sur 3 000 verdicts est du
+        # bruit. On borne l'IC par le bas à 95 % (transformée de Fisher) et
+        # c'est CETTE borne qui donne droit à du poids : une composante doit
+        # PROUVER sa valeur, pas simplement avoir eu de la chance.
+        n_c = len(paires)
+        err = 1.0 / math.sqrt(max(n_c - 3, 1))
+        borne_basse = math.tanh(math.atanh(max(min(ic, 0.999), -0.999))
+                                - 1.96 * err)
+        ics[nom] = borne_basse
+        rapport["ic_par_composante"][nom] = {
+            "ic": round(ic, 3), "n": int(n_c),
+            "ic_borne_basse_95": round(borne_basse, 3),
+            "prouve": bool(borne_basse > 0)}
+
+    # Candidats : briques journalisées qui ne pèsent pas encore. On mesure
+    # leur IC exactement comme les autres — c'est leur seul chemin vers une
+    # place dans le verdict.
+    rapport["candidats"] = {}
+    for colonne in [c for c in df_evalues.columns
+                    if c.startswith("c_") and c[2:] not in poids_base]:
+        paires = df_evalues[[colonne]].join(rendement).dropna()
+        if len(paires) < min_par_composante:
+            rapport["candidats"][colonne[2:]] = {
+                "ic": None, "n": int(len(paires)),
+                "note": "pas encore assez de verdicts évalués"}
+            continue
+        ic = float(paires[colonne].rank().corr(paires[cible].rank()))
+        err = 1.0 / math.sqrt(max(len(paires) - 3, 1))
+        bas = math.tanh(math.atanh(max(min(ic, 0.999), -0.999)) - 1.96 * err)
+        rapport["candidats"][colonne[2:]] = {
+            "ic": round(ic, 3), "n": int(len(paires)),
+            "ic_borne_basse_95": round(bas, 3), "prouve": bool(bas > 0)}
 
     if len(ics) < 3:
         rapport["statut"] = ("moins de 3 composantes mesurables : "
                              "pondérations de base conservées")
         return rapport
 
-    # performance : part positive de l'IC, plancher epsilon
+    if not any(v > 0 for v in ics.values()):
+        # Cas honnête et fréquent : rien n'est encore démontré. Bouger les
+        # pondérations reviendrait à ajuster du bruit — on ne bouge pas.
+        rapport["statut"] = (
+            f"aucune composante n'a démontré de pouvoir prédictif sur "
+            f"{n} verdicts (aucun IC significativement positif à 95 %) : "
+            "pondérations de base conservées")
+        return rapport
+
+    # performance : part POUVANT être prouvée de l'IC, plancher epsilon
     perf = {nom: max(ics.get(nom, 0.0), 0.0) + 0.01 for nom in poids_base}
     total_perf = sum(perf.values())
     perf = {nom: v / total_perf for nom, v in perf.items()}
@@ -510,15 +633,21 @@ def calibrer() -> dict:
     import json
     df = _evaluer_journal()
     rapport = _calculer_poids(df)
-    rapport["date"] = pd.Timestamp.utcnow().strftime("%Y-%m-%d %H:%M")
+    rapport["date"] = pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M")
     rapport["poids_base"] = POIDS
     rapport["methode"] = (
         "IC de Spearman entre la note de chaque composante au moment du "
-        "verdict et le rendement réellement advenu à l'horizon ; mélange "
-        "progressif (1−λ)·base + λ·performance, λ = min(0,5, n/400) ; "
-        "plancher 2 % par composante.")
-    if rapport["poids"]:
-        POIDS_APPRIS.parent.mkdir(parents=True, exist_ok=True)
-        POIDS_APPRIS.write_text(
-            json.dumps(rapport, ensure_ascii=False, indent=1), encoding="utf-8")
+        "verdict et le rendement RELATIF advenu à l'horizon (dérive propre "
+        "de l'actif retirée, pour ne pas récompenser un simple marché "
+        "haussier). Une composante ne gagne du poids que si la borne basse "
+        "de son IC à 95 % est positive — autrement dit si sa valeur est "
+        "démontrée, pas seulement observée. Mélange progressif "
+        "(1−λ)·base + λ·performance, λ = min(0,5, n/400) ; plancher 2 %.")
+    # Le rapport est écrit dans TOUS les cas, y compris « rien n'est
+    # démontré » : c'est la conclusion du jour, et elle doit remplacer celle
+    # de la veille. Ne l'écrire qu'en cas de succès laisserait d'anciennes
+    # pondérations piloter le verdict après que la mesure les a invalidées.
+    POIDS_APPRIS.parent.mkdir(parents=True, exist_ok=True)
+    POIDS_APPRIS.write_text(
+        json.dumps(rapport, ensure_ascii=False, indent=1), encoding="utf-8")
     return rapport

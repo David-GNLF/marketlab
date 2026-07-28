@@ -115,6 +115,11 @@ function dernier_cours(string $symbole): ?array {
         'age_s' => $cote['age_s'],
         'source' => $cote['source'],
         'frais' => $cote['frais'],
+        // l'état du marché est TRANSPORTÉ, jamais recalculé à partir d'une
+        // cotation amputée : c'est ce qui laissait passer des ordres au
+        // marché sur une bourse fermée
+        'marche_ouvert' => $cote['marche_ouvert']
+            ?? ml_marche_ouvert($cote),
         'nom' => $identite['nom'] ?? $symbole,
         'avis' => $identite['avis'] ?? null,
     ];
@@ -164,66 +169,67 @@ function pnl_flottant(array $compte): float {
     return $total;
 }
 
-/** Équité = cash + marge réservée des ordres en attente + marges engagées
- *  + P&L latent — la même définition que le robot et le panneau admin. */
+/** Équité du compte. La définition n'est PAS ici : elle est unique pour
+ *  toute la plateforme (cours_lib.php) et cette page ne fait que lui passer
+ *  les cotations déjà chargées. */
 function equite(array $compte): float {
-    return $compte['solde'] + marge_reservee($compte)
-        + marge_utilisee($compte) + pnl_flottant($compte);
+    $prix = [];
+    foreach (cotations() as $sym => $c) $prix[$sym] = $c['prix'];
+    return ml_equite_compte($compte, $prix);
 }
 
 // ------------------------------------------------------------------- actions
 
-$connecte = $_SESSION['trader'] ?? null;
+/**
+ * L'identité vient de l'authentification du SITE, pas d'un second mot de
+ * passe. Tout le domaine est protégé : le serveur a donc déjà vérifié qui
+ * vous êtes avant que cette page ne s'exécute. Avoir deux identités et deux
+ * mots de passe pour la même personne était une complication sans contrepartie
+ * — et un compte pouvait être supprimé d'un côté sans l'autre.
+ */
+function identite_site(): string {
+    $nom = $_SERVER['PHP_AUTH_USER'] ?? $_SERVER['REMOTE_USER']
+        ?? $_SERVER['REDIRECT_REMOTE_USER'] ?? '';
+    $nom = strtolower(trim((string)$nom));
+    return preg_match('/^[a-z0-9_.-]{2,24}$/', $nom) ? $nom : '';
+}
+
+$connecte = identite_site();
 $message = null;
 $action = $_POST['a'] ?? null;
 
-if ($action === 'inscription') {
-    $nom = strtolower(trim($_POST['nom'] ?? ''));
-    $mdp = $_POST['mdp'] ?? '';
-    if (!preg_match('/^[a-z0-9_.-]{2,24}$/', $nom)) {
-        $message = ['erreur', 'Nom invalide (2-24 : minuscules, chiffres, . _ -).'];
-    } elseif ($nom === 'claude') {
-        $message = ['erreur', 'Ce compte est réservé au robot MarketLab.'];
-    } elseif (lire_compte($nom)) {
-        $message = ['erreur', 'Ce compte existe déjà.'];
-    } elseif (strlen($mdp) < 8) {
-        $message = ['erreur', 'Mot de passe : 8 caractères minimum.'];
+// « claude » est le robot : personne d'autre ne pilote son compte.
+$robot_reserve = $connecte === 'claude';
+if ($robot_reserve) {
+    $connecte = '';
+    $message = ['erreur', 'Le compte « claude » est réservé au robot MarketLab.'];
+}
+
+$existe = $connecte !== '' && lire_compte($connecte) !== null;
+
+if ($connecte !== '' && !$existe && $action === 'creer') {
+    if (!hash_equals($_SESSION['csrf_t'] ?? '', $_POST['csrf'] ?? '§')) {
+        $message = ['erreur', 'Session expirée — recharger la page.'];
     } else {
-        ecrire_compte($nom, [
-            'nom' => $nom, 'mdp' => password_hash($mdp, PASSWORD_BCRYPT),
+        ecrire_compte($connecte, [
+            'nom' => $connecte,
             'capital_initial' => CAPITAL_DEPART, 'solde' => CAPITAL_DEPART,
             'positions' => [], 'ordres' => [], 'historique' => [],
             'levier_defaut' => 3,
             'equity' => [[date('Y-m-d H:i'), CAPITAL_DEPART]],
             'cree_le' => date('Y-m-d H:i'),
         ]);
-        $message = ['ok', "Compte « $nom » créé avec " . CAPITAL_DEPART
-            . ' $ virtuels — connectez-vous.'];
+        $existe = true;
+        $message = ['ok', "Compte de trading créé avec " . CAPITAL_DEPART
+            . ' $ virtuels. Bon courage face au robot.'];
     }
-}
-
-if ($action === 'connexion') {
-    $nom = strtolower(trim($_POST['nom'] ?? ''));
-    $c = lire_compte($nom);
-    if ($c && !empty($c['mdp']) && password_verify($_POST['mdp'] ?? '', $c['mdp'])) {
-        session_regenerate_id(true);
-        $_SESSION['trader'] = $nom;
-        $connecte = $nom;
-        jeton_csrf();
-    } else {
-        $message = ['erreur', 'Identifiants incorrects.'];
-        sleep(1); // freine la force brute
-    }
-}
-
-if ($action === 'deconnexion') {
-    session_destroy();
-    header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
-    exit;
 }
 
 $actions_protegees = ['ouvrir', 'fermer', 'modifier', 'annuler_ordre',
-                      'preferences', 'mdp', 'raz'];
+                      'preferences', 'raz'];
+if (!$existe) {
+    $action = null;   // aucune action de trading sans compte
+}
 if ($connecte && in_array($action, $actions_protegees, true)) {
     if (!hash_equals($_SESSION['csrf_t'] ?? '', $_POST['csrf'] ?? '§')) {
         $message = ['erreur', 'Session expirée — recharger la page.'];
@@ -242,6 +248,7 @@ if ($connecte && in_array($action, $actions_protegees, true)) {
             $stop = (float)($_POST['stop'] ?? 0) ?: null;
             $objectif = (float)($_POST['objectif'] ?? 0) ?: null;
             $prix_ordre = (float)($_POST['prix_ordre'] ?? 0) ?: null;
+            $validite = max(1, min(365, (int)($_POST['validite'] ?? 30)));
             $cours = dernier_cours($symbole);
             $s = $sens === 'long' ? 1 : -1;
             // pour un ordre en attente, stop/objectif se jugent par rapport
@@ -273,6 +280,15 @@ if ($connecte && in_array($action, $actions_protegees, true)) {
                 $message = ['erreur', 'Stop du mauvais côté du prix.'];
             } elseif ($objectif !== null && $s * $objectif <= $s * $ref) {
                 $message = ['erreur', 'Objectif du mauvais côté du prix.'];
+            } elseif ($type === 'marche' && !ml_marche_ouvert($cours)) {
+                // Marché fermé : exécuter « au marché » sur une cotation de
+                // plusieurs heures serait un gain (ou une perte) offert par
+                // le retard, pas par une décision. Un vrai courtier refuse.
+                $message = ['erreur', "Marché fermé pour $symbole — dernière "
+                    . 'cotation ' . ml_cours_age_texte($cours['age_s'])
+                    . '. Un ordre au marché s\'exécuterait sur un prix périmé. '
+                    . 'Placez un ordre limite ou stop : il se déclenchera '
+                    . 'dès que le marché rouvrira et touchera votre prix.'];
             } elseif ($type !== 'marche') {
                 // ordre en attente : la mise est réservée immédiatement,
                 // l'exécution est vérifiée chaque soir sur haut/bas de séance
@@ -283,13 +299,18 @@ if ($connecte && in_array($action, $actions_protegees, true)) {
                     'prix' => $prix_ordre, 'marge' => $mise, 'levier' => $levier,
                     'stop' => $stop, 'objectif' => $objectif,
                     'cree_le' => date('Y-m-d H:i'), 'source' => 'manuel',
+                    // sans échéance, un ordre jamais touché gèlerait sa marge
+                    // indéfiniment : on borne, comme un courtier
+                    'expire_le' => date('Y-m-d',
+                        strtotime('+' . $validite . ' days')),
                 ];
                 $message = ecrire_compte($connecte, $compte)
                     ? ['ok', 'Ordre ' . strtoupper($type) . ' '
                        . strtoupper($sens) . " $symbole placé @ $prix_ordre "
                        . "(mise $mise $ réservée × levier $levier). Il sera "
                        . 'exécuté dès que la séance touche ce prix — '
-                       . 'vérification chaque soir.']
+                       . "vérification chaque soir. Valable $validite jours, "
+                       . 'ensuite la mise vous est rendue.']
                     : ['erreur', 'Écriture du compte impossible.'];
             } else {
                 $prix = $cours['prix'] * (1 + $s * SPREAD_PCT / 100);
@@ -322,6 +343,17 @@ if ($connecte && in_array($action, $actions_protegees, true)) {
                 if ($p['id'] !== $id) continue;
                 $cours = dernier_cours($p['symbole']);
                 if (!$cours) { $message = ['erreur', 'Cours indisponible.']; break; }
+                if (!ml_marche_ouvert($cours)) {
+                    // même raison qu'à l'ouverture : sortir sur un prix
+                    // périmé fabriquerait un résultat que le marché n'a pas
+                    // donné. Les stops, eux, restent surveillés chaque soir.
+                    $message = ['erreur', "Marché fermé pour {$p['symbole']} — "
+                        . 'dernière cotation ' . ml_cours_age_texte($cours['age_s'])
+                        . '. La position reste protégée : son stop et son '
+                        . 'objectif sont vérifiés chaque soir sur les extrêmes '
+                        . 'de séance.'];
+                    break;
+                }
                 $sens = $p['sens'] === 'long' ? 1 : -1;
                 $prix = $cours['prix'] * (1 - $sens * SPREAD_PCT / 100);
                 $pnl = pnl_position($p, $prix);
@@ -392,19 +424,6 @@ if ($connecte && in_array($action, $actions_protegees, true)) {
                 ? ['ok', 'Levier par défaut : ×' . $compte['levier_defaut']
                    . ' (pré-rempli dans le ticket d\'ordre).']
                 : ['erreur', 'Écriture impossible.'];
-        } elseif ($action === 'mdp') {
-            $actuel = $_POST['mdp_actuel'] ?? '';
-            $nouveau = $_POST['mdp_nouveau'] ?? '';
-            if (!password_verify($actuel, $compte['mdp'] ?? '')) {
-                $message = ['erreur', 'Mot de passe actuel incorrect.'];
-            } elseif (strlen($nouveau) < 8) {
-                $message = ['erreur', 'Nouveau mot de passe : 8 caractères minimum.'];
-            } else {
-                $compte['mdp'] = password_hash($nouveau, PASSWORD_BCRYPT);
-                $message = ecrire_compte($connecte, $compte)
-                    ? ['ok', 'Mot de passe changé.']
-                    : ['erreur', 'Écriture impossible.'];
-            }
         } elseif ($action === 'raz') {
             if (($_POST['confirmation'] ?? '') !== 'RAZ') {
                 $message = ['erreur', 'Pour confirmer, taper RAZ dans le champ.'];
@@ -511,25 +530,26 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
 
 <?php if (!$connecte): ?>
   <div class="carte">
-    <h2>Connexion</h2>
-    <form method="post">
-      <input type="hidden" name="a" value="connexion">
-      <label>Compte</label><input name="nom" required>
-      <label>Mot de passe</label>
-      <input name="mdp" type="password" required>
-      <button>Se connecter</button>
-    </form>
+    <h2>Identification impossible</h2>
+    <p class="note">Cette page utilise l'identité avec laquelle vous êtes
+      entré sur le site — aucun second mot de passe n'est demandé. Si vous
+      voyez ce message, c'est que le serveur n'a pas transmis votre
+      identifiant : ouvrez le site par
+      <a href="../">sa page d'accueil</a>, puis revenez ici.</p>
   </div>
+
+<?php elseif (!$existe): ?>
   <div class="carte">
-    <h2>Créer un compte de trading (1 000 $ virtuels)</h2>
+    <h2>Bienvenue, <?= h($connecte) ?></h2>
+    <p>Vous n'avez pas encore de compte de trading. Un clic suffit :
+      pas de nouveau mot de passe à retenir, votre identité du site fait foi.</p>
     <form method="post">
-      <input type="hidden" name="a" value="inscription">
-      <label>Nom de compte</label>
-      <input name="nom" required pattern="[a-z0-9_.\-]{2,24}">
-      <label>Mot de passe (≥ 8 caractères)</label>
-      <input name="mdp" type="password" required minlength="8">
-      <button>Créer mon compte</button>
+      <input type="hidden" name="a" value="creer">
+      <input type="hidden" name="csrf" value="<?= jeton_csrf() ?>">
+      <button>Créer mon compte (<?= CAPITAL_DEPART ?> $ virtuels)</button>
     </form>
+    <p class="note">Vous affronterez le robot « claude », qui applique les
+      verdicts de l'outil. Le classement est sur la page Concours du site.</p>
   </div>
 
 <?php else: ?>
@@ -541,10 +561,7 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
         $perf = ($eq / $compte['capital_initial'] - 1) * 100;
         $levier_defaut = (int)($compte['levier_defaut'] ?? 3); ?>
   <p>Compte : <strong><?= h($connecte) ?></strong>
-    <form style="display:inline" method="post">
-      <input type="hidden" name="a" value="deconnexion">
-      <button class="sobre">Déconnexion</button>
-    </form>
+    <span class="note">— identité du site, pas de second mot de passe.</span>
   </p>
 
   <nav class="ancres">
@@ -603,8 +620,9 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
                  . montant($f['var_pct'], 2) . ' %') ?></td>
         <td class="note" data-age="<?= h($sym) ?>">
           <?= $f['source'] === 'publié' ? '📄 publié'
-              : (($f['frais'] ? '🟢 ' : '⏳ ')
-                 . h(ml_cours_age_texte($f['age_s']))) ?></td>
+              : (ml_marche_ouvert($f)
+                 ? '🟢 ' . h(ml_cours_age_texte($f['age_s']))
+                 : '🌙 fermé · ' . h(ml_cours_age_texte($f['age_s']))) ?></td>
         <td class="<?= str_starts_with((string)$f['avis'], 'Achat')
             ? 'avis-achat' : (str_starts_with((string)$f['avis'], 'Vente')
             ? 'avis-vente' : 'note') ?>"><?= h($f['avis'] ?? '—') ?></td>
@@ -643,6 +661,9 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
             <option value="stop">Stop (sur cassure)</option></select></div>
         <div id="bloc-prix" style="display:none"><label>Prix de déclenchement</label>
           <input name="prix_ordre" id="t-prix" type="number" step="any"></div>
+        <div id="bloc-validite" style="display:none"><label>Validité (jours)</label>
+          <input name="validite" id="t-validite" type="number" min="1"
+                 max="365" value="30"></div>
         <div><label>Mise / marge ($)</label>
           <input name="mise" id="t-mise" type="number" min="<?= MISE_MIN ?>"
                  step="1" value="50" required></div>
@@ -741,7 +762,8 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
     <table>
       <tr><th>Actif</th><th>Sens</th><th>Type</th><th>Prix demandé</th>
           <th>Cours actuel</th><th>Mise réservée</th><th>Levier</th>
-          <th>Stop</th><th>Objectif</th><th>Placé le</th><th></th></tr>
+          <th>Stop</th><th>Objectif</th><th>Placé le</th><th>Expire le</th>
+          <th></th></tr>
       <?php foreach ($compte['ordres'] as $o):
             $c = dernier_cours($o['symbole']); ?>
       <tr>
@@ -756,6 +778,7 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
         <td><?= $o['stop'] ?? '—' ?></td>
         <td><?= $o['objectif'] ?? '—' ?></td>
         <td class="note"><?= h($o['cree_le']) ?></td>
+        <td class="note"><?= h($o['expire_le'] ?? 'sans échéance') ?></td>
         <td>
           <form method="post" onsubmit="return confirm('Annuler cet ordre ?')">
             <input type="hidden" name="a" value="annuler_ordre">
@@ -820,15 +843,12 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
                max="<?= LEVIER_MAX ?>" value="<?= $levier_defaut ?>">
         <button class="sobre" style="margin-top:8px">Enregistrer</button>
       </form>
-      <form method="post">
-        <input type="hidden" name="a" value="mdp">
-        <input type="hidden" name="csrf" value="<?= jeton_csrf() ?>">
-        <label>Mot de passe actuel</label>
-        <input name="mdp_actuel" type="password" required>
-        <label>Nouveau mot de passe (≥ 8)</label>
-        <input name="mdp_nouveau" type="password" required minlength="8">
-        <button class="sobre" style="margin-top:8px">Changer</button>
-      </form>
+      <div>
+        <label>Mot de passe</label>
+        <p class="note">Il n'y en a plus qu'un : celui du site, que vous
+          gérez depuis <a href="../acces/">la page d'accès</a>. Ce compte de
+          trading suit votre identité.</p>
+      </div>
       <form method="post"
             onsubmit="return confirm('Tout remettre à zéro ? Positions, ordres et historique seront définitivement effacés.')">
         <input type="hidden" name="a" value="raz">
@@ -894,7 +914,8 @@ const ML = {
       document.querySelectorAll(`[data-age="${CSS.escape(sym)}"]`)
         .forEach((el) => {
           el.textContent = c.source === 'publié' ? '📄 publié'
-            : `${c.frais ? '🟢 ' : '⏳ '}${ageTexte(c.age_s)}`;
+            : c.marche_ouvert ? `🟢 ${ageTexte(c.age_s)}`
+                              : `🌙 fermé · ${ageTexte(c.age_s)}`;
         });
       // le ticket doit calculer sur le prix vivant
       document.querySelectorAll(`#t-symbole option[value="${CSS.escape(sym)}"]`)
@@ -970,6 +991,7 @@ const ML = {
   function recalc() {
     const type = $('t-type').value;
     $('bloc-prix').style.display = type === 'marche' ? 'none' : '';
+    $('bloc-validite').style.display = type === 'marche' ? 'none' : '';
     const opt = $('t-symbole').selectedOptions[0];
     const cours = parseFloat(opt ? opt.dataset.prix : '');
     const prixOrdre = parseFloat($('t-prix').value);

@@ -34,13 +34,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pandas as pd
 
-from marketlab import config, ftps
+from marketlab import config, ftps, notify
 from marketlab.data import get_ohlcv
 
 CAPITAL_DEPART = 1000.0
 SPREAD_PCT = 0.05
 MAX_POSITIONS = 4
 PART_EQUITE = 0.05
+TAUX_PORTAGE_ANNUEL = 0.06   # coût annuel de la part empruntée (levier)
 LEVIERS = {"Forex": 5, "Matières": 3, "Actions": 2, "Crypto": 2, "Indices": 2}
 VERDICTS_LOCAL = config.ROOT / "site" / "donnees" / "verdicts.json"
 CONCOURS_LOCAL = config.ROOT / "site" / "donnees" / "concours.json"
@@ -132,7 +133,16 @@ def executer_ordres(compte: dict) -> list[str]:
     séance est inconnue)."""
     evenements = []
     restants = []
+    aujourdhui = pd.Timestamp.now().strftime("%Y-%m-%d")
     for o in compte.get("ordres", []):
+        # échéance d'abord : un ordre périmé rend sa mise, il ne s'exécute pas
+        if o.get("expire_le") and str(o["expire_le"]) < aujourdhui:
+            compte["solde"] += float(o.get("marge", 0))
+            evenements.append(
+                f"{o['symbole']} : ordre {o.get('type', '?')} expiré "
+                f"(placé le {o.get('cree_le', '?')}, jamais touché) — "
+                f"{float(o.get('marge', 0)):.2f} $ rendus au solde")
+            continue
         try:
             df = get_ohlcv(o["symbole"], lookback_days=30)
             jour = df.iloc[-1]
@@ -163,6 +173,40 @@ def executer_ordres(compte: dict) -> list[str]:
                           f"exécuté @ {prix:.4f} (la séance a touché "
                           f"{o['prix']})")
     compte["ordres"] = restants
+    return evenements
+
+
+def facturer_portage(compte: dict) -> list[str]:
+    """Frais de portage (swap) sur les positions gardées d'un jour à l'autre.
+
+    Le levier n'est pas gratuit dans la vraie vie : on emprunte la différence
+    entre le notionnel et sa propre mise, et cet emprunt se paie chaque nuit.
+    Sans ce coût, garder un levier ×20 pendant un mois paraîtrait indolore et
+    le robot serait jugé plus favorablement qu'il ne le mérite.
+
+    Taux retenu : TAUX_PORTAGE_ANNUEL sur la part empruntée, prélevé une fois
+    par jour calendaire. Volontairement simple et unique pour toutes les
+    classes d'actifs — mieux vaut un coût approximatif qu'un coût absent.
+    """
+    evenements = []
+    aujourdhui = pd.Timestamp.now().strftime("%Y-%m-%d")
+    total = 0.0
+    for p in compte.get("positions", []):
+        if p.get("portage_le") == aujourdhui:
+            continue                      # déjà facturé aujourd'hui
+        emprunte = max(0.0, float(p.get("notionnel", 0)) - float(p["marge"]))
+        frais = emprunte * TAUX_PORTAGE_ANNUEL / 365
+        if frais <= 0:
+            continue
+        p["frais_portage_cumules"] = round(
+            float(p.get("frais_portage_cumules", 0)) + frais, 4)
+        p["portage_le"] = aujourdhui
+        total += frais
+    if total > 0:
+        compte["solde"] -= total
+        evenements.append(f"frais de portage de la nuit : -{total:.2f} $ "
+                          f"({len(compte.get('positions', []))} position(s) "
+                          f"à levier)")
     return evenements
 
 
@@ -288,6 +332,7 @@ def main() -> int:
     session = ftps._connecter(cfg)
     base = cfg["dossier_distant"].rstrip("/")
     classement = []
+    mouvements: list[tuple[str, list[str], float]] = []
     try:
         ftps._assurer_dossier(session, f"{base}/trading/comptes")
         fichiers = _lister_comptes(session, base)
@@ -309,6 +354,7 @@ def main() -> int:
                 continue
             evenements = tenir_compte(compte)
             evenements += executer_ordres(compte)
+            evenements += facturer_portage(compte)
             if compte["nom"] == "claude":
                 evenements += decisions_robot(compte, verdicts)
                 compte.setdefault("journal_robot", []).extend(
@@ -320,6 +366,8 @@ def main() -> int:
             _televerser(session, base, fichier, compte)
             for e in evenements:
                 print(f"  {compte['nom']} : {e}")
+            if evenements:
+                mouvements.append((compte["nom"], evenements, equite))
 
             classement.append({
                 "nom": compte["nom"], "est_robot": compte["nom"] == "claude",
@@ -358,7 +406,34 @@ def main() -> int:
                          "conseil en investissement.",
     }, ensure_ascii=False), encoding="utf-8")
     print(f"\nconcours.json écrit : {len(classement)} compte(s)")
+    notifier_mouvements(mouvements)
     return 0
+
+
+def notifier_mouvements(mouvements: list[tuple[str, list[str], float]]) -> bool:
+    """Prévient dès qu'un compte a bougé : le robot ne doit plus agir en
+    silence, et un stop touché sur VOTRE compte doit se savoir sans avoir à
+    visiter le site. Une nuit sans mouvement n'envoie rien — le bruit tue
+    l'attention."""
+    if not mouvements:
+        print("aucun mouvement : pas de notification")
+        return False
+    lignes = []
+    for nom, evenements, equite in mouvements:
+        icone = "🤖" if nom == "claude" else "👤"
+        lignes.append(f"{icone} <b>{nom}</b> — équité {equite:.2f} $")
+        lignes.extend(f"• {e}" for e in evenements)
+    corps = "<b>Mouvements de trading</b>\n" + "\n".join(lignes)
+    # urgent si une liquidation a eu lieu : c'est la seule qui ne se rattrape pas
+    urgent = any("LIQUIDATION" in e for _, evs, _ in mouvements for e in evs)
+    try:
+        envoye = notify.envoyer(corps, urgent=urgent)
+    except Exception as exc:
+        print(f"notification impossible (non bloquant) : {str(exc)[:80]}")
+        return False
+    print("notification envoyée" if envoye
+          else "aucun canal de notification configuré")
+    return envoye
 
 
 if __name__ == "__main__":

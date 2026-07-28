@@ -113,6 +113,7 @@ function ml_cours_analyser(string $symbole, string $corps): ?array {
                     ? (float)$d['priceChangePercent'] : null,
                 'horodatage' => isset($d['closeTime'])
                     ? (int)round($d['closeTime'] / 1000) : time(),
+                'permanent' => true,   // la crypto ne ferme jamais
                 'source' => 'direct'];
     }
 
@@ -121,10 +122,16 @@ function ml_cours_analyser(string $symbole, string $corps): ?array {
     $prix = (float)$meta['regularMarketPrice'];
     if ($prix <= 0) return null;
     $veille = $meta['previousClose'] ?? $meta['chartPreviousClose'] ?? null;
+    // Heures de séance données par la bourse elle-même : c'est le SEUL fait
+    // fiable pour savoir si le marché est ouvert. L'âge de la cotation ne
+    // l'est pas — Yahoo continue de rafraîchir l'horodatage après la cloche.
+    $seance = $meta['currentTradingPeriod']['regular'] ?? [];
     return ['prix' => $prix,
             'var_pct' => $veille ? ($prix / (float)$veille - 1) * 100 : null,
             'horodatage' => isset($meta['regularMarketTime'])
                 ? (int)$meta['regularMarketTime'] : time(),
+            'seance_debut' => isset($seance['start']) ? (int)$seance['start'] : null,
+            'seance_fin' => isset($seance['end']) ? (int)$seance['end'] : null,
             'source' => 'direct'];
 }
 
@@ -242,7 +249,12 @@ function ml_cours(array $symboles, bool $rafraichir = true): array {
             'source' => $e['source'] ?? 'publié',
             'frais' => ($e['source'] ?? '') === 'direct'
                        && $age !== null && $age <= ML_COURS_FRAIS_MAX,
+            'seance_debut' => $e['seance_debut'] ?? null,
+            'seance_fin' => $e['seance_fin'] ?? null,
+            'permanent' => !empty($e['permanent']),
         ];
+        // calculé UNE fois, ici, puis transporté : les pages ne rejugent pas
+        $sortie[$s]['marche_ouvert'] = ml_marche_ouvert($sortie[$s]);
     }
     return $sortie;
 }
@@ -251,6 +263,79 @@ function ml_cours(array $symboles, bool $rafraichir = true): array {
 function ml_cours_un(string $symbole): ?array {
     $r = ml_cours([$symbole]);
     return $r[$symbole] ?? null;
+}
+
+/**
+ * L'ÉQUITÉ D'UN COMPTE — définition unique de toute la plateforme.
+ *
+ * Elle vit ici, dans la bibliothèque partagée, et non dans chaque page :
+ * deux implémentations « identiques » finissent toujours par diverger, et
+ * c'est exactement ce qui a fait afficher deux montants différents entre le
+ * concours et le panneau d'administration.
+ *
+ *   équité = liquidités
+ *          + marges réservées par les ordres en attente (toujours à vous)
+ *          + marges engagées dans les positions
+ *          + plus ou moins-values latentes
+ *
+ * `$prix` permet d'injecter des cours déjà chargés (la page trading les a
+ * en main) ou figés (les tests) ; sans lui, le relais est interrogé.
+ */
+function ml_equite_compte(array $compte, ?array $prix = null): float {
+    $total = (float)($compte['solde'] ?? 0);
+    foreach ($compte['ordres'] ?? [] as $o) {
+        $total += (float)($o['marge'] ?? 0);
+    }
+    $positions = $compte['positions'] ?? [];
+    if (!$positions) return $total;
+
+    if ($prix === null) {
+        $cotes = ml_cours(array_values(array_unique(
+            array_column($positions, 'symbole'))));
+        $prix = [];
+        foreach ($cotes as $sym => $c) $prix[$sym] = $c['prix'];
+    }
+    foreach ($positions as $p) {
+        $total += (float)$p['marge'];
+        $cours = $prix[$p['symbole']] ?? null;
+        if ($cours !== null) {
+            $sens = ($p['sens'] ?? 'long') === 'long' ? 1 : -1;
+            $total += ((float)$cours - (float)$p['prix_entree'])
+                      * (float)$p['quantite'] * $sens;
+        }
+    }
+    return $total;
+}
+
+/**
+ * Le marché de cet actif est-il ouvert ?
+ *
+ * On se fie aux heures de séance publiées par la bourse elle-même, pas à
+ * l'âge de la cotation : une première version reposait sur l'âge et laissait
+ * passer des ordres sur Euronext fermé, parce que la source continue de
+ * rafraîchir l'horodatage bien après la cloche.
+ *
+ * La crypto ne ferme jamais. Le forex et les futures ont une séance qui
+ * enjambe minuit (début > fin) : ils sont ouverts SAUF pendant la coupure.
+ * Sans information de séance, on retombe sur l'âge, faute de mieux.
+ */
+function ml_marche_ouvert(array $cote): bool {
+    // réponse déjà calculée par le relais : elle fait foi (une page qui
+    // recompose une cotation partielle ne doit pas pouvoir la contredire)
+    if (array_key_exists('marche_ouvert', $cote)) return (bool)$cote['marche_ouvert'];
+    if (($cote['source'] ?? '') !== 'direct') return false;
+    if (!empty($cote['permanent'])) return true;
+
+    $debut = $cote['seance_debut'] ?? null;
+    $fin = $cote['seance_fin'] ?? null;
+    if ($debut !== null && $fin !== null) {
+        $maintenant = time();
+        return $debut <= $fin
+            ? ($maintenant >= $debut && $maintenant <= $fin)   // séance du jour
+            : ($maintenant >= $debut || $maintenant <= $fin);  // séance à cheval
+    }
+    $age = $cote['age_s'] ?? null;
+    return $age !== null && $age <= 2700;
 }
 
 /** Âge en texte lisible : « il y a 12 s », « il y a 14 min ». */

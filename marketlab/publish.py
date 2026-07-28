@@ -32,10 +32,11 @@ from pathlib import Path
 
 import pandas as pd
 
-from marketlab import (broker_tools, config, correlations, cot, decision,
-                       drivers, eco_calendar, events, forecast, fundamentals,
-                       indicators, levels, macro, news, paper, position,
-                       screener, seasonality, sentiment_marche, signals)
+from marketlab import (alerts, broker_tools, config, correlations, cot,
+                       decision, drivers, eco_calendar, events, forecast,
+                       fundamentals, indicators, levels, macro, news, paper,
+                       position, screener, seasonality, sentiment_marche,
+                       signals)
 from marketlab.data import get_ohlcv
 
 RACINE_SITE = config.ROOT / "site"
@@ -211,6 +212,9 @@ BLOCS = {
     # utilisent aussitôt les pondérations apprises du bilan réel
     "apprentissage": decision.calibrer,
     "verdicts": bloc_verdicts,
+    # le tribunal des alertes, publié à côté de celui des verdicts : une
+    # règle qui crie pour rien doit se voir
+    "bilan_alertes": alerts.bilan_alertes,
     "cot": bloc_cot,
     "sentiment_marche": sentiment_marche.indice,
     "barometres": drivers.barometres,

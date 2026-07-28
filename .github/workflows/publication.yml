@@ -35,6 +35,13 @@ jobs:
       - name: Dépendances Python
         run: pip install --quiet -r requirements-ci.txt
 
+      # Les tests tournent AVANT tout le reste : mieux vaut ne rien publier
+      # que publier des chiffres faux. Ils couvrent le moteur de trading,
+      # l'apprentissage des pondérations et l'invariant d'équité entre les
+      # implémentations Python et PHP (le runner fournit php).
+      - name: Tests
+        run: python -m pytest tests/ -q
+
       - name: Node (front)
         uses: actions/setup-node@v4
         with:

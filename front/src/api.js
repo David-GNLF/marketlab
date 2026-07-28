@@ -58,6 +58,7 @@ export const getVerdicts = () => charger("verdicts.json");
 export const getCot = () => charger("cot.json");
 export const getConcours = () => charger("concours.json");
 export const getAlertes = () => charger("alertes_recentes.json");
+export const getBilanAlertes = () => charger("bilan_alertes.json");
 export const getSentimentMarche = () => charger("sentiment_marche.json");
 export const getApprentissage = () => charger("apprentissage.json");
 export const getBarometres = () => charger("barometres.json");

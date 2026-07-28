@@ -739,8 +739,23 @@ function PageDecisions({ onTitre }) {
     .filter((d) => classe === "Tous" || d.classe === classe)
     .sort(TRIS[tri]);
   const bilan = donnees.bilan;
+  const comp = bilan?.competence;
   return (
     <>
+      {comp?.sens === "négatif" && (
+        <div className="carte" style={{ borderLeft: "4px solid var(--critical)" }}>
+          <h3 style={{ color: "var(--critical)", marginTop: 0 }}>
+            ⚠️ Avertissement issu du bilan de l'outil lui-même</h3>
+          <p>{comp.lecture}</p>
+          <p className="note">Mesure : corrélation de rang entre la note
+            attribuée et le rendement relatif advenu ={" "}
+            <strong>{comp.ic_note_vs_relatif}</strong> sur {comp.n} verdicts
+            (intervalle à 95 % : [{comp.intervalle_95[0]}, {comp.intervalle_95[1]}],
+            entièrement sous zéro). Tant que ce constat tient, lisez les cartes
+            ci-dessous comme des <em>points d'attention</em>, pas comme des
+            recommandations d'achat.</p>
+        </div>
+      )}
       <div className="carte">
         <div className="rangee" style={{ alignItems: "end" }}>
           <label className="champ">Classer par
@@ -767,6 +782,11 @@ function PageDecisions({ onTitre }) {
               l'horizon depuis le {bilan.premiere_date}.</p>
             <Table lignes={bilan.par_avis} />
             <p className="note">{bilan.lecture}</p>
+            {comp?.sens && comp.sens !== "négatif" && (
+              <p className="note">Compétence mesurée : corrélation note ↔
+                rendement relatif = {comp.ic_note_vs_relatif} sur {comp.n}{" "}
+                verdicts — {comp.lecture}</p>
+            )}
           </>
         ) : (
           <p className="note">{bilan?.message ?? "Bilan indisponible."} Chaque
@@ -784,8 +804,37 @@ function PageDecisions({ onTitre }) {
                 "poids de base": app.donnees.poids_base[nom],
                 "poids actuel": app.donnees.poids[nom],
                 "IC mesuré": app.donnees.ic_par_composante?.[nom]?.ic ?? "—",
+                "prouvé à 95 %": app.donnees.ic_par_composante?.[nom]
+                  ?.prouve === undefined ? "—"
+                  : (app.donnees.ic_par_composante[nom].prouve ? "oui" : "non"),
                 n: app.donnees.ic_par_composante?.[nom]?.n ?? "—",
               }))} />
+            )}
+            {!app.donnees.poids && app.donnees.ic_par_composante && (
+              <Table lignes={Object.keys(app.donnees.poids_base).map((nom) => ({
+                composante: nom,
+                "poids appliqué": app.donnees.poids_base[nom],
+                "IC mesuré": app.donnees.ic_par_composante?.[nom]?.ic ?? "—",
+                "borne basse 95 %": app.donnees.ic_par_composante?.[nom]
+                  ?.ic_borne_basse_95 ?? "—",
+                n: app.donnees.ic_par_composante?.[nom]?.n ?? "—",
+              }))} />
+            )}
+            {app.donnees.candidats &&
+             Object.keys(app.donnees.candidats).length > 0 && (
+              <>
+                <h4 style={{ marginBottom: 4 }}>Briques candidates —
+                  journalisées, pas encore pondérées</h4>
+                <p className="note">Elles sont mesurées comme les autres. Une
+                  brique gagne sa place dans le verdict en démontrant sa
+                  valeur, elle ne la reçoit pas d'office.</p>
+                <Table lignes={Object.entries(app.donnees.candidats).map(
+                  ([nom, c]) => ({
+                    candidat: nom, "IC mesuré": c.ic ?? "—",
+                    "borne basse 95 %": c.ic_borne_basse_95 ?? "—",
+                    n: c.n, statut: c.note ?? (c.prouve ? "prouvé" : "non prouvé"),
+                  }))} />
+              </>
             )}
             <p className="note">{app.donnees.methode}</p>
           </>
@@ -847,6 +896,29 @@ function PageConcours() {
 }
 
 // ---------------------------------------------------------------- Alertes
+function BilanAlertes() {
+  const { donnees } = useDonnees(api.getBilanAlertes);
+  const b = donnees?.donnees;
+  if (!b) return null;
+  return (
+    <div className="carte">
+      <h3>Ce que valent ces alertes</h3>
+      {b.par_regle?.length ? (
+        <>
+          <p className="note">{b.evaluees} alerte(s) jugée(s) sur {b.n}{" "}
+            consignée(s) — mesure faite {b.horizon_seances} séances après
+            l'envoi. Les règles de contexte (agenda, sentiment, VIX)
+            n'annoncent pas de sens : elles sont consignées mais non notées.</p>
+          <Table lignes={b.par_regle} />
+          <p className="note">{b.lecture}</p>
+        </>
+      ) : (
+        <p className="note">{b.message}</p>
+      )}
+    </div>
+  );
+}
+
 function PageAlertes() {
   const { donnees, erreur } = useDonnees(api.getAlertes);
   if (erreur) {
@@ -866,6 +938,7 @@ function PageAlertes() {
           {" "}({donnees.fuseau ?? "UTC"}). Les mêmes alertes arrivent en
           notification ntfy.</p>
       </div>
+      <BilanAlertes />
       {(donnees.alertes ?? []).length === 0 && (
         <div className="carte"><p className="note">Rien à signaler pour le
           moment — le silence est l'état normal du système.</p></div>
