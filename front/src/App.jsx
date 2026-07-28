@@ -760,6 +760,28 @@ function PageDecisions({ onTitre }) {
             décrivent presque le même bout de marché, d'où seulement{" "}
             ~{comp.episodes_independants} épisodes réellement indépendants.
             {" "}{comp.methode}</p>
+          {bilan.competence_par_horizon?.length > 1 && (
+            <>
+              <h4 style={{ marginBottom: 4 }}>Les mêmes verdicts, mesurés à
+                plusieurs horizons</h4>
+              <p className="note">Un horizon court n'est pas « meilleur » : il
+                donne simplement plus d'épisodes de marché indépendants pour
+                une même durée d'observation, donc une réponse plus vite. La
+                colonne « IC détectable » dit à partir de quelle compétence
+                réelle on saurait la distinguer du hasard avec le recul
+                actuel.</p>
+              <Table lignes={bilan.competence_par_horizon
+                .filter((c) => c.ic_transversal_moyen != null)
+                .map((c) => ({
+                  "horizon (séances)": c.horizon,
+                  "IC transversal": c.ic_transversal_moyen,
+                  t: c.t,
+                  "épisodes indépendants": c.episodes_independants,
+                  "IC détectable": c.ic_detectable,
+                  conclusion: c.sens,
+                }))} />
+            </>
+          )}
         </div>
       )}
       <div className="carte">

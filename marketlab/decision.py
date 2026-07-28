@@ -30,6 +30,12 @@ from marketlab.data import get_ohlcv
 JOURNAL = config.DATA_DIR / "journal_decisions.csv"
 POIDS_APPRIS = config.DATA_DIR / "poids_appris.json"
 
+# Horizons auxquels chaque verdict est mesuré EN PARALLÈLE de son horizon
+# officiel. Raccourcir l'horizon multiplie les épisodes de marché
+# indépendants pour une même durée d'observation : c'est le seul levier
+# rapide pour savoir si l'outil vaut quelque chose.
+HORIZONS_MESURE = (3, 5, 10, 20)
+
 # Pondérations de BASE des composantes (renormalisées si une composante est
 # absente — les fondamentaux n'existent pas pour une crypto ou une devise).
 # Une fois le journal assez fourni, `calibrer()` les ajuste d'après le bilan
@@ -425,6 +431,10 @@ def bilan() -> dict:
         "premiere_date": df["date"].min().strftime("%Y-%m-%d"),
         "par_avis": par_avis,
         "competence": _mesurer_competence(df),
+        "competence_par_horizon": [
+            {**_mesurer_competence(df, f"rendement_h{h}_%", horizon_force=h),
+             "horizon": h}
+            for h in HORIZONS_MESURE if f"rendement_h{h}_%" in df.columns],
         "lecture": ("Un outil honnête montre son bilan, bon ou mauvais. "
                     "Deux colonnes à ne pas confondre : le rendement BRUT "
                     "dit ce qu'a fait le marché, le rendement RELATIF (dérive "
@@ -433,7 +443,8 @@ def bilan() -> dict:
     }
 
 
-def _mesurer_competence(df: pd.DataFrame) -> dict:
+def _mesurer_competence(df: pd.DataFrame, colonne: str = "rendement_reel_%",
+                        horizon_force: int | None = None) -> dict:
     """La note globale prédit-elle quoi que ce soit — et peut-on le prouver ?
 
     Méthode : IC de Spearman TRANSVERSAL, calculé date par date entre la note
@@ -452,15 +463,16 @@ def _mesurer_competence(df: pd.DataFrame) -> dict:
     Ce que l'IC transversal mesure : la capacité à CLASSER les actifs entre
     eux à une date donnée — la question à laquelle l'outil sert vraiment.
     """
-    if "rendement_reel_%" not in df.columns or len(df) < 60:
+    if colonne not in df.columns or len(df) < 60:
         return {"statut": "pas encore mesurable"}
-    horizon = int(df["horizon"].median()) if "horizon" in df.columns else 20
+    horizon = horizon_force or (int(df["horizon"].median())
+                                if "horizon" in df.columns else 20)
 
     ics = []
-    for _, groupe in df.dropna(subset=["note", "rendement_reel_%"]).groupby("date"):
+    for _, groupe in df.dropna(subset=["note", colonne]).groupby("date"):
         if len(groupe) < 8:          # un classement demande assez d'actifs
             continue
-        ic = groupe["note"].rank().corr(groupe["rendement_reel_%"].rank())
+        ic = groupe["note"].rank().corr(groupe[colonne].rank())
         if ic == ic:
             ics.append(float(ic))
     n_dates = len(ics)
@@ -499,9 +511,14 @@ def _mesurer_competence(df: pd.DataFrame) -> dict:
             f"indépendants. Il faut plusieurs années de recul pour trancher — "
             f"d'ici là, les verdicts sont des points d'attention, pas des "
             f"recommandations.")
+    # Puissance : quel IC réel serait détectable avec ce recul ? Un outil
+    # « non concluant » sur un échantillon qui ne peut rien détecter n'est
+    # pas la même chose qu'un outil non concluant sur un échantillon capable.
+    detectable = round(2.8 * err, 3) if err > 0 else None
     return {"n_dates": n_dates, "episodes_independants": episodes,
             "ic_transversal_moyen": round(moyenne, 4), "t": round(t, 2),
             "horizon_seances": horizon, "sens": sens, "lecture": lecture,
+            "ic_detectable": detectable,
             "methode": ("IC de Spearman transversal par date (Fama-MacBeth), "
                         "erreur-type de Newey-West au retard de l'horizon.")}
 
@@ -531,7 +548,17 @@ def _evaluer_journal() -> pd.DataFrame:
                 continue  # horizon pas encore écoulé
             realise = float(futurs.iloc[int(ligne["horizon"]) - 1]
                             / ligne["prix"] - 1) * 100
-            evalues.append({**ligne.to_dict(), "rendement_reel_%": realise})
+            ligne_evaluee = {**ligne.to_dict(), "rendement_reel_%": realise}
+            # Le MÊME verdict est aussi mesuré à d'autres horizons. C'est
+            # gratuit (les notes et le prix d'entrée sont déjà là) et c'est le
+            # seul moyen d'obtenir vite une réponse : à 20 séances, deux ans
+            # ne pèsent qu'une dizaine d'épisodes indépendants ; à 5 séances,
+            # quatre fois plus.
+            for h in HORIZONS_MESURE:
+                ligne_evaluee[f"rendement_h{h}_%"] = (
+                    float(futurs.iloc[h - 1] / ligne["prix"] - 1) * 100
+                    if len(futurs) >= h else None)
+            evalues.append(ligne_evaluee)
     df = pd.DataFrame(evalues)
     if df.empty:
         return df
