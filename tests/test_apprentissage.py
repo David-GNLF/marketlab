@@ -69,7 +69,8 @@ def test_echantillon_insuffisant_ne_bouge_rien():
 def test_les_poids_somment_a_un_et_respectent_le_plancher():
     rapport = decision._calculer_poids(_journal(n=3000, correlation=0.30))
     poids = rapport["poids"]
-    assert sum(poids.values()) == pytest.approx(1.0, abs=1e-6)
+    # chaque poids est arrondi à 4 décimales : la somme peut dévier d'autant
+    assert sum(poids.values()) == pytest.approx(1.0, abs=1e-3)
     assert min(poids.values()) >= 0.019   # plancher 2 % (arrondi)
 
 

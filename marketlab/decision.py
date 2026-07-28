@@ -434,39 +434,76 @@ def bilan() -> dict:
 
 
 def _mesurer_competence(df: pd.DataFrame) -> dict:
-    """La note globale prédit-elle quoi que ce soit, et est-ce démontré ?
+    """La note globale prédit-elle quoi que ce soit — et peut-on le prouver ?
 
-    Le test décisif de l'outil : corrélation entre la note qu'il a donnée et
-    le rendement relatif qui a suivi. Positive et significative = l'outil
-    sait choisir. Négative et significative = il se trompe SYSTÉMATIQUEMENT
-    (ce qui est une information, pas une fatalité). Non significative = on ne
-    sait pas encore.
+    Méthode : IC de Spearman TRANSVERSAL, calculé date par date entre la note
+    et le rendement advenu, puis moyenné (Fama-MacBeth) avec une erreur-type
+    de Newey-West.
+
+    Pourquoi pas un simple IC sur toutes les lignes : les verdicts se
+    recouvrent. Avec un horizon de 20 séances et des verdicts quasi
+    quotidiens, deux lignes voisines parlent presque du même bout de marché.
+    Les traiter comme indépendantes multiplie artificiellement la certitude —
+    3 232 verdicts sur 2 ans ne pèsent en réalité qu'une vingtaine
+    d'épisodes indépendants. Une première version de cette fonction est
+    tombée dans ce piège et a annoncé comme « démontré » un résultat qui ne
+    l'était pas.
+
+    Ce que l'IC transversal mesure : la capacité à CLASSER les actifs entre
+    eux à une date donnée — la question à laquelle l'outil sert vraiment.
     """
-    if "rendement_relatif_%" not in df.columns or len(df) < 60:
+    if "rendement_reel_%" not in df.columns or len(df) < 60:
         return {"statut": "pas encore mesurable"}
-    paires = df[["note", "rendement_relatif_%"]].dropna()
-    n = len(paires)
-    ic = float(paires["note"].rank().corr(paires["rendement_relatif_%"].rank()))
-    err = 1.0 / math.sqrt(max(n - 3, 1))
-    bas, haut = (math.tanh(math.atanh(max(min(ic, 0.999), -0.999)) + s * 1.96 * err)
-                 for s in (-1, 1))
-    if bas > 0:
-        sens, lecture = "positif", ("la note prédit dans le bon sens : "
-                                    "plus elle est haute, plus le titre bat "
-                                    "sa propre tendance.")
-    elif haut < 0:
-        sens, lecture = "négatif", (
-            "ATTENTION : la note prédit à l'ENVERS de façon démontrée. Sur la "
-            "période mesurée, les titres les mieux notés ont fait MOINS BIEN "
-            "que leur propre tendance, et les moins bien notés mieux. Le "
-            "gain affiché des avis « Favorable » vient de la hausse générale "
-            "du marché, pas de la sélection.")
+    horizon = int(df["horizon"].median()) if "horizon" in df.columns else 20
+
+    ics = []
+    for _, groupe in df.dropna(subset=["note", "rendement_reel_%"]).groupby("date"):
+        if len(groupe) < 8:          # un classement demande assez d'actifs
+            continue
+        ic = groupe["note"].rank().corr(groupe["rendement_reel_%"].rank())
+        if ic == ic:
+            ics.append(float(ic))
+    n_dates = len(ics)
+    if n_dates < 20:
+        return {"statut": "pas encore assez de dates comparables",
+                "n_dates": n_dates}
+
+    serie = np.array(ics)
+    moyenne = float(serie.mean())
+    # Newey-West : les IC de dates proches sont corrélés entre eux
+    retard = min(horizon, n_dates - 1)
+    var = float(serie.var(ddof=1))
+    for k in range(1, retard + 1):
+        var += 2 * (1 - k / (retard + 1)) * float(
+            np.cov(serie[:-k], serie[k:])[0, 1])
+    err = math.sqrt(max(var, 1e-12) / n_dates)
+    t = moyenne / err if err > 0 else 0.0
+    episodes = max(int(n_dates / max(horizon, 1)), 1)
+
+    if t > 1.96:
+        sens = "positif"
+        lecture = ("la note classe les actifs dans le bon sens : à une date "
+                   "donnée, les mieux notés font ensuite mieux que les autres.")
+    elif t < -1.96:
+        sens = "négatif"
+        lecture = ("ATTENTION : la note classe les actifs à l'ENVERS de façon "
+                   "démontrée. Les mieux notés font ensuite MOINS BIEN que "
+                   "les moins bien notés.")
     else:
-        sens, lecture = "indéterminé", ("aucun pouvoir prédictif démontré ni "
-                                        "infirmé : l'échantillon ne tranche pas.")
-    return {"n": n, "ic_note_vs_relatif": round(ic, 4),
-            "intervalle_95": [round(bas, 4), round(haut, 4)],
-            "sens": sens, "lecture": lecture}
+        sens = "indéterminé"
+        lecture = (
+            f"Aucune compétence démontrée, ni dans un sens ni dans l'autre. "
+            f"L'écart mesuré ({moyenne:+.3f}) n'est pas distinguable du "
+            f"hasard : sur {horizon} séances d'horizon, ces {n_dates} dates ne "
+            f"valent qu'environ {episodes} épisodes de marché réellement "
+            f"indépendants. Il faut plusieurs années de recul pour trancher — "
+            f"d'ici là, les verdicts sont des points d'attention, pas des "
+            f"recommandations.")
+    return {"n_dates": n_dates, "episodes_independants": episodes,
+            "ic_transversal_moyen": round(moyenne, 4), "t": round(t, 2),
+            "horizon_seances": horizon, "sens": sens, "lecture": lecture,
+            "methode": ("IC de Spearman transversal par date (Fama-MacBeth), "
+                        "erreur-type de Newey-West au retard de l'horizon.")}
 
 
 def _evaluer_journal() -> pd.DataFrame:
@@ -546,7 +583,10 @@ def _calculer_poids(df_evalues: pd.DataFrame, poids_base: dict | None = None,
     if cible not in df_evalues.columns:
         cible = "rendement_reel_%"
     rendement = df_evalues[cible]
+    horizon = (int(df_evalues["horizon"].median())
+               if "horizon" in df_evalues.columns else 20)
     rapport["cible"] = cible
+    rapport["horizon_seances"] = horizon
     ics = {}
     for nom in poids_base:
         colonne = f"c_{nom}"
@@ -563,13 +603,19 @@ def _calculer_poids(df_evalues: pd.DataFrame, poids_base: dict | None = None,
         # bruit. On borne l'IC par le bas à 95 % (transformée de Fisher) et
         # c'est CETTE borne qui donne droit à du poids : une composante doit
         # PROUVER sa valeur, pas simplement avoir eu de la chance.
-        n_c = len(paires)
+        #
+        # Taille d'échantillon EFFECTIVE : avec un horizon de 20 séances et
+        # des verdicts quasi quotidiens, 20 lignes voisines décrivent presque
+        # le même bout de marché. Compter n lignes indépendantes gonflerait la
+        # certitude d'un facteur √20 ≈ 4,5 — de quoi « prouver » du bruit.
+        n_c = max(len(paires) / max(horizon, 1), 10)
         err = 1.0 / math.sqrt(max(n_c - 3, 1))
         borne_basse = math.tanh(math.atanh(max(min(ic, 0.999), -0.999))
                                 - 1.96 * err)
         ics[nom] = borne_basse
         rapport["ic_par_composante"][nom] = {
-            "ic": round(ic, 3), "n": int(n_c),
+            "ic": round(ic, 3), "n": int(len(paires)),
+            "n_effectif": int(n_c),
             "ic_borne_basse_95": round(borne_basse, 3),
             "prouve": bool(borne_basse > 0)}
 
@@ -586,10 +632,12 @@ def _calculer_poids(df_evalues: pd.DataFrame, poids_base: dict | None = None,
                 "note": "pas encore assez de verdicts évalués"}
             continue
         ic = float(paires[colonne].rank().corr(paires[cible].rank()))
-        err = 1.0 / math.sqrt(max(len(paires) - 3, 1))
+        n_eff = max(len(paires) / max(horizon, 1), 10)   # fenêtres recouvrantes
+        err = 1.0 / math.sqrt(max(n_eff - 3, 1))
         bas = math.tanh(math.atanh(max(min(ic, 0.999), -0.999)) - 1.96 * err)
         rapport["candidats"][colonne[2:]] = {
             "ic": round(ic, 3), "n": int(len(paires)),
+            "n_effectif": int(n_eff),
             "ic_borne_basse_95": round(bas, 3), "prouve": bool(bas > 0)}
 
     if len(ics) < 3:
@@ -641,7 +689,10 @@ def calibrer() -> dict:
         "de l'actif retirée, pour ne pas récompenser un simple marché "
         "haussier). Une composante ne gagne du poids que si la borne basse "
         "de son IC à 95 % est positive — autrement dit si sa valeur est "
-        "démontrée, pas seulement observée. Mélange progressif "
+        "démontrée, pas seulement observée. La borne est calculée sur la "
+        "taille d'échantillon EFFECTIVE (nombre de verdicts ÷ horizon) : les "
+        "fenêtres se recouvrent, et les compter comme indépendantes "
+        "gonflerait la certitude d'un facteur √20. Mélange progressif "
         "(1−λ)·base + λ·performance, λ = min(0,5, n/400) ; plancher 2 %.")
     # Le rapport est écrit dans TOUS les cas, y compris « rien n'est
     # démontré » : c'est la conclusion du jour, et elle doit remplacer celle

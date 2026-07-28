@@ -742,18 +742,24 @@ function PageDecisions({ onTitre }) {
   const comp = bilan?.competence;
   return (
     <>
-      {comp?.sens === "négatif" && (
-        <div className="carte" style={{ borderLeft: "4px solid var(--critical)" }}>
-          <h3 style={{ color: "var(--critical)", marginTop: 0 }}>
-            ⚠️ Avertissement issu du bilan de l'outil lui-même</h3>
+      {comp?.sens && (
+        <div className="carte" style={{ borderLeft: `4px solid ${
+            comp.sens === "négatif" ? "var(--critical)"
+            : comp.sens === "positif" ? "var(--good)" : "var(--baseline)"}` }}>
+          <h3 style={{ marginTop: 0, color: comp.sens === "négatif"
+              ? "var(--critical)" : "inherit" }}>
+            {comp.sens === "négatif" ? "⚠️ " : comp.sens === "positif" ? "✅ " : "🔍 "}
+            Ce que vaut cet outil, mesuré sur ses propres verdicts</h3>
           <p>{comp.lecture}</p>
           <p className="note">Mesure : corrélation de rang entre la note
-            attribuée et le rendement relatif advenu ={" "}
-            <strong>{comp.ic_note_vs_relatif}</strong> sur {comp.n} verdicts
-            (intervalle à 95 % : [{comp.intervalle_95[0]}, {comp.intervalle_95[1]}],
-            entièrement sous zéro). Tant que ce constat tient, lisez les cartes
-            ci-dessous comme des <em>points d'attention</em>, pas comme des
-            recommandations d'achat.</p>
+            attribuée et le rendement advenu, calculée <em>date par date</em>{" "}
+            puis moyennée sur {comp.n_dates} dates —{" "}
+            <strong>{comp.ic_transversal_moyen}</strong> (t = {comp.t}).
+            L'erreur-type tient compte du recouvrement des fenêtres : à{" "}
+            {comp.horizon_seances} séances d'horizon, des verdicts voisins
+            décrivent presque le même bout de marché, d'où seulement{" "}
+            ~{comp.episodes_independants} épisodes réellement indépendants.
+            {" "}{comp.methode}</p>
         </div>
       )}
       <div className="carte">
@@ -782,11 +788,6 @@ function PageDecisions({ onTitre }) {
               l'horizon depuis le {bilan.premiere_date}.</p>
             <Table lignes={bilan.par_avis} />
             <p className="note">{bilan.lecture}</p>
-            {comp?.sens && comp.sens !== "négatif" && (
-              <p className="note">Compétence mesurée : corrélation note ↔
-                rendement relatif = {comp.ic_note_vs_relatif} sur {comp.n}{" "}
-                verdicts — {comp.lecture}</p>
-            )}
           </>
         ) : (
           <p className="note">{bilan?.message ?? "Bilan indisponible."} Chaque
