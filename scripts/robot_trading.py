@@ -38,6 +38,13 @@ from marketlab import config, ftps, notify
 from marketlab.data import get_ohlcv
 
 CAPITAL_DEPART = 1000.0
+# Deux robots, mêmes règles, horizons différents. C'est une expérience
+# contrôlée : tout ce qui les sépare est la fenêtre de temps du verdict, donc
+# l'écart de performance mesure la valeur de l'horizon — rien d'autre.
+ROBOTS = {
+    "claude": {"cle": "dossiers", "horizon": 20},
+    "claude5": {"cle": "dossiers_court", "horizon": 5},
+}
 SPREAD_PCT = 0.05
 MAX_POSITIONS = 4
 PART_EQUITE = 0.05
@@ -326,7 +333,13 @@ def main() -> int:
     if not VERDICTS_LOCAL.exists():
         print("verdicts.json absent : lancer la génération d'abord")
         return 1
-    verdicts = json.loads(VERDICTS_LOCAL.read_text(encoding="utf-8"))["dossiers"]
+    publie = json.loads(VERDICTS_LOCAL.read_text(encoding="utf-8"))
+    verdicts_par_robot = {
+        nom: publie.get(cfg_robot["cle"]) or []
+        for nom, cfg_robot in ROBOTS.items()}
+    for nom, v in verdicts_par_robot.items():
+        print(f"robot « {nom} » : {len(v)} verdict(s) à "
+              f"{ROBOTS[nom]['horizon']} séances")
 
     cfg = ftps.charger_config()
     session = ftps._connecter(cfg)
@@ -337,16 +350,22 @@ def main() -> int:
         ftps._assurer_dossier(session, f"{base}/trading/comptes")
         fichiers = _lister_comptes(session, base)
 
-        # le compte du robot est créé au premier passage
-        if "claude.json" not in fichiers:
-            _televerser(session, base, "claude.json", {
-                "nom": "claude", "capital_initial": CAPITAL_DEPART,
-                "solde": CAPITAL_DEPART, "positions": [], "historique": [],
+        # les comptes des robots sont créés au premier passage
+        for nom, cfg_robot in ROBOTS.items():
+            if f"{nom}.json" in fichiers:
+                continue
+            _televerser(session, base, f"{nom}.json", {
+                "nom": nom, "capital_initial": CAPITAL_DEPART,
+                "solde": CAPITAL_DEPART, "positions": [], "ordres": [],
+                "historique": [],
                 "equity": [[_maintenant(), CAPITAL_DEPART]],
-                "journal_robot": ["compte du robot créé"],
+                "horizon": cfg_robot["horizon"],
+                "journal_robot": [f"compte créé — verdicts à "
+                                  f"{cfg_robot['horizon']} séances"],
                 "cree_le": _maintenant()})
-            fichiers.append("claude.json")
-            print("compte robot « claude » créé (1 000 $ virtuels)")
+            fichiers.append(f"{nom}.json")
+            print(f"compte robot « {nom} » créé ({CAPITAL_DEPART:.0f} $ "
+                  f"virtuels, horizon {cfg_robot['horizon']})")
 
         for fichier in fichiers:
             compte = _telecharger(session, base, fichier)
@@ -355,8 +374,15 @@ def main() -> int:
             evenements = tenir_compte(compte)
             evenements += executer_ordres(compte)
             evenements += facturer_portage(compte)
-            if compte["nom"] == "claude":
-                evenements += decisions_robot(compte, verdicts)
+            est_robot = compte["nom"] in ROBOTS
+            if est_robot:
+                v = verdicts_par_robot.get(compte["nom"]) or []
+                if v:
+                    evenements += decisions_robot(compte, v)
+                else:
+                    evenements.append("aucun verdict disponible pour cet "
+                                      "horizon : robot en attente")
+                compte["horizon"] = ROBOTS[compte["nom"]]["horizon"]
                 compte.setdefault("journal_robot", []).extend(
                     [f"[{_maintenant()}] {e}" for e in evenements])
                 compte["journal_robot"] = compte["journal_robot"][-60:]
@@ -370,7 +396,8 @@ def main() -> int:
                 mouvements.append((compte["nom"], evenements, equite))
 
             classement.append({
-                "nom": compte["nom"], "est_robot": compte["nom"] == "claude",
+                "nom": compte["nom"], "est_robot": est_robot,
+                "horizon": ROBOTS.get(compte["nom"], {}).get("horizon"),
                 "equite": equite,
                 "perf_%": round((equite / compte["capital_initial"] - 1) * 100, 2),
                 "n_positions": len(compte["positions"]),
@@ -379,9 +406,9 @@ def main() -> int:
                                 ("symbole", "sens", "levier", "marge",
                                  "prix_entree", "stop", "objectif", "raison")}
                                for p in compte["positions"]]
-                              if compte["nom"] == "claude" else None),
+                              if est_robot else None),
                 "journal": (compte.get("journal_robot", [])[-15:]
-                            if compte["nom"] == "claude" else None),
+                            if est_robot else None),
                 "equity": compte["equity"][-120:],
             })
     finally:
@@ -401,6 +428,13 @@ def main() -> int:
                          "forex ×5, matières ×3, actions/crypto ×2 ; 4 "
                          "positions max ; stop/objectif du plan ; clôture si "
                          "le verdict se retourne ; tout est journalisé."),
+        "robots": [{"nom": n, "horizon": c["horizon"]}
+                   for n, c in ROBOTS.items()],
+        "experience": ("Deux robots suivent EXACTEMENT les mêmes règles et ne "
+                       "diffèrent que par l'horizon du verdict : « claude » à "
+                       "20 séances, « claude5 » à 5 séances. L'écart entre "
+                       "eux ne mesure donc qu'une chose — ce que vaut "
+                       "l'horizon."),
         "avertissement": "Argent virtuel — l'environnement mesure la "
                          "fiabilité de l'outil, il ne constitue pas un "
                          "conseil en investissement.",

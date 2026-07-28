@@ -387,7 +387,10 @@ def journaliser(dossiers: list[dict]) -> int:
     nouveau = pd.DataFrame(lignes)
     if JOURNAL.exists():
         journal = pd.concat([pd.read_csv(JOURNAL), nouveau], ignore_index=True)
-        journal = journal.drop_duplicates(subset=["date", "symbole"], keep="last")
+        # La clé inclut l'HORIZON : le même titre, le même jour, produit un
+        # verdict par horizon suivi, et chacun doit garder sa propre trace.
+        journal = journal.drop_duplicates(subset=["date", "symbole", "horizon"],
+                                          keep="last")
     else:
         journal = nouveau
     JOURNAL.parent.mkdir(parents=True, exist_ok=True)
@@ -395,17 +398,19 @@ def journaliser(dossiers: list[dict]) -> int:
     return len(nouveau)
 
 
-def bilan() -> dict:
+def bilan(horizon: int | None = None) -> dict:
     """Le tribunal de l'outil : que valaient les verdicts passés ?
 
     Pour chaque verdict dont l'horizon est écoulé, mesure le rendement réel
     et agrège par catégorie d'avis. C'est CE tableau qui dit si l'outil
     mérite d'être écouté — pas ses raisonnements.
+
+    `horizon` limite le bilan aux verdicts produits pour cet horizon.
     """
     if not JOURNAL.exists():
         return {"verdicts_evalues": 0,
                 "message": "Aucun verdict journalisé pour l'instant."}
-    df = _evaluer_journal()
+    df = _evaluer_journal(horizon)
     if df.empty:
         return {"verdicts_evalues": 0,
                 "message": "Aucun verdict n'a encore atteint son horizon — "
@@ -523,8 +528,12 @@ def _mesurer_competence(df: pd.DataFrame, colonne: str = "rendement_reel_%",
                         "erreur-type de Newey-West au retard de l'horizon.")}
 
 
-def _evaluer_journal() -> pd.DataFrame:
+def _evaluer_journal(horizon: int | None = None) -> pd.DataFrame:
     """Verdicts arrivés à leur horizon, avec le rendement réellement advenu.
+
+    `horizon` restreint aux verdicts PRODUITS pour cet horizon — un verdict
+    à 5 séances et un verdict à 20 séances sur le même titre le même jour
+    sont deux paris différents, et chacun mérite son propre bilan.
 
     Conserve toutes les colonnes du journal — dont les notes c_* par
     composante, matière première de l'apprentissage des pondérations.
@@ -533,6 +542,10 @@ def _evaluer_journal() -> pd.DataFrame:
         return pd.DataFrame()
     journal = pd.read_csv(JOURNAL)
     journal["date"] = pd.to_datetime(journal["date"])
+    if horizon is not None:
+        journal = journal[journal["horizon"] == horizon]
+        if journal.empty:
+            return pd.DataFrame()
 
     evalues = []
     for symbole, groupe in journal.groupby("symbole"):

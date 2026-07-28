@@ -609,7 +609,32 @@ function BarreNote({ note }) {
   );
 }
 
-function Verdict({ d, rang, onTitre }) {
+/** Le pari court, affiché à côté du long : deux fenêtres, deux paris. */
+function PlanCourt({ court, horizon }) {
+  if (!court || court.erreur) return null;
+  const p = court.plan;
+  const couleur = court.avis === "Favorable" ? "var(--good)"
+    : court.avis === "S'abstenir" || court.avis === "Défavorable"
+      ? "var(--critical)" : "var(--muted)";
+  return (
+    <div style={{ marginTop: 8, paddingTop: 8,
+                  borderTop: "1px dashed var(--grid)", fontSize: 13 }}>
+      <span className="badge" style={{ marginRight: 8 }}>
+        ⚡ {horizon} séances</span>
+      <span style={{ color: couleur, fontWeight: 600 }}>{court.avis}</span>
+      <span className="note"> · note {court.note_globale > 0 ? "+" : ""}
+        {court.note_globale}</span>
+      {p ? (
+        <span> — entrée {nb(p.entree)}, stop {nb(p.stop)}, objectif{" "}
+          {nb(p.objectif)} <span className="note">(risque{" "}
+          {pct(Math.abs(p.stop / p.entree - 1) * 100)}, R/R{" "}
+          {p.ratio_gain_risque})</span></span>
+      ) : <span className="note"> — pas de plan à cette échéance</span>}
+    </div>
+  );
+}
+
+function Verdict({ d, rang, onTitre, court, horizonCourt }) {
   const [ouvert, setOuvert] = useState(false);
   if (d.erreur) {
     return <div className="carte"><strong>{d.symbole}</strong>{" "}
@@ -670,6 +695,7 @@ function Verdict({ d, rang, onTitre }) {
 
       <p style={{ margin: "8px 0 0", fontWeight: 600, color: action.couleur }}>
         {action.texte}</p>
+      <PlanCourt court={court} horizon={horizonCourt} />
       {d.brokers?.avertissement && (
         <p className="note" style={{ margin: "4px 0 0" }}>
           ⚠️ {d.brokers.avertissement}</p>
@@ -733,6 +759,8 @@ function PageDecisions({ onTitre }) {
   const [classe, setClasse] = useState("Tous");
   if (!donnees) return <Chargement erreur={erreur} />;
   const tous = donnees.dossiers ?? [];
+  const courts = Object.fromEntries(
+    (donnees.dossiers_court ?? []).map((c) => [c.symbole, c]));
   const classes = ["Tous",
                    ...new Set(tous.map((d) => d.classe).filter(Boolean))];
   const dossiers = tous
@@ -799,7 +827,11 @@ function PageDecisions({ onTitre }) {
           <span className="note">{dossiers.length} actif(s) — la liste se
             réordonne du plus favorable au plus défavorable selon le critère
             choisi. Chaque carte dit explicitement quoi faire, et « pourquoi ? »
-            ouvre le détail.</span>
+            ouvre le détail. Le classement suit l'horizon officiel de{" "}
+            {donnees.horizon_officiel ?? 20} séances ; la ligne ⚡ donne le
+            pari indépendant à {donnees.horizon_court ?? 5} séances, dont la
+            prévision, le stop et l'objectif sont recalculés pour cette
+            fenêtre — les deux peuvent diverger, et c'est normal.</span>
         </div>
       </div>
       <div className="carte">
@@ -864,7 +896,9 @@ function PageDecisions({ onTitre }) {
         )}
       </div>
       {dossiers.map((d, i) => (
-        <Verdict key={d.symbole} d={d} rang={i + 1} onTitre={onTitre} />
+        <Verdict key={d.symbole} d={d} rang={i + 1} onTitre={onTitre}
+                 court={courts[d.symbole]}
+                 horizonCourt={donnees.horizon_court} />
       ))}
     </>
   );
@@ -874,28 +908,35 @@ function PageDecisions({ onTitre }) {
 function PageConcours() {
   const { donnees, erreur } = useDonnees(api.getConcours);
   if (!donnees) return <Chargement erreur={erreur} />;
-  const robot = donnees.comptes?.find((c) => c.est_robot);
+  const robots = donnees.comptes?.filter((c) => c.est_robot) ?? [];
   return (
     <>
       <div className="carte">
         <h3>🏆 Concours de trading virtuel</h3>
         <p className="note">Chaque compte part avec{" "}
-          {nb(donnees.capital_depart)} $ virtuels. Le robot « claude » applique
-          les verdicts de l'outil — le battre, c'est battre la machine.
+          {nb(donnees.capital_depart)} $ virtuels. Les robots appliquent les
+          verdicts de l'outil — les battre, c'est battre la machine.
           Créer votre compte : <a href="trading/">espace de trading</a>.
           Mis à jour le {donnees.date}.</p>
+        {donnees.experience && (
+          <p className="note" style={{ borderLeft: "3px solid var(--series-1)",
+                                       paddingLeft: 10 }}>
+            🔬 <strong>Expérience en cours</strong> — {donnees.experience}</p>
+        )}
         <Table lignes={donnees.comptes?.map((c, i) => ({
           "#": i + 1,
           compte: (c.est_robot ? "🤖 " : "👤 ") + c.nom,
+          horizon: c.horizon ? `${c.horizon} séances` : "—",
           "équité $": c.equite,
           "perf %": c["perf_%"],
           positions: c.n_positions,
           "trades clos": c.n_trades,
         }))} />
       </div>
-      {robot && (
-        <div className="carte">
-          <h3>🤖 Le robot en transparence totale</h3>
+      {robots.map((robot) => (
+        <div className="carte" key={robot.nom}>
+          <h3>🤖 {robot.nom} — horizon {robot.horizon ?? "?"} séances,
+            en transparence totale</h3>
           <p className="note">{donnees.regles_robot}</p>
           {robot.positions?.length > 0 && (
             <>
@@ -912,7 +953,7 @@ function PageConcours() {
             </>
           )}
         </div>
-      )}
+      ))}
       <p className="note">{donnees.avertissement}</p>
     </>
   );

@@ -104,17 +104,29 @@ def plan(symbole: str, sens: str = "achat", horizon: int = 20,
     zp = zones_proches(df)
     proj = forecast.projeter(df, horizon=horizon)
 
+    # Le stop doit être à la mesure de la DURÉE de détention : la volatilité
+    # croît comme la racine du temps. Un stop de 2×ATR convient à 20 séances ;
+    # appliqué tel quel à 5 séances, il laisserait courir une perte bien plus
+    # longue que le pari lui-même. Le multiplicateur suit donc √(horizon/20)
+    # — et vaut exactement 2 à 20 séances : l'historique est préservé.
+    mult = 2.0 * np.sqrt(max(horizon, 1) / 20)
+    # Borne : même un support éloigné ne doit pas produire un stop que la
+    # fenêtre n'a aucune chance d'atteindre autrement que par accident.
+    mult_max = 1.5 * mult
+
     if sens == "achat":
-        stop_atr = prix - 2 * atr
+        stop_atr = prix - mult * atr
         appui = zp["supports"][0]["niveau"] if zp["supports"] else None
         stop = min(stop_atr, appui * 0.995) if appui else stop_atr
+        stop = max(stop, prix - mult_max * atr)
         cible_zone = zp["resistances"][0]["niveau"] if zp["resistances"] else None
         cible_proj = proj["intervalle_80"][1]
         objectif = min(cible_zone, cible_proj) if cible_zone else cible_proj
     else:
-        stop_atr = prix + 2 * atr
+        stop_atr = prix + mult * atr
         appui = zp["resistances"][0]["niveau"] if zp["resistances"] else None
         stop = max(stop_atr, appui * 1.005) if appui else stop_atr
+        stop = min(stop, prix + mult_max * atr)
         cible_zone = zp["supports"][0]["niveau"] if zp["supports"] else None
         cible_proj = proj["intervalle_80"][0]
         objectif = max(cible_zone, cible_proj) if cible_zone else cible_proj

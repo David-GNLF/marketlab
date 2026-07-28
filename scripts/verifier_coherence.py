@@ -103,6 +103,20 @@ def audit_site() -> None:
     verifier("chaque verdict porte une classe", not sans_classe,
              str(sans_classe[:6]))
 
+    # Horizon court : même périmètre, même exigences. Sans ce garde-fou, le
+    # second robot pourrait se retrouver à trader une liste amputée sans que
+    # personne ne s'en aperçoive.
+    courts = verdicts.get("dossiers_court") or []
+    verifier("verdicts courts == FICHES",
+             {d["symbole"] for d in courts} == set(config.FICHES),
+             f"écart : ±{sorted({d['symbole'] for d in courts} ^ set(config.FICHES))[:6]}")
+    verifier("verdicts courts au bon horizon",
+             all(d.get("horizon") == verdicts.get("horizon_court")
+                 for d in courts if "erreur" not in d),
+             f"attendu {verdicts.get('horizon_court')}")
+    verifier("les deux horizons sont distincts",
+             verdicts.get("horizon_court") != verdicts.get("horizon_officiel"))
+
 
 def main() -> int:
     audit_config()

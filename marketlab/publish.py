@@ -47,6 +47,13 @@ DOSSIER_DONNEES = RACINE_SITE / "donnees"
 # la liste reste un choix, pas un « tout l'univers ».
 TITRES_DETAILLES = list(config.FICHES)
 
+# Deux horizons suivis EN PARALLÈLE. L'officiel (20 séances) est celui de
+# l'historique ; le court (5 séances) a été retenu parce qu'il donne 4,3 fois
+# plus d'épisodes de marché indépendants à durée d'observation égale — de
+# quoi trancher en ~2 ans au lieu de ~21.
+HORIZON_OFFICIEL = 20
+HORIZON_COURT = 5
+
 
 def _ecrire(chemin: Path, donnees) -> None:
     chemin.parent.mkdir(parents=True, exist_ok=True)
@@ -197,7 +204,26 @@ def bloc_verdicts() -> dict:
         except Exception as exc:
             d["brokers"] = {"texte": f"indisponible : {str(exc)[:60]}"}
     decision.journaliser(dossiers)
-    return {"dossiers": dossiers, "bilan": decision.bilan()}
+
+    # Second jeu de verdicts à horizon COURT, produit en parallèle. Ce ne sont
+    # pas les mêmes verdicts relus autrement : la prévision, les analogues,
+    # le stop et l'objectif sont recalculés pour une fenêtre de 5 séances.
+    # Deux paris distincts, deux traces distinctes, deux bilans distincts —
+    # et c'est le seul moyen de savoir lequel des deux vaut quelque chose
+    # avant de très nombreuses années.
+    courts = decision.verdicts(TITRES_DETAILLES, horizon=HORIZON_COURT)
+    for d in courts:
+        if "erreur" in d:
+            continue
+        d["classe"] = _classe_actif(d["symbole"])
+        d["nom"] = config.NOMS_ACTIFS.get(d["symbole"], d["symbole"])
+    decision.journaliser(courts)
+
+    return {"dossiers": dossiers, "bilan": decision.bilan(HORIZON_OFFICIEL),
+            "horizon_officiel": HORIZON_OFFICIEL,
+            "horizon_court": HORIZON_COURT,
+            "dossiers_court": courts,
+            "bilan_court": decision.bilan(HORIZON_COURT)}
 
 
 # --- Orchestration ----------------------------------------------------------
