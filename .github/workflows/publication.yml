@@ -82,6 +82,9 @@ jobs:
           MARKETLAB_FTP_UTILISATEUR: ${{ secrets.MARKETLAB_FTP_UTILISATEUR }}
           MARKETLAB_FTP_MOT_DE_PASSE: ${{ secrets.MARKETLAB_FTP_MOT_DE_PASSE }}
           MARKETLAB_FTP_DOSSIER: ${{ secrets.MARKETLAB_FTP_DOSSIER }}
+          # sans ce canal, le robot continuerait d'agir en silence : c'est
+          # exactement ce qu'on vient de corriger
+          MARKETLAB_NTFY_TOPIC: ${{ secrets.MARKETLAB_NTFY_TOPIC }}
         run: python scripts/robot_trading.py
 
       - name: Publier le site
