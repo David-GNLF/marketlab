@@ -101,9 +101,15 @@ jobs:
         run: |
           git config user.name "marketlab-actions"
           git config user.email "actions@users.noreply.github.com"
-          git add data_local/journal_decisions.csv data_local/poids_appris.json 2>/dev/null || git add data_local/journal_decisions.csv
+          # tout le suivi de data_local d'un coup : journal, pondérations et
+          # portefeuille papier. En n'en nommant que deux, le troisième
+          # restait modifié et « git pull --rebase » refusait de tourner.
+          git add -A data_local
           if ! git diff --cached --quiet; then
             git commit -m "Journal des décisions du $(date -u +%F)"
+            # artefacts régénérés hors data_local : ils ne doivent pas
+            # bloquer le rebase (l'espace de travail du runner est jetable)
+            git checkout -- . 2>/dev/null || true
             git pull --rebase origin master || true
             git push origin master
           else
