@@ -279,8 +279,17 @@ de production sont pandas, numpy, scipy, requests, yfinance, lxml, pyarrow.
 Les seuls secrets sont les accès FTP et le topic ntfy.
 
 - **22h00 UTC** — publication : tests, génération, audit, robots, transfert
-- **Chaque heure** — alertes + fil du site
+- **Toutes les heures (programmé)** — alertes + fil du site
 - **06h00 UTC** — résumé quotidien
+
+> **Cadence réelle des alertes.** Les exécutions planifiées gratuites de
+> GitHub sont au mieux-effort : mesuré sur 24 h, le scanner passe **10 fois
+> au lieu de 24**, avec des écarts de 1 h 30 à 4 h 30 (médiane 2 h 24). Ce
+> n'est pas un défaut du code — c'est la contrepartie du coût nul, et c'est
+> écrit sur la page Alertes. Une alerte « flash » peut donc arriver avec
+> plusieurs heures de retard. Pour s'en rapprocher, on pourrait ajouter des
+> crons intermédiaires (à :20 et :40) en acceptant de tripler la charge sur
+> les sources gratuites.
 
 ---
 

@@ -995,9 +995,12 @@ function PageAlertes() {
     <>
       <div className="carte">
         <h3>🔔 Fil des alertes</h3>
-        <p className="note">Le scanner passe chaque heure avec des cours
-          frais : ce fil est donc EN AVANCE sur le reste du site, régénéré
-          une fois par jour (l'instantané daté en haut de page). Dernier
+        <p className="note">Le scanner est programmé toutes les heures et
+          passe en pratique toutes les 1 à 4 heures — les exécutions
+          planifiées gratuites de GitHub sont au mieux-effort, et environ la
+          moitié sont retardées ou sautées. Il travaille sur des cours frais :
+          ce fil est donc EN AVANCE sur le reste du site, régénéré une fois
+          par jour (l'instantané daté en haut de page). Dernier
           passage du scanner : <strong>{donnees.dernier_passage ?? "?"}</strong>
           {" "}({donnees.fuseau ?? "UTC"}). Les mêmes alertes arrivent en
           notification ntfy.</p>
