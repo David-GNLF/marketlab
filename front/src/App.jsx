@@ -1074,6 +1074,11 @@ export default function App() {
                   onClick={() => setPage(p)}>{p}</button>
         ))}
         <a href="trading/" className="ml-nav-lien">🏦 Trader</a>
+        {/* Discret mais ATTEIGNABLE : un engrenage sans libellé, dans la barre
+            de navigation. Placé en pied de page, il se retrouvait dix écrans
+            plus bas sur la page Décisions — donc invisible en pratique. */}
+        <a href="admin/" className="ml-nav-admin" title="Administration"
+           aria-label="Espace d'administration">⚙</a>
       </nav>
       {erreur && <p className="erreur">Données indisponibles : {erreur}</p>}
       {meta && (

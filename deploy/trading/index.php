@@ -497,6 +497,9 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
     padding: 10px 12px; margin-top: 10px; line-height: 1.6; }
   .avis-achat { color: #0a7a0a; font-weight: 600; }
   .avis-vente { color: #d03b3b; font-weight: 600; }
+  nav.ancres a.engrenage { background: none; opacity: .55; }
+  nav.ancres a.engrenage:hover { opacity: 1;
+    background: color-mix(in srgb, CanvasText 8%, transparent); }
   footer.pied { margin: 28px 0 12px; padding-top: 12px; text-align: right;
     border-top: 1px solid color-mix(in srgb, CanvasText 15%, transparent); }
   footer.pied a { font-size: 12px; text-decoration: none; opacity: .6;
@@ -571,6 +574,9 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
   </p>
 
   <nav class="ancres">
+    <a href="../" title="Retour au site">← Le site</a>
+    <a href="../admin/" title="Administration" aria-label="Administration"
+       class="engrenage">⚙</a>
     <a href="#marche">👁 Marché</a>
     <a href="#ticket">🧾 Nouvel ordre</a>
     <a href="#positions">📌 Positions (<?= count($compte['positions']) ?>)</a>

@@ -59,6 +59,16 @@ nav.ml-nav .ml-nav-lien {
   margin-left: auto; text-decoration: none; color: var(--text-primary);
   padding: 8px 12px; font-size: 14px; font-weight: 600;
 }
+/* Accès administration : présent en haut de chaque page, mais réduit à un
+   engrenage effacé — on le trouve quand on le cherche, il n'attire pas l'œil. */
+nav.ml-nav .ml-nav-admin {
+  text-decoration: none; color: var(--muted); font-size: 15px;
+  padding: 8px 10px; border-radius: 6px; align-self: center;
+}
+nav.ml-nav .ml-nav-admin:hover,
+nav.ml-nav .ml-nav-admin:focus-visible {
+  color: var(--text-primary); background: var(--surface);
+}
 
 .carte {
   background: var(--surface); border: 1px solid var(--border);
