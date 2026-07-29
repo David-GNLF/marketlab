@@ -1062,7 +1062,7 @@ function PageAlertes() {
         <p className="note">Le scanner est déclenché chaque heure ; les
           exécutions planifiées gratuites de GitHub étant au mieux-effort,
           seule une partie aboutit. Chaque déclenchement obtenu lance donc une
-          <strong> veille de 55 minutes qui rebalaie tous les quarts d'heure</strong>,
+          <strong> veille de 55 minutes qui rebalaie toutes les 10 minutes</strong>,
           sur des cours réellement rafraîchis — un déclenchement couvre une
           heure au lieu d'un instantané. Le seul horodatage qui fasse foi est
           celui du dernier passage, ci-dessous. Ce fil est en avance sur le
