@@ -76,7 +76,14 @@ jobs:
       # virtuel (stops/objectifs/liquidations sur les extrêmes de séance),
       # prend ses positions selon ses règles écrites, et produit le
       # classement (concours.json) publié avec le reste du site.
+      # continue-on-error : le robot touche au réseau (FTPS vers l'hébergeur)
+      # et peut échouer sur un incident passager. Quand c'est arrivé, la nuit
+      # du 2026-07-28, TOUTE la publication est tombée avec lui — le site
+      # n'a pas été mis à jour alors que les verdicts étaient déjà calculés.
+      # Un robot muet est préférable à un site figé : l'échec reste visible
+      # dans Actions, et le prochain passage rattrape les comptes.
       - name: Robot de trading virtuel
+        continue-on-error: true
         env:
           MARKETLAB_FTP_HOTE: ${{ secrets.MARKETLAB_FTP_HOTE }}
           MARKETLAB_FTP_UTILISATEUR: ${{ secrets.MARKETLAB_FTP_UTILISATEUR }}

@@ -28,6 +28,7 @@ import ftplib
 import json
 import os
 import re
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -76,13 +77,35 @@ def charger_config() -> dict:
     return cfg
 
 
-def _connecter(cfg: dict) -> ftplib.FTP_TLS:
-    session = ftplib.FTP_TLS(timeout=60)
-    session.connect(cfg["hote"], int(cfg.get("port", 21)))
-    session.login(cfg["utilisateur"], cfg["mot_de_passe"])
-    session.prot_p()          # chiffre aussi le canal de données
-    session.set_pasv(True)
-    return session
+def _connecter(cfg: dict, tentatives: int = 3) -> ftplib.FTP_TLS:
+    """Ouvre une session FTPS, en réessayant si le serveur ne répond pas.
+
+    Sans cela, un simple incident réseau fait tomber toute la publication.
+    C'est arrivé le 2026-07-28 à 22h58 UTC : un `TimeoutError` sur la
+    connexion a fait échouer l'étape du robot, et donc la publication de la
+    nuit entière. Un hébergement mutualisé retarde ou refuse une connexion de
+    temps à autre — il faut le supporter, pas s'y casser.
+    """
+    dernier = None
+    for essai in range(1, tentatives + 1):
+        try:
+            session = ftplib.FTP_TLS(timeout=60)
+            session.connect(cfg["hote"], int(cfg.get("port", 21)))
+            session.login(cfg["utilisateur"], cfg["mot_de_passe"])
+            session.prot_p()          # chiffre aussi le canal de données
+            session.set_pasv(True)
+            if essai > 1:
+                print(f"  connexion FTPS établie au {essai}e essai")
+            return session
+        except (OSError, ftplib.Error) as exc:
+            dernier = exc
+            if essai < tentatives:
+                attente = 5 * essai            # 5 s, puis 10 s
+                print(f"  connexion FTPS échouée ({type(exc).__name__}: "
+                      f"{str(exc)[:60]}) — nouvel essai dans {attente} s")
+                time.sleep(attente)
+    raise RuntimeError(f"connexion FTPS impossible après {tentatives} "
+                       f"essais : {type(dernier).__name__}: {dernier}")
 
 
 def _assurer_dossier(session: ftplib.FTP_TLS, chemin: str) -> None:
