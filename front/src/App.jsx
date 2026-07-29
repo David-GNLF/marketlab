@@ -609,6 +609,69 @@ function BarreNote({ note }) {
   );
 }
 
+/**
+ * Où en est le prix VIF par rapport au plan du jour.
+ *
+ * Le plan (entrée, stop, objectif) est recalculé une fois par jour, mais le
+ * prix bouge en permanence — et c'est précisément l'écart entre les deux qui
+ * dit s'il est encore temps d'entrer. Le ratio gain/risque, notamment, se
+ * dégrade à mesure que le cours monte vers l'objectif : un plan excellent au
+ * moment du calcul peut ne plus valoir grand-chose deux heures plus tard.
+ * Rien n'est recalculé ici, tout est déduit du prix en direct.
+ */
+function PositionVive({ symbole, plan }) {
+  const { cours } = useCours();
+  const c = cours[symbole];
+  if (!plan || !c) return null;
+  const { prix } = c;
+  const { entree, stop, objectif } = plan;
+  if (!entree || !stop || !objectif) return null;
+
+  const ecart = (prix / entree - 1) * 100;
+  const versStop = (prix / stop - 1) * 100;
+  const versObjectif = (objectif / prix - 1) * 100;
+  const rr = prix > stop ? (objectif - prix) / (prix - stop) : null;
+
+  let etat, couleur;
+  if (prix <= stop) {
+    etat = "⛔ le stop du plan est déjà franchi — plan caduc, ne pas entrer";
+    couleur = "var(--critical)";
+  } else if (prix >= objectif) {
+    etat = "✅ l'objectif du plan est déjà atteint — le mouvement a eu lieu";
+    couleur = "var(--muted)";
+  } else if (Math.abs(ecart) <= 0.5) {
+    etat = "🟢 au prix du plan — c'est le point d'entrée prévu";
+    couleur = "var(--good)";
+  } else if (ecart > 0.5) {
+    etat = `⏳ ${pct(ecart)} au-dessus du plan — entrer maintenant dégrade le `
+         + `rapport gain/risque ; attendre un repli vers ${nb(entree)}`;
+    couleur = "var(--series-2)";
+  } else {
+    etat = `🟢 ${pct(Math.abs(ecart))} sous le prix du plan — point d'entrée `
+         + `plus favorable qu'au calcul`;
+    couleur = "var(--good)";
+  }
+
+  return (
+    <div style={{ marginTop: 8, fontSize: 13 }}>
+      <span style={{ color: couleur, fontWeight: 600 }}>{etat}</span>
+      <div className="note">
+        cours vif {nb(prix)} ·{" "}
+        {versStop >= 0 ? `stop à ${pct(versStop)} sous le cours`
+                       : `stop franchi de ${pct(-versStop)}`} ·{" "}
+        {versObjectif >= 0 ? `objectif à ${pct(versObjectif)} au-dessus`
+                           : `objectif dépassé de ${pct(-versObjectif)}`}
+        {rr != null && <> · rapport gain/risque au cours actuel{" "}
+          <strong style={{ color: rr >= 1.5 ? "var(--good)"
+                                 : rr >= 1 ? "inherit" : "var(--critical)" }}>
+            {rr.toFixed(2)}</strong>
+          {plan.ratio_gain_risque != null &&
+            ` (${plan.ratio_gain_risque} au calcul)`}</>}
+      </div>
+    </div>
+  );
+}
+
 /** Le pari court, affiché à côté du long : deux fenêtres, deux paris. */
 function PlanCourt({ court, horizon }) {
   if (!court || court.erreur) return null;
@@ -695,6 +758,7 @@ function Verdict({ d, rang, onTitre, court, horizonCourt }) {
 
       <p style={{ margin: "8px 0 0", fontWeight: 600, color: action.couleur }}>
         {action.texte}</p>
+      <PositionVive symbole={d.symbole} plan={d.plan} />
       <PlanCourt court={court} horizon={horizonCourt} />
       {d.brokers?.avertissement && (
         <p className="note" style={{ margin: "4px 0 0" }}>

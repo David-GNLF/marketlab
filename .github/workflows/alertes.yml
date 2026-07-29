@@ -13,7 +13,7 @@ name: Veille des alertes
 # mieux-effort, et multiplier les crons ne les rend pas plus généreuses.
 #
 # Désormais : UN cron par heure, mais le processus obtenu balaie pendant
-# 55 minutes, toutes les 8 minutes. Un déclenchement honoré ne donne plus un
+# 55 minutes, toutes les 10 minutes. Un déclenchement honoré ne donne plus un
 # instantané isolé, il couvre une heure entière à 8 minutes de résolution.
 # Le fil du site est réhorodaté à chaque balayage, donc la preuve reste
 # visible. Sans coût supplémentaire : les minutes Actions sont illimitées
@@ -72,9 +72,9 @@ jobs:
           MARKETLAB_FTP_DOSSIER: ${{ secrets.MARKETLAB_FTP_DOSSIER }}
           # Sans cette surcharge, la veille relirait le cache de 12 h à
           # chaque balayage et ne détecterait jamais rien de neuf. 0,23 h
-          # ≈ 14 min, juste sous l'intervalle de 15 min.
-          MARKETLAB_TTL_1D_H: "0.23"
+          # = 9 min, juste sous l'intervalle de 10 min.
+          MARKETLAB_TTL_1D_H: "0.15"
         run: >
           python scripts/alertes.py --boucle
           --duree-minutes ${{ inputs.duree_minutes || '55' }}
-          --intervalle-minutes 15
+          --intervalle-minutes 10
