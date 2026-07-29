@@ -995,13 +995,15 @@ function PageAlertes() {
     <>
       <div className="carte">
         <h3>🔔 Fil des alertes</h3>
-        <p className="note">Le scanner est déclenché trois fois par heure
-          (à :05, :20 et :40) parce que les exécutions planifiées gratuites de
-          GitHub sont au mieux-effort : une partie est retardée ou sautée. Le
-          seul horodatage qui fasse foi est celui du dernier passage,
-          ci-dessous. Il travaille sur des cours frais : ce fil est donc EN
-          AVANCE sur le reste du site, régénéré une fois par jour
-          (l'instantané daté en haut de page). Dernier
+        <p className="note">Le scanner est déclenché chaque heure ; les
+          exécutions planifiées gratuites de GitHub étant au mieux-effort,
+          seule une partie aboutit. Chaque déclenchement obtenu lance donc une
+          <strong> veille de 55 minutes qui rebalaie tous les quarts d'heure</strong>,
+          sur des cours réellement rafraîchis — un déclenchement couvre une
+          heure au lieu d'un instantané. Le seul horodatage qui fasse foi est
+          celui du dernier passage, ci-dessous. Ce fil est en avance sur le
+          reste du site, régénéré une fois par jour (l'instantané daté en haut
+          de page). Dernier
           passage du scanner : <strong>{donnees.dernier_passage ?? "?"}</strong>
           {" "}({donnees.fuseau ?? "UTC"}). Les mêmes alertes arrivent en
           notification ntfy.</p>

@@ -1,5 +1,6 @@
 """Configuration centrale : chemins et univers de titres suivis."""
 
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -10,7 +11,19 @@ CACHE_DIR.mkdir(exist_ok=True)
 DATA_DIR.mkdir(exist_ok=True)
 
 # Durée de validité du cache en heures, par intervalle de bougie.
-CACHE_TTL_HOURS = {"1d": 12, "1h": 2, "1wk": 48}
+#
+# 12 h convient à la publication quotidienne : la dernière barre du jour est
+# relue une fois, cela suffit. Mais la VEILLE des alertes rebalaye plusieurs
+# fois par heure — avec ce délai, elle relirait le même instantané et ne
+# détecterait jamais rien. D'où la surcharge par variable d'environnement :
+# la veille abaisse le délai des barres quotidiennes juste sous son propre
+# intervalle. C'est un compromis assumé, la contrepartie étant davantage de
+# requêtes chez des fournisseurs gratuits qu'il ne faut pas épuiser.
+CACHE_TTL_HOURS = {
+    "1d": float(os.environ.get("MARKETLAB_TTL_1D_H", 12)),
+    "1h": float(os.environ.get("MARKETLAB_TTL_1H_H", 2)),
+    "1wk": 48,
+}
 
 # ---------------------------------------------------------------------------
 # Univers suivis (watchlists). Modifier librement : ce sont les listes que le

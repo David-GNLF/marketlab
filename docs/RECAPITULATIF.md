@@ -279,20 +279,37 @@ de production sont pandas, numpy, scipy, requests, yfinance, lxml, pyarrow.
 Les seuls secrets sont les accès FTP et le topic ntfy.
 
 - **22h00 UTC** — publication : tests, génération, audit, robots, transfert
-- **:05, :20 et :40 de chaque heure** — alertes + fil du site
+- **Chaque heure** — déclenchement d'une **veille de 55 min** qui rebalaie
+  toutes les 15 min (alertes + fil du site)
 - **06h00 UTC** — résumé quotidien
 
-> **Cadence réelle des alertes.** Les exécutions planifiées gratuites de
-> GitHub sont au mieux-effort. Mesuré sur 24 h avec un **unique** cron
-> horaire : 10 passages effectifs au lieu de 24, écarts de 1 h 30 à 4 h 30
-> (médiane 2 h 24). D'où trois déclenchements par heure depuis le
-> 2026-07-28 — cela ne garantit rien, mais ramène l'intervalle typique bien
-> en deçà de l'heure.
+> **La cadence des alertes : deux échecs, puis un changement de mécanisme.**
 >
-> Multiplier les passages est sans danger : l'état anti-doublon empêche de
-> renvoyer deux fois la même alerte, et le verrou de concurrence empêche deux
-> passages simultanés. Le seul horodatage qui fasse foi est celui du dernier
-> passage, affiché sur la page Alertes.
+> Les exécutions planifiées gratuites de GitHub sont au mieux-effort.
+> Mesures successives :
+> - un cron horaire → **10 passages en 24 h** au lieu de 24 (médiane 2 h 24,
+>   max 4 h 30) ;
+> - trois crons par heure → **7 passages en 15 h** au lieu de 45, soit
+>   ~15 % d'honorés. Multiplier les crons ne rend pas GitHub plus généreux.
+>
+> D'où le renversement du 2026-07-29 : on ne mise plus sur la FRÉQUENCE des
+> déclenchements mais sur la DURÉE de chacun. Un cron par heure, et le
+> processus obtenu veille 55 minutes en rebalayant tous les quarts d'heure.
+> Un déclenchement honoré couvre désormais une heure entière au lieu d'un
+> instantané isolé.
+>
+> **Piège associé** : les barres quotidiennes sont mises en cache 12 h. Sans
+> réglage, la veille aurait relu le même instantané à chaque balayage et
+> n'aurait jamais rien détecté — le changement aurait été purement cosmétique.
+> La veille abaisse donc ce délai à ~14 min via `MARKETLAB_TTL_1D_H`, juste
+> sous son intervalle. Vérifié en conditions réelles : trois relevés espacés
+> de 25 s donnent trois prix différents.
+>
+> Rebalayer est sans danger : l'état anti-doublon empêche de renvoyer deux
+> fois la même alerte, et le verrou de concurrence empêche deux veilles
+> simultanées — un déclenchement reçu pendant une veille prend le relais à
+> la fin, prolongeant la couverture. Le seul horodatage qui fasse foi est
+> celui du dernier passage, affiché sur la page Alertes.
 
 ---
 
