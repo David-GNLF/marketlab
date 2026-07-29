@@ -279,8 +279,8 @@ de production sont pandas, numpy, scipy, requests, yfinance, lxml, pyarrow.
 Les seuls secrets sont les accès FTP et le topic ntfy.
 
 - **22h00 UTC** — publication : tests, génération, audit, robots, transfert
-- **Chaque heure** — déclenchement d'une **veille de 55 min** qui rebalaie
-  toutes les 15 min (alertes + fil du site)
+- **Chaque heure** — déclenchement d'une **veille de 3 h** qui rebalaie
+  toutes les 10 min (alertes + fil du site)
 - **06h00 UTC** — résumé quotidien
 
 > **La cadence des alertes : deux échecs, puis un changement de mécanisme.**
@@ -294,9 +294,15 @@ Les seuls secrets sont les accès FTP et le topic ntfy.
 >
 > D'où le renversement du 2026-07-29 : on ne mise plus sur la FRÉQUENCE des
 > déclenchements mais sur la DURÉE de chacun. Un cron par heure, et le
-> processus obtenu veille 55 minutes en rebalayant tous les quarts d'heure.
-> Un déclenchement honoré couvre désormais une heure entière au lieu d'un
+> processus obtenu **veille 3 heures en rebalayant toutes les 10 minutes**.
+> Un déclenchement honoré couvre désormais un tiers de journée au lieu d'un
 > instantané isolé.
+>
+> Vérifié avant d'allonger : une veille de 55 min menée de 15h07 à 15h58 UTC
+> a produit **6 balayages exacts, 0 échec**, et un déclenchement planifié a
+> été honoré dans la foulée — GitHub ne tue pas les jobs longs. La limite
+> d'un job est de 6 h. Le nombre de veilles en vol reste borné : GitHub ne
+> garde qu'UNE exécution en attente par groupe de concurrence.
 >
 > **Piège associé** : les barres quotidiennes sont mises en cache 12 h. Sans
 > réglage, la veille aurait relu le même instantané à chaque balayage et

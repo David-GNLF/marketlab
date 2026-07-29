@@ -13,8 +13,16 @@ name: Veille des alertes
 # mieux-effort, et multiplier les crons ne les rend pas plus généreuses.
 #
 # Désormais : UN cron par heure, mais le processus obtenu balaie pendant
-# 55 minutes, toutes les 10 minutes. Un déclenchement honoré ne donne plus un
-# instantané isolé, il couvre une heure entière à 8 minutes de résolution.
+# TROIS HEURES, toutes les 10 minutes. Un déclenchement honoré ne donne plus
+# un instantané isolé : il couvre un tiers de journée à 10 min de résolution.
+#
+# Durée portée de 55 min à 3 h le 2026-07-29, après vérification qu'une
+# veille longue va bien à son terme (6 balayages exacts, 0 échec, job mené
+# de 15h07 à 15h58 UTC). La limite d'un job GitHub est de 6 h.
+#
+# Le nombre de veilles en vol reste borné : GitHub ne garde qu'UNE exécution
+# en attente par groupe de concurrence, donc au pire une veille en cours et
+# une qui prendra le relais — jamais une file qui s'accumule.
 # Le fil du site est réhorodaté à chaque balayage, donc la preuve reste
 # visible. Sans coût supplémentaire : les minutes Actions sont illimitées
 # sur un dépôt public.
@@ -24,7 +32,7 @@ on:
       duree_minutes:
         description: "Durée de la veille (minutes)"
         required: false
-        default: "55"
+        default: "180"
   schedule:
     - cron: "5 * * * *"
 
@@ -38,7 +46,7 @@ concurrency:
 jobs:
   alerter:
     runs-on: ubuntu-latest
-    timeout-minutes: 75   # la veille dure 55 min ; marge pour l'installation
+    timeout-minutes: 200  # la veille dure 3 h ; marge pour l'installation
     steps:
       - name: Récupérer le code
         uses: actions/checkout@v4
@@ -71,10 +79,10 @@ jobs:
           MARKETLAB_FTP_MOT_DE_PASSE: ${{ secrets.MARKETLAB_FTP_MOT_DE_PASSE }}
           MARKETLAB_FTP_DOSSIER: ${{ secrets.MARKETLAB_FTP_DOSSIER }}
           # Sans cette surcharge, la veille relirait le cache de 12 h à
-          # chaque balayage et ne détecterait jamais rien de neuf. 0,23 h
+          # chaque balayage et ne détecterait jamais rien de neuf. 0,15 h
           # = 9 min, juste sous l'intervalle de 10 min.
           MARKETLAB_TTL_1D_H: "0.15"
         run: >
           python scripts/alertes.py --boucle
-          --duree-minutes ${{ inputs.duree_minutes || '55' }}
+          --duree-minutes ${{ inputs.duree_minutes || '180' }}
           --intervalle-minutes 10
