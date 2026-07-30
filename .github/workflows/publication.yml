@@ -84,6 +84,16 @@ jobs:
       # d'une séance par titre : le jour où l'avantage devient net sur les deux
       # critères, har_modele.json passe à « retenu » et l'intégration s'active
       # d'elle-même. Aucune décision manuelle à prendre.
+      # Instantané du calendrier économique. ForexFactory ne sert QUE la
+      # semaine en cours et ne publie AUCUN résultat : le résultat d'une
+      # statistique ne se récupère que par la valeur « précédente » de la
+      # publication suivante du même indicateur. Sans cette accumulation
+      # quotidienne, l'indice de surprise ne pourra jamais exister — et il ne
+      # produira rien avant un à deux cycles de publication.
+      - name: Instantané du calendrier économique
+        continue-on-error: true
+        run: python -c "from marketlab import surprise; print(surprise.mettre_a_jour_calendrier())"
+
       - name: Arbitrage du modèle de volatilité
         continue-on-error: true
         run: python -c "from marketlab import har; r = har.calibrer(); print('HAR retenu :', r['retenu'])"

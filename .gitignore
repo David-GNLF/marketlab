@@ -28,6 +28,11 @@ data_local/*
 # du modèle s'il a été retenu. Même logique que poids_appris.json : dérivé des
 # données, commité pour persister d'un runner à l'autre.
 !data_local/har_modele.json
+# Historique du calendrier économique. ForexFactory ne sert QUE la semaine en
+# cours : sans accumulation conservée, on ne pourra jamais reconstituer les
+# résultats publiés (chaînage par la valeur « précédente » de la publication
+# suivante), donc jamais mesurer une surprise. Aucun secret, quelques Ko/mois.
+!data_local/calendrier_historique.csv
 
 # --- Environnement et caches ---
 .venv/

@@ -24,7 +24,7 @@ import pandas as pd
 
 from marketlab import (broker_tools, calibration, config, contexte, drivers,
                        events, forecast, fundamentals, indicators, levels,
-                       news, score_history, seasonality, signals)
+                       news, score_history, seasonality, signals, surprise)
 from marketlab.data import get_ohlcv
 
 JOURNAL = config.DATA_DIR / "journal_decisions.csv"
@@ -233,6 +233,17 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
     contexte_detail = contexte.candidats(symbole, df)
     for nom, mesure in contexte_detail.items():
         candidats[nom] = round(float(mesure["note"]), 1)
+    # Surprise économique : les statistiques d'un pays sortent-elles mieux ou
+    # moins bien qu'attendu, comparées à celles d'en face. Candidate elle
+    # aussi, et sur le FOREX uniquement — c'est un moteur de devise.
+    # Elle restera muette un à deux mois : il faut deux publications d'un même
+    # indicateur pour en déduire une seule surprise (cf. marketlab/surprise.py).
+    try:
+        eco = surprise.note(symbole)
+        if eco:
+            candidats["surprise"] = eco["note"]
+    except Exception:
+        pass  # brique candidate : elle s'absente, elle ne fait jamais échouer
 
     poids, poids_meta = poids_effectifs()
     poids_total = sum(poids[c] for c in composantes)

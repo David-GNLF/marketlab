@@ -51,6 +51,14 @@ def get_events(currencies: list[str] | None = None,
 
     Colonnes : quand (datetime UTC+1), devise, evenement, impact, impact_fr,
     prevision, precedent.
+
+    PAS DE RÉSULTAT PUBLIÉ, et ce n'est pas un oubli. Le flux JSON ne porte que
+    six clés — country, date, forecast, impact, previous, title — vérifié sur
+    le flux brut le 2026-07-30 (92 événements, aucun champ `actual`). Ne pas
+    perdre de temps à chercher comment le lire : il n'y est pas. Le résultat
+    d'une publication se récupère indirectement, par la valeur `previous` de la
+    publication SUIVANTE du même indicateur ; c'est ce que fait
+    `marketlab/surprise.py` à partir de l'historique accumulé.
     """
     rows = []
     for ev in _fetch_raw():
