@@ -1025,8 +1025,10 @@ function PageConcours() {
 
 // ---------------------------------------------------------------- Alertes
 function BilanAlertes() {
-  const { donnees } = useDonnees(api.getBilanAlertes);
-  const b = donnees?.donnees;
+  // `donnees` EST le contenu du fichier : `useDonnees` nomme ainsi son champ.
+  // Une première version cherchait `donnees.donnees`, qui n'existe pas — le
+  // bloc ne s'affichait donc jamais, sans la moindre erreur visible.
+  const { donnees: b } = useDonnees(api.getBilanAlertes);
   if (!b) return null;
   return (
     <div className="carte">
