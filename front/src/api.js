@@ -88,3 +88,7 @@ export const getBarometres = () => charger("barometres.json");
 // feuille de route. Produit en FIN de génération — il compte ce qui vient
 // réellement d'être écrit.
 export const getCoulisses = () => charger("coulisses.json");
+// Le vocabulaire, écrit une seule fois côté Python : sigles, mots de métier,
+// et ce qu'ils valent réellement. Alimente les bulles d'aide et la page
+// Glossaire.
+export const getGlossaire = () => charger("glossaire.json");

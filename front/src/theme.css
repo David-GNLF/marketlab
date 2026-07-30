@@ -284,3 +284,54 @@ button.action:disabled { opacity: 0.5; cursor: default; }
 .note { color: var(--muted); font-size: 12px; }
 
 .ml-rail-avis { display: block; font-size: 10.5px; margin-top: 1px; }
+
+/* --------------------------------------------------------------- glossaire
+   Bulles d'explication du vocabulaire.
+
+   Le déclencheur est un vrai <button> : l'attribut `title` du navigateur
+   serait gratuit, mais il n'apparaît qu'après une seconde de survol, jamais
+   au toucher, et reste inatteignable au clavier — trois défauts
+   rédhibitoires pour une aide destinée à quelqu'un qui débute. Il est donc
+   remis à plat pour ressembler à du texte, tout en restant focusable. */
+.terme { position: relative; display: inline-block; }
+.terme-declencheur {
+  font: inherit; color: inherit; background: none; border: 0; padding: 0;
+  cursor: help; border-bottom: 1px dotted var(--muted);
+}
+.terme-declencheur.discret { border-bottom-style: none; opacity: .8; }
+.terme-declencheur:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
+
+.terme-bulle {
+  position: absolute; z-index: 40; left: 0; top: calc(100% + 6px);
+  /* Un plancher en plus du plafond. `max-width` exprimé en `vw` laisse la
+     bulle s'effondrer si le viewport est dégénéré — constaté à 24 px de
+     large. `min-width` l'emporte sur `max-width` en CSS, la bulle reste donc
+     lisible en toute circonstance. */
+  width: max-content; min-width: 14rem; max-width: min(22rem, 78vw);
+  display: flex; flex-direction: column; gap: 4px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 9px 11px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, .16);
+  font-size: 12.5px; line-height: 1.5; text-align: left; font-weight: 400;
+  color: var(--text-primary); white-space: normal; cursor: auto;
+}
+.terme-bulle strong { font-size: 12px; letter-spacing: .02em; }
+.terme-long { color: var(--muted); font-size: 12px; }
+
+/* Près du bord droit, la bulle sortirait de l'écran : on l'ancre à droite. */
+@media (max-width: 640px) {
+  .terme-bulle { left: auto; right: 0; }
+}
+
+dl.glossaire { margin: 0; }
+dl.glossaire > div {
+  padding: 8px 0; border-bottom: 1px solid var(--grid);
+}
+dl.glossaire > div:last-child { border-bottom: none; }
+dl.glossaire dt { font-weight: 600; margin-bottom: 2px; }
+dl.glossaire dd { margin: 0; }
+input.recherche {
+  width: 100%; padding: 8px 10px; margin-bottom: 10px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface); color: var(--text-primary); font: inherit;
+}

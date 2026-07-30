@@ -38,7 +38,7 @@ import pandas as pd
 from marketlab import (alerts, broker_tools, config, correlations, cot,
                        coulisses, decision, drivers, eco_calendar, events,
                        forecast,
-                       fundamentals, indicators, intraday, levels, macro,
+                       fundamentals, glossaire, indicators, intraday, levels, macro,
                        news, paper, position, screener, seasonality,
                        sentiment_marche, serie, signals)
 from marketlab.data import get_ohlcv
@@ -285,6 +285,10 @@ BLOCS = {
     "fondamentaux": bloc_fondamentaux,
     "correlations": bloc_correlations,
     "paper": bloc_paper,
+    # Le vocabulaire, écrit une seule fois et publié comme le reste : le front
+    # React et les pages PHP le lisent au même endroit. Trois définitions du
+    # même mot dans trois fichiers, c'est deux définitions fausses à terme.
+    "glossaire": glossaire.bloc,
     # État de santé des briques, pour la console DevApp de l'admin. En DERNIER
     # volontairement : il rend compte de ce que les blocs précédents viennent
     # de produire (pondérations apprises, arbitrage du modèle de volatilité,

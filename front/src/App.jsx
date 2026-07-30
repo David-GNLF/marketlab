@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import * as api from "./api";
 import { Coquille, EtatDonnees } from "./coquille";
+import { PanneauGlossaire, Terme } from "./glossaire";
 import { GraphiqueCone } from "./charts";
 import {
   GardeGraphique, GraphiqueTerminal, PAS, TYPES, agreger, enBougies,
@@ -506,7 +507,7 @@ function PageTitre({ meta, symbole, setSymbole }) {
                 <span className="badge" style={{ color: COULEUR_SCORE(f.signaux?.score) }}>
                   {f.signaux?.avis}</span>
                 <span className="note">score {f.signaux?.score ?? "—"} ·
-                  RSI {f.signaux?.rsi14 ?? "—"} ·
+                  <Terme code="rsi">RSI</Terme> {f.signaux?.rsi14 ?? "—"} ·
                   20 j {pct(f.signaux?.ret_20d, true)}
                   {f.regime && !f.regime.erreur &&
                     <> · {f.regime.tendance}, volatilité {f.regime.volatilite}</>}
@@ -629,7 +630,8 @@ function PageTitre({ meta, symbole, setSymbole }) {
                          valeur={f.projection.intervalle_80?.map(nb).join(" – ")} />
                   <Tuile libelle="P(hausse)"
                          valeur={`${f.projection["proba_hausse_%"]} %`} />
-                  <Tuile libelle="VaR 95 %" valeur={`${f.projection["var_95_%"]} %`} />
+                  <Tuile libelle={<Terme code="var">VaR 95 %</Terme>}
+               valeur={`${f.projection["var_95_%"]} %`} />
                 </div>
                 <GraphiqueCone projection={f.projection}
                                historique={f.historique} />
@@ -786,7 +788,7 @@ function PageMacro() {
         </div>
       )}
       <div className="carte">
-        <h3>Positionnement des spéculateurs (COT, CFTC)</h3>
+        <h3>Positionnement des spéculateurs (<Terme code="cot">COT</Terme>, CFTC)</h3>
         <p className="note">Rapport hebdomadaire officiel : position nette des
           fonds spéculatifs sur les contrats à terme américains. COT index =
           position actuelle rapportée à ses extrêmes sur 3 ans — au-delà de 85
@@ -857,7 +859,8 @@ function PageCorrelations() {
         <div className="carte">
           <h3>Risque du portefeuille</h3>
           <div className="rangee">
-            <Tuile libelle="Volatilité" valeur={`${pf["vol_portefeuille_%"]} %`} />
+            <Tuile libelle={<Terme code="volatilite">Volatilité</Terme>}
+                   valeur={`${pf["vol_portefeuille_%"]} %`} />
             <Tuile libelle="Sans diversification"
                    valeur={`${pf["vol_sans_diversification_%"]} %`} />
             <Tuile libelle="Bénéfice diversification"
@@ -1086,9 +1089,12 @@ function Verdict({ d, rang, onTitre, court, horizonCourt }) {
           </div>
         )}
         {d.brokers?.tendance && (
-          <div className="tuile" style={{ minWidth: 112 }}
-               title="ADX/DMI, Supertrend, Ichimoku, Fibonacci, Stochastique, OBV">
-            <div className="libelle">outils brokers</div>
+          <div className="tuile" style={{ minWidth: 112 }}>
+            <div className="libelle">
+              <Terme code="adx" discret>ADX</Terme>,{" "}
+              <Terme code="supertrend" discret>Supertrend</Terme>,{" "}
+              <Terme code="ichimoku" discret>Ichimoku</Terme>…
+            </div>
             <div style={{ fontSize: 13 }}>{d.brokers.haussiers} haussiers ·{" "}
               {d.brokers.baissiers} baissiers <span className="note">
                 ({d.brokers.tendance})</span></div>
@@ -1960,6 +1966,28 @@ function PageCoulisses() {
   );
 }
 
+// --------------------------------------------------------------- Glossaire
+//
+// Une page dédiée EN PLUS des bulles, et non à leur place : la bulle répond à
+// « c'est quoi ce sigle » au moment où on le rencontre, la page permet de
+// parcourir le vocabulaire avant de se lancer. Les deux lisent le même
+// glossaire, produit côté Python.
+
+function PageGlossaire() {
+  return (
+    <>
+      <div className="carte">
+        <h3>Comprendre ce que vous lisez</h3>
+        <p className="note">Chaque terme souligné dans l'application ouvre une
+          bulle qui l'explique — au survol, au clic, ou au clavier. Cette page
+          les rassemble tous. Les définitions disent aussi ce que chaque mesure
+          NE dit pas : c'est souvent l'information la plus utile.</p>
+      </div>
+      <PanneauGlossaire />
+    </>
+  );
+}
+
 const PAGES = {
   "Décisions": PageDecisions,
   "Alertes": PageAlertes,
@@ -1970,6 +1998,7 @@ const PAGES = {
   "Fondamentaux": PageFondamentaux,
   "Corrélations": PageCorrelations,
   "Portefeuille": PagePortefeuille,
+  "Glossaire": PageGlossaire,
   "Coulisses": PageCoulisses,
 };
 
