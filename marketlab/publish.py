@@ -34,8 +34,8 @@ from pathlib import Path
 import pandas as pd
 
 from marketlab import (alerts, broker_tools, config, correlations, cot,
-                       decision, devapp, diagnostic, drivers, eco_calendar,
-                       events, forecast,
+                       decision, devapp, drivers, eco_calendar, events,
+                       forecast,
                        fundamentals, indicators, intraday, levels, macro,
                        news, paper, position, screener, seasonality,
                        sentiment_marche, serie, signals)
@@ -287,7 +287,6 @@ BLOCS = {
     # volontairement : il rend compte de ce que les blocs précédents viennent
     # de produire (pondérations apprises, arbitrage du modèle de volatilité,
     # correspondances FRED), donc il doit passer après eux.
-    "diagnostic": diagnostic.etat,
 }
 
 
