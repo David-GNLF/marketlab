@@ -22,6 +22,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../cours_lib.php';
+require_once __DIR__ . '/../lexique.php';
 
 const DOSSIER_COMPTES = __DIR__ . '/comptes';
 const DOSSIER_DONNEES = __DIR__ . '/../donnees';
@@ -570,6 +571,7 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
     .clignote, .pouls { animation: none; }
   }
 </style>
+<?= ml_lexique_styles() ?>
 </head>
 <body>
 <h1>MarketLab — trading virtuel</h1>
@@ -761,7 +763,7 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
                 <?= h($s) ?><?= $f ? ' — ' . round($f['prix'], 4) : '' ?></option>
             <?php endforeach; ?>
           </select></div>
-        <div><label>Sens</label>
+        <div><label><?= ml_terme('long_court', 'Sens') ?></label>
           <select name="sens" id="t-sens">
             <option value="long">Acheter (long)</option>
             <option value="short">Vendre (short)</option></select></div>
@@ -775,15 +777,15 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
         <div id="bloc-validite" style="display:none"><label>Validité (jours)</label>
           <input name="validite" id="t-validite" type="number" min="1"
                  max="365" value="30"></div>
-        <div><label>Mise / marge ($)</label>
+        <div><label><?= ml_terme('marge', 'Mise / marge ($)') ?></label>
           <input name="mise" id="t-mise" type="number" min="<?= MISE_MIN ?>"
                  step="1" value="50" required></div>
         <div><label>Levier (1-<?= LEVIER_MAX ?>)</label>
           <input name="levier" id="t-levier" type="number" min="1"
                  max="<?= LEVIER_MAX ?>" value="<?= $levier_defaut ?>" required></div>
-        <div><label>Stop (optionnel)</label>
+        <div><label><?= ml_terme('stop', 'Stop (optionnel)') ?></label>
           <input name="stop" id="t-stop" type="number" step="any"></div>
-        <div><label>Objectif (optionnel)</label>
+        <div><label><?= ml_terme('objectif', 'Objectif (optionnel)') ?></label>
           <input name="objectif" id="t-objectif" type="number" step="any"></div>
       </div>
       <div id="recap-ticket"></div>
@@ -803,9 +805,9 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
     <?php else: ?>
     <div class="defile">
     <table>
-      <tr><th>Actif</th><th>Sens</th><th>Levier</th><th>Marge</th>
-          <th>Entrée</th><th>Cours</th><th>P&L</th><th>Stop</th>
-          <th>Objectif</th><th>Liquidation</th><th></th></tr>
+      <tr><th>Actif</th><th>Sens</th><th><?= ml_terme('levier', 'Levier') ?></th><th><?= ml_terme('marge', 'Marge') ?></th>
+          <th>Entrée</th><th>Cours</th><th><?= ml_terme('pnl', 'P&L') ?></th><th>Stop</th>
+          <th>Objectif</th><th><?= ml_terme('liquidation', 'Liquidation') ?></th><th></th></tr>
       <?php foreach ($compte['positions'] as $p):
             $c = dernier_cours($p['symbole']);
             $pnl = $c ? pnl_position($p, $c['prix']) : null; ?>

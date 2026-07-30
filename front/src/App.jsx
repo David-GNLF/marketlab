@@ -624,9 +624,9 @@ function PageTitre({ meta, symbole, setSymbole }) {
               <div className="carte">
                 <h3>Prévision à {f.projection.horizon} séances</h3>
                 <div className="rangee">
-                  <Tuile libelle="Médiane projetée" valeur={nb(f.projection.prix_median)}
+                  <Tuile libelle={<Terme code="monte_carlo">Médiane projetée</Terme>} valeur={nb(f.projection.prix_median)}
                          delta={f.projection["rendement_median_%"]} />
-                  <Tuile libelle="Intervalle 80 %"
+                  <Tuile libelle={<Terme code="calibration">Intervalle 80 %</Terme>}
                          valeur={f.projection.intervalle_80?.map(nb).join(" – ")} />
                   <Tuile libelle="P(hausse)"
                          valeur={`${f.projection["proba_hausse_%"]} %`} />
@@ -884,7 +884,7 @@ function PagePortefeuille() {
     <div className="carte">
       <h3>Portefeuille papier</h3>
       <div className="rangee">
-        <Tuile libelle="Valeur totale"
+        <Tuile libelle={<Terme code="equite">Valeur totale</Terme>}
                valeur={`${nb(donnees.valeur_totale_usd)} $`}
                delta={donnees["perf_totale_%"]} />
         <Tuile libelle="Cash" valeur={`${nb(donnees.cash_usd)} $`} />
@@ -1089,12 +1089,9 @@ function Verdict({ d, rang, onTitre, court, horizonCourt }) {
           </div>
         )}
         {d.brokers?.tendance && (
-          <div className="tuile" style={{ minWidth: 112 }}>
-            <div className="libelle">
-              <Terme code="adx" discret>ADX</Terme>,{" "}
-              <Terme code="supertrend" discret>Supertrend</Terme>,{" "}
-              <Terme code="ichimoku" discret>Ichimoku</Terme>…
-            </div>
+          <div className="tuile" style={{ minWidth: 112 }}
+               title="ADX/DMI, Supertrend, Ichimoku, Fibonacci, Stochastique, OBV">
+            <div className="libelle">outils brokers</div>
             <div style={{ fontSize: 13 }}>{d.brokers.haussiers} haussiers ·{" "}
               {d.brokers.baissiers} baissiers <span className="note">
                 ({d.brokers.tendance})</span></div>
@@ -1200,6 +1197,21 @@ function PageDecisions({ onTitre }) {
   const comp = bilan?.competence;
   return (
     <>
+      {/* Le vocabulaire est expliqué UNE fois, ici, et non sur chaque carte :
+          la liste compte des dizaines de salles de marché, et répéter le même
+          déclencheur autant de fois remplirait la page de boutons focusables —
+          on ne pourrait plus la parcourir au clavier. Une explication qui gêne
+          la navigation dessert précisément ceux à qui elle s'adresse. */}
+      <div className="carte">
+        <h3>Comment lire cette page</h3>
+        <p className="note">Chaque carte résume un actif par un{" "}
+          <Terme code="verdict">verdict</Terme> allant de −100 à +100, assorti
+          d'une probabilité de hausse et d'un potentiel. Les mots soulignés
+          s'expliquent d'un survol ou d'un clic ; la page
+          <strong>Glossaire</strong> les rassemble tous.
+          Un <Terme code="veto">veto</Terme> peut écarter une idée malgré une
+          bonne note.</p>
+      </div>
       {comp?.sens && (
         <div className="carte" style={{ borderLeft: `4px solid ${
             comp.sens === "négatif" ? "var(--critical)"
@@ -1208,7 +1220,7 @@ function PageDecisions({ onTitre }) {
               ? "var(--critical)" : "inherit" }}>
             Ce que vaut cet outil, mesuré sur ses propres verdicts</h3>
           <p>{comp.lecture}</p>
-          <p className="note">Mesure : corrélation de rang entre la note
+          <p className="note">Mesure : <Terme code="ic">corrélation de rang</Terme> entre la note
             attribuée et le rendement advenu, calculée <em>date par date</em>{" "}
             puis moyennée sur {comp.n_dates} dates —{" "}
             <strong>{comp.ic_transversal_moyen}</strong> (t = {comp.t}).
@@ -1520,10 +1532,10 @@ function PageConcours() {
               <h4>Ce que valent ses trades</h4>
               <div className="rangee" style={{ marginBottom: 8 }}>
                 <Tuile libelle="Trades clos" valeur={robot.bilan_trades.n} />
-                <Tuile libelle="P&L réalisé"
+                <Tuile libelle={<Terme code="pnl">P&L réalisé</Terme>}
                        valeur={`${robot.bilan_trades.pnl_total > 0 ? "+" : ""}${
                          robot.bilan_trades.pnl_total} $`} />
-                <Tuile libelle="Taux de réussite"
+                <Tuile libelle={<Terme code="reussite">Taux de réussite</Terme>}
                        valeur={`${robot.bilan_trades["taux_reussite_%"]} %`}
                        note={`${robot.bilan_trades.gagnants} gagnant(s) · ${
                          robot.bilan_trades.perdants} perdant(s)`} />
