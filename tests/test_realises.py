@@ -12,6 +12,19 @@ def _serie_mensuelle(valeurs, depart="2026-01-01"):
     return pd.Series(valeurs, index=idx, dtype=float)
 
 
+@pytest.fixture(autouse=True)
+def _sans_millesime(monkeypatch):
+    """Neutralise le chemin ALFRED par défaut.
+
+    Sans cela, un test qui simule la série révisée d'une VRAIE série FRED
+    (PAYEMS…) partirait quand même chercher le millésime sur le réseau dès
+    qu'une clé est configurée sur la machine, et travaillerait sur les
+    vraies données au lieu des siennes. Le chemin millésime a son propre
+    test, ci-dessous.
+    """
+    monkeypatch.setattr(realises.fred, "serie_millesime", lambda *a, **k: None)
+
+
 # ---------------------------------------------------------------------------
 # Transformations
 # ---------------------------------------------------------------------------
@@ -72,6 +85,39 @@ def test_larrondi_supprime_la_fausse_surprise(monkeypatch):
     arrondi = realises.valeur_realisee("USD", "Test m/m", "2026-03-15", precision=1)
     assert brut == pytest.approx(0.320051, abs=1e-4)
     assert arrondi == pytest.approx(0.3)
+
+
+def test_le_millesime_prime_sur_la_serie_revisee(monkeypatch):
+    """Le chiffre PUBLIÉ le jour J prime sur le chiffre révisé d'aujourd'hui :
+    c'est le premier qui a fait bouger le marché. Mesuré sur l'emploi
+    américain : mai 2026 publié à +172k, révisé à +129k un mois plus tard."""
+    monkeypatch.setattr(realises.fred, "serie_millesime",
+                        lambda *a, **k: _serie_mensuelle([150000.0, 150172.0]))
+    monkeypatch.setattr(realises.fred, "get_series",
+                        lambda *a, **k: _serie_mensuelle([150000.0, 150129.0]))
+    v = realises.valeur_realisee("USD", "Non-Farm Employment Change", "2026-03-15")
+    assert v == pytest.approx(172_000.0)   # publié, pas révisé
+
+
+def test_repli_sur_la_serie_revisee_sans_cle(monkeypatch):
+    """Sans clé d'API, `serie_millesime` renvoie None : tout doit continuer de
+    fonctionner sur le CSV public."""
+    monkeypatch.setattr(realises.fred, "serie_millesime", lambda *a, **k: None)
+    monkeypatch.setattr(realises.fred, "get_series",
+                        lambda *a, **k: _serie_mensuelle([150000.0, 150129.0]))
+    v = realises.valeur_realisee("USD", "Non-Farm Employment Change", "2026-03-15")
+    assert v == pytest.approx(129_000.0)
+
+
+def test_la_publication_precedente_garde_le_jour_du_mois(monkeypatch):
+    """PIÈGE révélé par les millésimes : remonter au 1er du mois précédent
+    demandait la valeur de mai en se plaçant au 1er juin, alors qu'elle n'était
+    publiée que le 26. Sur la série révisée ça passait inaperçu."""
+    vus = []
+    monkeypatch.setattr(realises, "valeur_realisee",
+                        lambda d, e, date, precision=None: vus.append(pd.Timestamp(date)))
+    realises.valeur_precedente("USD", "CPI m/m", "2026-07-30")
+    assert vus == [pd.Timestamp("2026-06-30")]
 
 
 def test_indicateur_hors_table_donne_none():

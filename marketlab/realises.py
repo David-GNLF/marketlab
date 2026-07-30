@@ -166,10 +166,20 @@ def valeur_realisee(devise: str, evenement: str, date_publication,
     regle = CORRESPONDANCES.get(devise, {}).get(evenement)
     if regle is None:
         return None
+    brute = None
     try:
-        brute = fred.get_series(regle["serie"], lookback_years=12)
+        # Millésime d'abord : la série telle qu'elle était connue le jour de la
+        # publication, donc le chiffre réellement imprimé ce jour-là. C'est le
+        # seul qui ait fait bouger le marché. Repli sur les valeurs révisées si
+        # aucune clé n'est configurée.
+        brute = fred.serie_millesime(regle["serie"], date_publication)
     except Exception:
-        return None
+        brute = None
+    if brute is None or brute.empty:
+        try:
+            brute = fred.get_series(regle["serie"], lookback_years=12)
+        except Exception:
+            return None
     if brute is None or brute.empty:
         return None
 
@@ -202,20 +212,53 @@ def valeur_precedente(devise: str, evenement: str, date_publication,
     frequence = regle.get("frequence", "mensuelle")
     d = pd.Timestamp(date_publication).normalize()
     if frequence == "hebdomadaire":
+        # Millésime d'abord, comme `valeur_realisee` : sur une série
+        # hebdomadaire, l'état de la série au jour de la publication tranche
+        # sans ambiguïté quelle semaine venait d'être publiée et laquelle
+        # était la précédente. Sur la série révisée, la question n'a pas de
+        # réponse — toutes les semaines existent déjà.
+        # Millésime de LA VEILLE, et sa dernière observation. C'est la seule
+        # formulation non ambiguë.
+        #
+        # Compter les semaines à rebours ne marche pas : « l'avant-dernière
+        # observation » désigne la semaine précédente si la publication du jour
+        # est déjà chez FRED, mais celle d'avant si elle ne l'est pas encore
+        # (les inscriptions sortent à 8h30 New York, et FRED suit avec un
+        # délai). La réponse changeait donc selon l'heure d'interrogation —
+        # mesuré : 209 000 au lieu des 187 000 imprimés. Ce que FRED savait la
+        # VEILLE, en revanche, est la valeur précédente par construction.
+        veille = d - pd.Timedelta(days=1)
+        brute = None
         try:
-            brute = fred.get_series(regle["serie"], lookback_years=12)
+            brute = fred.serie_millesime(regle["serie"], veille)
+        except Exception:
+            brute = None
+        if brute is None or brute.empty:
+            try:
+                brute = fred.get_series(regle["serie"], lookback_years=12)
+            except Exception:
+                return None
+        try:
             serie = transformer(brute, regle["transfo"]).dropna()
         except Exception:
             return None
         anterieures = serie[serie.index < d]
-        if len(anterieures) < 2:
+        if anterieures.empty:
             return None
-        valeur = float(anterieures.iloc[-2]) * regle["facteur"]
+        valeur = float(anterieures.iloc[-1]) * regle["facteur"]
         return valeur if precision is None else round(valeur, precision)
-    # mensuel/trimestriel : reculer d'une période de publication
+    # Mensuel/trimestriel : reculer d'une période de PUBLICATION en gardant le
+    # jour du mois.
+    #
+    # PIÈGE RÉVÉLÉ PAR LES MILLÉSIMES. La version précédente ramenait au 1er du
+    # mois (`to_period("M") - 1`). Avec les valeurs révisées, cela passait
+    # inaperçu : toute la série existe, quelle que soit la date qu'on prétend
+    # être. Avec un millésime, demander la valeur de mai en se plaçant au
+    # 1er juin renvoie VIDE — elle n'était pas encore publiée à cette date, le
+    # rapport sortant vers le 26. Il faut donc reculer de mois en gardant le
+    # jour : 30 juillet → 30 juin.
     pas = 3 if frequence == "trimestrielle" else 1
-    return valeur_realisee(devise, evenement,
-                           (d.to_period("M") - pas).to_timestamp(),
+    return valeur_realisee(devise, evenement, d - pd.DateOffset(months=pas),
                            precision=precision)
 
 
