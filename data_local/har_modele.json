@@ -1,0 +1,42 @@
+{
+  "horizons": {
+    "1": {
+      "suffisant": true,
+      "horizon": 1,
+      "scores": {
+        "har": {
+          "qlike": 0.22875,
+          "rmse_log": 0.5497
+        },
+        "hasard": {
+          "qlike": 0.24215,
+          "rmse_log": 0.59129
+        },
+        "ewma": {
+          "qlike": 0.21362,
+          "rmse_log": 0.58764
+        }
+      },
+      "gagnant": "ewma",
+      "gagnant_rmse": "har",
+      "har_retenu": false,
+      "n_entrainement": 527,
+      "n_test": 710,
+      "n_titres": 58,
+      "coupe": "2026-07-13",
+      "periode": [
+        "2026-06-21",
+        "2026-07-28"
+      ],
+      "modele": null
+    },
+    "20": {
+      "suffisant": false,
+      "raison": "échantillon d'entraînement trop mince (95 obs, 200 requises)",
+      "n_entrainement": 95,
+      "n_test": 40,
+      "modele": null
+    }
+  },
+  "retenu": false
+}

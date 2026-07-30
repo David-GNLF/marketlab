@@ -24,6 +24,10 @@ data_local/*
 # l'historique ne peut se constituer QUE par un relevé quotidien conservé.
 # Les barres brutes, elles, restent dans .cache/ (volumineuses, régénérables).
 !data_local/volatilite_realisee.csv
+# Verdict de l'arbitrage HAR-RV vs EWMA vs marche au hasard, et coefficients
+# du modèle s'il a été retenu. Même logique que poids_appris.json : dérivé des
+# données, commité pour persister d'un runner à l'autre.
+!data_local/har_modele.json
 
 # --- Environnement et caches ---
 .venv/

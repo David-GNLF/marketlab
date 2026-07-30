@@ -111,13 +111,36 @@ def _bootstrap_blocs(rendements: np.ndarray, horizon: int, n_sim: int,
     return traj[:, :horizon]
 
 
+# Bornes du recalage de volatilité. Une prévision aberrante (titre nouvellement
+# coté, relevé incomplet, séance de krach) ne doit jamais pouvoir tripler ou
+# diviser par trois la largeur du cône : au-delà, on préfère la volatilité
+# historique, moins fine mais jamais absurde.
+FACTEUR_VOL_MIN = 0.33
+FACTEUR_VOL_MAX = 3.0
+
+
 def projeter(df: pd.DataFrame, horizon: int = 20, n_sim: int = 20_000,
              taille_bloc: int = 5, lookback: int = 750,
-             seed: int = 42) -> dict:
+             seed: int = 42, vol_cible: float | None = None) -> dict:
     """Cône de prix simulé à `horizon` séances.
 
     Renvoie les quantiles de prix par séance, les probabilités utiles et les
     mesures de risque (VaR, perte moyenne dans le pire décile).
+
+    `vol_cible` — écart-type QUOTIDIEN visé pour les rendements simulés.
+
+    À QUOI ÇA SERT. Sans `vol_cible`, la largeur du cône vient du
+    rééchantillonnage des 750 dernières séances : c'est la volatilité
+    INCONDITIONNELLE sur trois ans. Le cône ne se resserre donc pas quand le
+    marché est calme et ne s'élargit pas quand il se tend, alors que c'est
+    précisément l'information qui dimensionne une position. Avec `vol_cible`,
+    les rendements simulés sont recentrés puis redimensionnés pour atteindre
+    cette volatilité, ce qui laisse INTACTES la structure de blocs (donc le
+    clustering) et l'épaisseur des queues : seule l'échelle change.
+
+    La dérive par séance est préservée : on ne redimensionne que les écarts à
+    la moyenne, jamais la moyenne elle-même — sinon changer la volatilité
+    déplacerait aussi le prix médian attendu.
     """
     close = df["close"].dropna()
     rendements = np.log(close / close.shift(1)).dropna()
@@ -128,6 +151,16 @@ def projeter(df: pd.DataFrame, horizon: int = 20, n_sim: int = 20_000,
 
     rng = np.random.default_rng(seed)
     traj = _bootstrap_blocs(r, horizon, n_sim, taille_bloc, rng)
+
+    facteur = None
+    if vol_cible is not None and vol_cible > 0:
+        vol_echantillon = float(r.std(ddof=1))
+        if vol_echantillon > 0:
+            facteur = float(np.clip(vol_cible / vol_echantillon,
+                                    FACTEUR_VOL_MIN, FACTEUR_VOL_MAX))
+            derive = float(r.mean())
+            traj = derive + (traj - derive) * facteur
+
     chemins = prix0 * np.exp(np.cumsum(traj, axis=1))  # (n_sim, horizon)
 
     niveaux = [5, 10, 25, 50, 75, 90, 95]
@@ -143,6 +176,8 @@ def projeter(df: pd.DataFrame, horizon: int = 20, n_sim: int = 20_000,
         "prix_actuel": round(prix0, 4),
         "horizon": horizon,
         "n_simulations": n_sim,
+        "vol_cible_jour": round(vol_cible, 6) if vol_cible else None,
+        "facteur_volatilite": round(facteur, 3) if facteur else None,
         "quantiles": {k: np.round(v, 4).tolist() for k, v in quantiles.items()},
         "prix_median": round(float(np.median(final)), 4),
         "intervalle_80": [round(float(np.percentile(final, 10)), 4),

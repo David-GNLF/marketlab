@@ -76,6 +76,18 @@ jobs:
         continue-on-error: true
         run: python scripts/capturer_intraday.py --releve
 
+      # Ré-arbitrage HAR-RV contre l'EWMA et la marche au hasard, hors
+      # échantillon. Au 2026-07-30 avec 59 jours d'historique, HAR gagne le
+      # RMSE mais PERD le QLIKE : les deux critères se contredisent, donc rien
+      # n'est retenu et le cône de prévision garde son comportement actuel.
+      # L'étape tourne quand même chaque jour parce que l'historique grandit
+      # d'une séance par titre : le jour où l'avantage devient net sur les deux
+      # critères, har_modele.json passe à « retenu » et l'intégration s'active
+      # d'elle-même. Aucune décision manuelle à prendre.
+      - name: Arbitrage du modèle de volatilité
+        continue-on-error: true
+        run: python -c "from marketlab import har; r = har.calibrer(); print('HAR retenu :', r['retenu'])"
+
       - name: Générer l'instantané
         run: python scripts/publier.py --generer-seul
 
