@@ -131,48 +131,105 @@ function useDonnees(chargeur, deps = []) {
 }
 
 // ---------------------------------------------------------------- Marchés
+const COULEUR_SCORE = (s) =>
+  s == null ? "inherit" : s >= 40 ? "var(--good)" : s <= -40 ? "var(--critical)"
+    : s >= 15 ? "#3f8f3f" : s <= -15 ? "#b35b5b" : "inherit";
+
+const TRIS_MARCHES = {
+  "score (meilleur d'abord)": (a, b) => (b.score ?? -999) - (a.score ?? -999),
+  "score (pire d'abord)": (a, b) => (a.score ?? 999) - (b.score ?? 999),
+  "performance 20 j": (a, b) => (b["perf_20j_%"] ?? -999) - (a["perf_20j_%"] ?? -999),
+  "RSI (le plus haut)": (a, b) => (b.rsi14 ?? -1) - (a.rsi14 ?? -1),
+  "RSI (le plus bas)": (a, b) => (a.rsi14 ?? 999) - (b.rsi14 ?? 999),
+  "volatilité (la plus faible)": (a, b) => (a["vol_ann_%"] ?? 999) - (b["vol_ann_%"] ?? 999),
+  "repli depuis le sommet": (a, b) => (b["drawdown_%"] ?? -999) - (a["drawdown_%"] ?? -999),
+  "alphabétique": (a, b) => String(a.symbole).localeCompare(String(b.symbole)),
+};
+
 function PageMarches({ onTitre }) {
   const { donnees, erreur } = useDonnees(api.getScreener);
   const [filtre, setFiltre] = useState("");
+  const [theme, setTheme] = useState("Tous");
+  const [tri, setTri] = useState("score (meilleur d'abord)");
   if (!donnees) return <Chargement erreur={erreur} />;
 
-  const lignes = donnees.filter((l) =>
-    !filtre || String(l.symbole).toLowerCase().includes(filtre.toLowerCase()));
+  // Les thèmes viennent du serveur (config.UNIVERS fait foi) ; repli sur une
+  // déduction par suffixe pour les instantanés publiés avant cet ajout.
+  const themeDe = (l) => l.theme
+    ?? (String(l.symbole).endsWith("=X") ? "Forex"
+      : String(l.symbole).endsWith("=F") ? "Matières premières"
+      : String(l.symbole).endsWith("USDT") ? "Crypto"
+      : String(l.symbole).startsWith("^") ? "Indices" : "Actions");
+  const themes = ["Tous", ...Array.from(new Set(donnees.map(themeDe))).sort()];
+
+  const lignes = donnees
+    .filter((l) => theme === "Tous" || themeDe(l) === theme)
+    .filter((l) => {
+      if (!filtre) return true;
+      const q = filtre.toLowerCase();
+      return String(l.symbole).toLowerCase().includes(q)
+          || String(l.nom ?? "").toLowerCase().includes(q);
+    })
+    .slice()
+    .sort(TRIS_MARCHES[tri]);
   const forts = lignes.filter((l) => l.avis === "Achat fort");
   const faibles = lignes.filter((l) => l.avis === "Vente forte");
 
   return (
     <div className="carte">
+      <div className="rangee" style={{ marginBottom: 8 }}>
+        <label className="champ">Thème
+          <select value={theme} onChange={(e) => setTheme(e.target.value)}>
+            {themes.map((t) => <option key={t}>{t}</option>)}
+          </select>
+        </label>
+        <label className="champ">Classer par
+          <select value={tri} onChange={(e) => setTri(e.target.value)}>
+            {Object.keys(TRIS_MARCHES).map((t) => <option key={t}>{t}</option>)}
+          </select>
+        </label>
+        <label className="champ">Chercher
+          <input type="text" value={filtre} placeholder="AAPL, cuivre…"
+                 onChange={(e) => setFiltre(e.target.value)} />
+        </label>
+      </div>
       <div className="rangee" style={{ marginBottom: 12 }}>
-        <Tuile libelle="Titres suivis" valeur={lignes.length} />
+        <Tuile libelle={theme === "Tous" ? "Actifs suivis" : theme}
+               valeur={lignes.length} />
         <Tuile libelle="Achat fort" valeur={forts.length}
                note={forts.map((l) => l.symbole).join(", ") || "—"} />
         <Tuile libelle="Vente forte" valeur={faibles.length}
                note={faibles.map((l) => l.symbole).join(", ") || "—"} />
-        <label className="champ">Filtrer
-          <input type="text" value={filtre} placeholder="AAPL…"
-                 onChange={(e) => setFiltre(e.target.value)} />
-        </label>
       </div>
       <div style={{ overflowX: "auto" }}>
         <table className="ml-table">
           <thead><tr>
-            {["symbole", "score", "avis", "cours", "rsi14", "perf_20j_%",
-              "vol_ann_%", "drawdown_%"].map((c) => <th key={c}>{c}</th>)}
+            {["actif", "thème", "score", "avis", "cours", "RSI",
+              "perf 20 j", "volatilité", "repli"].map((c) => <th key={c}>{c}</th>)}
           </tr></thead>
           <tbody>
             {lignes.map((l, i) => (
               <tr key={i} onClick={() => onTitre(l.symbole)}
                   style={{ cursor: "pointer" }}>
-                <td><strong>{l.symbole}</strong></td>
-                <td>{l.score ?? "—"}</td>
-                <td><span className="badge">{l.avis ?? "—"}</span></td>
+                <td><strong>{l.symbole}</strong>
+                  {l.nom && l.nom !== l.symbole &&
+                    <div className="note">{l.nom}</div>}</td>
+                <td className="note">{themeDe(l)}</td>
+                <td style={{ color: COULEUR_SCORE(l.score), fontWeight: 600 }}>
+                  {l.score ?? "—"}</td>
+                <td><span className="badge" style={{
+                      color: COULEUR_AVIS[l.avis] ?? "inherit" }}>
+                  {l.avis ?? "—"}</span></td>
                 <td><PrixVivant symbole={l.symbole} secours={l.cours}
                                 avecAge={false} /></td>
-                <td>{l.rsi14 ?? "—"}</td>
-                <td>{l["perf_20j_%"] ?? "—"}</td>
-                <td>{l["vol_ann_%"] ?? "—"}</td>
-                <td>{l["drawdown_%"] ?? "—"}</td>
+                <td>{l.rsi14 == null ? "—" : (
+                  <span style={{ color: l.rsi14 >= 70 ? "var(--critical)"
+                                   : l.rsi14 <= 30 ? "var(--good)" : "inherit" }}>
+                    {l.rsi14}</span>)}</td>
+                <td className={"delta " + ((l["perf_20j_%"] ?? 0) >= 0 ? "positif" : "negatif")}>
+                  {pct(l["perf_20j_%"], true)}</td>
+                <td className="note">{pct(l["vol_ann_%"])}</td>
+                <td className="delta negatif">{pct(l["drawdown_%"])}</td>
               </tr>
             ))}
           </tbody>
@@ -180,7 +237,9 @@ function PageMarches({ onTitre }) {
       </div>
       <p className="note">Cliquer sur une ligne pour ouvrir la fiche du titre.
         La colonne « cours » est rafraîchie en continu ; les indicateurs
-        (score, avis, RSI…) datent de l'instantané quotidien.</p>
+        (score, avis, RSI…) datent de l'instantané quotidien. Un RSI ≥ 70
+        signale un surachat, ≤ 30 une survente — deux situations où le
+        consensus se retourne souvent.</p>
     </div>
   );
 }
@@ -1018,6 +1077,129 @@ function PageDecisions({ onTitre }) {
 }
 
 // ---------------------------------------------------------------- Concours
+/**
+ * Les positions ouvertes d'un robot, suivies en direct.
+ *
+ * Lecture seule : on observe l'évolution sans jamais intervenir. Pour chaque
+ * position, le P&L latent est exprimé en dollars ET en pourcentage de la
+ * mise — c'est la seconde mesure qui dit le risque réellement pris, le
+ * levier amplifiant l'écart. La barre situe le cours entre le stop et
+ * l'objectif : d'un coup d'œil, on voit de quel côté penche le pari.
+ */
+function PositionsVivantes({ positions }) {
+  const { cours } = useCours();
+  if (!positions?.length) {
+    return <p className="note">Aucune position ouverte actuellement.</p>;
+  }
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table className="ml-table">
+        <thead><tr>
+          {["actif", "mise", "entrée", "cours", "P&L", "stop", "objectif",
+            "où en est le pari"].map((c) => <th key={c}>{c}</th>)}
+        </tr></thead>
+        <tbody>
+          {positions.map((p, i) => {
+            const c = cours[p.symbole];
+            const prix = c?.prix;
+            const sens = p.sens === "long" ? 1 : -1;
+            const marge = Number(p.marge) || 1;
+            const qte = (marge * (Number(p.levier) || 1)) / Number(p.prix_entree);
+            const pnl = prix == null ? null
+              : (prix - Number(p.prix_entree)) * qte * sens;
+            const surMise = pnl == null ? null : (pnl / marge) * 100;
+            const stop = Number(p.stop), obj = Number(p.objectif);
+            const progression = (prix == null || !stop || !obj || obj === stop)
+              ? null
+              : Math.max(0, Math.min(100, ((prix - stop) / (obj - stop)) * 100));
+            return (
+              <tr key={i}>
+                <td><strong>{p.symbole}</strong>
+                  <div className="note">{p.sens} ×{p.levier}</div></td>
+                <td>{nb(marge)} $</td>
+                <td>{nb(p.prix_entree)}</td>
+                <td>{prix == null ? "—" : nb(prix)}</td>
+                <td className={"delta " + ((pnl ?? 0) >= 0 ? "positif" : "negatif")}>
+                  {pnl == null ? "—"
+                    : `${pnl >= 0 ? "+" : ""}${nb(pnl, 2)} $`}
+                  {surMise != null &&
+                    <div className="note">{surMise >= 0 ? "+" : ""}
+                      {surMise.toFixed(1)} % de la mise</div>}
+                </td>
+                <td className="note">{nb(p.stop)}
+                  {prix != null && stop ?
+                    <div>{pct(Math.abs(prix / stop - 1) * 100)} de marge</div> : null}</td>
+                <td className="note">{nb(p.objectif)}
+                  {prix != null && obj ?
+                    <div>{pct(Math.abs(obj / prix - 1) * 100)} à parcourir</div> : null}</td>
+                <td style={{ minWidth: 130 }}>
+                  {progression == null ? "—" : (
+                    <>
+                      <div style={{ height: 8, borderRadius: 4,
+                                    background: "var(--grid)", overflow: "hidden" }}>
+                        <div style={{ width: `${progression}%`, height: "100%",
+                          background: progression >= 50 ? "var(--good)"
+                            : progression >= 25 ? "var(--series-2)"
+                            : "var(--critical)" }} />
+                      </div>
+                      <div className="note">{progression.toFixed(0)} % du chemin
+                        stop → objectif</div>
+                    </>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className="note">Suivi en lecture seule, rafraîchi avec les cours —
+        aucune intervention sur les positions du robot. Le pourcentage « de la
+        mise » est la vraie mesure du risque : le levier amplifie l'écart du
+        cours.</p>
+    </div>
+  );
+}
+
+function RapportSeance() {
+  const { donnees: r } = useDonnees(api.getRapportSeance);
+  if (!r?.robots?.length) return null;
+  return (
+    <div className="carte">
+      <h3>🔬 Rapport de séance — ce qui était prévu contre ce qui est advenu</h3>
+      <p className="note">{r.lecture}</p>
+      {r.robots.map((b) => (
+        <div key={b.nom} style={{ marginTop: 12 }}>
+          <h4 style={{ marginBottom: 4 }}>{b.nom}</h4>
+          {b.n === 0 ? <p className="note">{b.message}</p> : (
+            <>
+              <div className="rangee" style={{ marginBottom: 6 }}>
+                <Tuile libelle="Trades rejoués" valeur={b.n} />
+                <Tuile libelle="Creux médian traversé"
+                       valeur={pct(b["mae_mediane_%"])}
+                       note="MAE — jusqu'où ça descend avant de se terminer" />
+                <Tuile libelle="Sommet médian atteint"
+                       valeur={pct(b["mfe_mediane_%"])}
+                       note="MFE — le meilleur point touché en cours de route" />
+                <Tuile libelle="Stops qui coupaient du bruit"
+                       valeur={`${b.stops_qui_etaient_du_bruit}/${b.stops_touches}`}
+                       note="cours revenu au-dessus de l'entrée ensuite" />
+              </div>
+              {b.constats?.map((c, i) => (
+                <p key={i} style={{ margin: "3px 0" }}>• {c}</p>
+              ))}
+              {!b.echantillon_suffisant && (
+                <p className="note">Échantillon encore trop mince : ces chiffres
+                  se liront vraiment après quelques dizaines de trades.</p>
+              )}
+            </>
+          )}
+        </div>
+      ))}
+      <p className="note">{r.methode ?? ""}</p>
+    </div>
+  );
+}
+
 function PageConcours() {
   const { donnees, erreur } = useDonnees(api.getConcours);
   if (!donnees) return <Chargement erreur={erreur} />;
@@ -1051,12 +1233,8 @@ function PageConcours() {
           <h3>🤖 {robot.nom} — horizon {robot.horizon ?? "?"} séances,
             en transparence totale</h3>
           <p className="note">{donnees.regles_robot}</p>
-          {robot.positions?.length > 0 && (
-            <>
-              <h4>Positions ouvertes</h4>
-              <Table lignes={robot.positions} />
-            </>
-          )}
+          <h4>Positions ouvertes — suivies en direct</h4>
+          <PositionsVivantes positions={robot.positions} />
           {robot.bilan_trades?.n > 0 && (
             <>
               <h4>Ce que valent ses trades</h4>
@@ -1098,6 +1276,7 @@ function PageConcours() {
           )}
         </div>
       ))}
+      <RapportSeance />
       <p className="note">{donnees.avertissement}</p>
     </>
   );

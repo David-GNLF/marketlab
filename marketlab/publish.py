@@ -74,8 +74,26 @@ def _table(df: pd.DataFrame) -> list[dict]:
 
 # --- Blocs ------------------------------------------------------------------
 
+def _theme_actif(symbole: str) -> str:
+    """Thème d'un actif, tel que l'utilisateur le pense.
+
+    Tiré de config.UNIVERS, qui est la source de vérité — et non deviné
+    d'après le suffixe : « Actions US », « Actions EU » et « Actions Asie »
+    ne se distinguent pas autrement, et c'est justement la distinction utile
+    pour lire le tableau.
+    """
+    for nom, liste in config.UNIVERS.items():
+        if symbole in liste:
+            return nom
+    return _classe_actif(symbole)
+
+
 def bloc_screener() -> list[dict]:
-    return _table(screener.scan(config.SUIVIS))
+    lignes = _table(screener.scan(config.SUIVIS))
+    for l in lignes:
+        l["theme"] = _theme_actif(l.get("symbole", ""))
+        l["nom"] = config.NOMS_ACTIFS.get(l.get("symbole", ""), l.get("symbole"))
+    return lignes
 
 
 def bloc_macro() -> dict:

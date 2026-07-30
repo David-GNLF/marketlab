@@ -345,6 +345,7 @@ def main() -> int:
     session = ftps._connecter(cfg)
     base = cfg["dossier_distant"].rstrip("/")
     classement = []
+    comptes_robots: list[dict] = []   # conservés pour le rapport de séance
     mouvements: list[tuple[str, list[str], float]] = []
     try:
         ftps._assurer_dossier(session, f"{base}/trading/comptes")
@@ -394,6 +395,8 @@ def main() -> int:
                 print(f"  {compte['nom']} : {e}")
             if evenements:
                 mouvements.append((compte["nom"], evenements, equite))
+            if est_robot:
+                comptes_robots.append(compte)
 
             classement.append({
                 "nom": compte["nom"], "est_robot": est_robot,
@@ -445,6 +448,21 @@ def main() -> int:
                          "conseil en investissement.",
     }, ensure_ascii=False), encoding="utf-8")
     print(f"\nconcours.json écrit : {len(classement)} compte(s)")
+    # Rapport de séance : ce qui était prévu confronté à ce qui est advenu.
+    # Il rejoue chaque trade sur les cours réels — c'est ce matériau qui
+    # permet de corriger les règles au lieu de les deviner.
+    try:
+        r = rapport_seance.rapport_global(comptes_robots)
+        RAPPORT_LOCAL.parent.mkdir(parents=True, exist_ok=True)
+        RAPPORT_LOCAL.write_text(json.dumps(r, ensure_ascii=False),
+                                 encoding="utf-8")
+        for bloc in r["robots"]:
+            print(f"  rapport {bloc['nom']} : {bloc['n']} trade(s) rejoué(s)")
+            for c in bloc.get("constats", []):
+                print(f"    - {c}")
+    except Exception as exc:
+        print(f"rapport de séance non produit (non bloquant) : {str(exc)[:90]}")
+
     notifier_mouvements(mouvements)
     return 0
 
