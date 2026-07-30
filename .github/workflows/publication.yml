@@ -136,16 +136,41 @@ jobs:
           # portefeuille papier. En n'en nommant que deux, le troisième
           # restait modifié et « git pull --rebase » refusait de tourner.
           git add -A data_local
-          if ! git diff --cached --quiet; then
-            git commit -m "Journal des décisions du $(date -u +%F)"
-            # artefacts régénérés hors data_local : ils ne doivent pas
-            # bloquer le rebase (l'espace de travail du runner est jetable)
-            git checkout -- . 2>/dev/null || true
-            git pull --rebase origin master || true
-            git push origin master
-          else
+          if git diff --cached --quiet; then
             echo "journal inchangé"
+            exit 0
           fi
+          git commit -m "Journal des décisions du $(date -u +%F)"
+          # artefacts régénérés hors data_local : ils ne doivent pas
+          # bloquer le rebase (l'espace de travail du runner est jetable)
+          git checkout -- . 2>/dev/null || true
+          git fetch -q origin master
+          # AVANT : « git pull --rebase origin master || true ». Le « || true »
+          # avalait l'échec du rebase et laissait le dépôt EN PLEIN rebase, si
+          # bien que le push suivant partait condamné (non-fast-forward) et que
+          # le vrai message de conflit n'apparaissait nulle part. Constaté le
+          # 2026-07-30 : deux publications se sont chevauchées (une poussée
+          # manuelle et une déclenchée à la main), conflit sur
+          # paper_portfolio.json et poids_appris.json, run rouge alors que le
+          # site avait été publié correctement.
+          if ! git rebase origin/master; then
+            # Tout ce qui vit sous data_local est un artefact RECALCULÉ à
+            # chaque passage : la version que ce runner vient de produire est
+            # la plus fraîche, elle gagne.
+            #
+            # ATTENTION À L'INVERSION. Pendant un REBASE, « ours » désigne la
+            # branche d'accueil (donc le distant) et « theirs » le commit qu'on
+            # rejoue (donc le nôtre). C'est l'exact inverse d'un merge. Pour
+            # garder la version du runner, il faut bien --theirs.
+            git checkout --theirs -- data_local || true
+            git add -A data_local
+            if ! GIT_EDITOR=true git rebase --continue; then
+              git rebase --abort || true
+              echo "::error::rebase impossible : journal non commité (le site, lui, est publié)"
+              exit 1
+            fi
+          fi
+          git push origin master
 
       # Une génération silencieusement dégradée vaut d'être signalée : le
       # site continuerait d'afficher des chiffres de plus en plus datés.
