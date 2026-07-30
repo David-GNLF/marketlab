@@ -13,23 +13,75 @@ modification qu'on oublie d'y reporter, sans que rien ne le signale.
 """
 
 import json
+import re
 
 from marketlab import config, devapp
 
-# Fragments qui n'ont rien à faire dans un fichier publié.
-INTERDITS = [
-    "MARKETLAB_FTP_MOT_DE_PASSE", "mot_de_passe", "password", "secret",
+# Noms de champ qui trahiraient une valeur transportée par erreur.
+CHAMPS_INTERDITS = [
+    "MARKETLAB_FTP_MOT_DE_PASSE", "mot_de_passe", "password",
     "api_key", "apikey", "token", "ntfy.sh/",
 ]
 
+# Ce qu'est VRAIMENT une fuite : une valeur d'apparence aléatoire et longue.
+# Une clé FRED fait 32 caractères hexadécimaux, un jeton ntfy une vingtaine
+# de caractères base64. Un mot français, même « secret », n'en est pas une.
+JETON_SUSPECT = re.compile(r"\b[A-Za-z0-9_-]{24,}\b")
 
-def test_aucun_secret_dans_le_bloc_publie():
-    """Le bloc entier est sérialisé puis fouillé, valeurs comprises."""
+# Ce qui ressemble à un jeton sans en être un, et qu'il faut donc laisser
+# passer : les identifiants techniques que la page publie légitimement.
+TOLERES = re.compile(r"^(MARKETLAB_[A-Z_]+|[a-z_]+(_[a-z0-9]+)+)$")
+
+
+def _valeurs(objet, chemin=""):
+    """Parcourt les VALEURS du bloc, en gardant leur chemin.
+
+    Le journal des modifications est écarté : ce sont des phrases écrites par
+    des humains, et un sujet de commit a parfaitement le droit de contenir le
+    mot « secret » — c'est même arrivé le 2026-07-30, et le test a échoué sur
+    sa propre prose. Un garde-fou qui crie au loup sur du texte libre finit
+    par être désarmé ; celui-ci vise les VALEURS, là où une fuite se produit.
+    """
+    if chemin.endswith("derniers_commits"):
+        return
+    if isinstance(objet, dict):
+        for k, v in objet.items():
+            yield from _valeurs(v, f"{chemin}/{k}")
+    elif isinstance(objet, list):
+        for v in objet:
+            yield from _valeurs(v, chemin)
+    else:
+        yield chemin, str(objet)
+
+
+def test_aucun_nom_de_champ_sensible():
+    """Un champ nommé « api_key » signalerait qu'une valeur voyage avec."""
     texte = json.dumps(devapp.etat(), ensure_ascii=False, default=str).lower()
-    trouves = [m for m in INTERDITS if m.lower() in texte]
+    trouves = [m for m in CHAMPS_INTERDITS if m.lower() in texte]
     assert not trouves, (
-        f"fragments sensibles dans devapp.json : {trouves} — cette page est "
+        f"champs sensibles dans devapp.json : {trouves} — cette page est "
         "publiée en ligne")
+
+
+def test_aucune_valeur_ressemblant_a_une_cle():
+    """Le vrai test : pas de chaîne longue et aléatoire dans les valeurs."""
+    suspects = []
+    for chemin, valeur in _valeurs(devapp.etat()):
+        for jeton in JETON_SUSPECT.findall(valeur):
+            if not TOLERES.match(jeton):
+                suspects.append((chemin, jeton[:8] + "…"))
+    assert not suspects, (
+        f"valeurs d'apparence secrète dans devapp.json : {suspects}")
+
+
+def test_le_detecteur_attrape_bien_une_vraie_cle():
+    """Un test de sécurité qui ne peut pas échouer ne protège rien : on lui
+    présente une clé de la forme exacte d'une clé FRED."""
+    faux = {"sources": {"cles": [{"nom": "FRED",
+                                  "valeur": "015add9fefeeacd9805631665efd60c6"}]}}
+    trouve = [j for _, v in _valeurs(faux) for j in JETON_SUSPECT.findall(v)
+              if not TOLERES.match(j)]
+    assert trouve, "le détecteur laisserait passer une clé de 32 hexadécimaux"
 
 
 def test_les_cles_ne_sont_qu_un_booleen():
