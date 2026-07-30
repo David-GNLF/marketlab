@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import * as api from "./api";
+import { Coquille, EtatDonnees } from "./coquille";
 import { GraphiqueCone } from "./charts";
 import {
   GardeGraphique, GraphiqueTerminal, PAS, TYPES, agreger, enBougies,
@@ -23,22 +24,6 @@ const nb = (v) =>
  * Monochrome et en `currentColor` : lisible en thème clair comme sombre,
  * sans image à charger.
  */
-function Logo({ taille = 34 }) {
-  return (
-    <svg width={taille} height={taille} viewBox="0 0 40 40" role="img"
-         aria-label="MarketLab" style={{ flexShrink: 0 }}>
-      <rect x="1.5" y="1.5" width="37" height="37" rx="9"
-            fill="none" stroke="currentColor" strokeWidth="2" opacity="0.32" />
-      <line x1="9" y1="25.5" x2="31" y2="25.5" stroke="currentColor"
-            strokeWidth="1.5" strokeDasharray="2.5 2.5" opacity="0.45" />
-      <polyline points="9,29 15,21 20,24 25,14 31,17" fill="none"
-                stroke="currentColor" strokeWidth="2.4"
-                strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="25" cy="14" r="2.6" fill="currentColor" />
-    </svg>
-  );
-}
-
 function Tuile({ libelle, valeur, delta, note }) {
   return (
     <div className="tuile">
@@ -1669,57 +1654,34 @@ function BandeauFlux() {
   );
 }
 
-export default function App() {
+/** Contenu de l'application, à l'intérieur du fournisseur de cours : la barre
+ *  d'état a besoin des cotations, et `useCours` n'est lisible que sous lui. */
+function Application() {
   const [page, setPage] = useState("Décisions");
   const [symbole, setSymbole] = useState(null);
   const { donnees: meta, erreur } = useDonnees(api.getMeta);
+  const { cours, actualise } = useCours();
 
   const ouvrirTitre = (s) => { setSymbole(s); setPage("Titre"); };
   const Page = PAGES[page];
 
   return (
-    <FournisseurCours>
-      <header className="ml-header">
-        <div className="ml-marque">
-          <Logo />
-          <div>
-            <h1>MarketLab</h1>
-            <div className="ml-signature">by GNLF Consult</div>
-          </div>
-        </div>
-        <span className="ml-disclaimer">Analyses statistiques, pas des
-          prédictions. Aucun contenu ne constitue un conseil en investissement.</span>
-      </header>
-      <nav className="ml-nav">
-        {Object.keys(PAGES).map((p) => (
-          <button key={p} className={p === page ? "actif" : ""}
-                  onClick={() => setPage(p)}>{p}</button>
-        ))}
-        <a href="trading/" className="ml-nav-lien">Espace de trading</a>
-        {/* Discret mais ATTEIGNABLE : un engrenage sans libellé, dans la barre
-            de navigation. Placé en pied de page, il se retrouvait dix écrans
-            plus bas sur la page Décisions — donc invisible en pratique. */}
-        <a href="admin/" className="ml-nav-admin" title="Administration"
-           aria-label="Espace d'administration">Administration</a>
-      </nav>
+    <Coquille pages={Object.keys(PAGES)} page={page} setPage={setPage}
+              etat={<EtatDonnees meta={meta} cours={cours}
+                                 actualise={actualise} />}>
       {erreur && <p className="erreur">Données indisponibles : {erreur}</p>}
-      {meta && (
-        <p className="note">Analyse de l'instantané du {meta.genere_le} ({meta.fuseau}).
-          {meta.erreurs && Object.keys(meta.erreurs).length > 0 &&
-            ` ${Object.keys(meta.erreurs).length} bloc(s) en erreur lors de la génération.`}
-        </p>
-      )}
       <BandeauFlux />
       {meta && (page === "Titre"
         ? <Page meta={meta} symbole={symbole} setSymbole={setSymbole} />
         : <Page onTitre={ouvrirTitre} />)}
-      {/* Accès discret à l'administration : volontairement en pied de page et
-          non dans la navigation. Il ne donne aucun droit — l'espace admin a sa
-          propre connexion, réservée au rôle « admin », avec verrouillage après
-          échecs répétés. */}
-      <footer className="ml-pied">
-        <a href="admin/" title="Espace d'administration">Administration</a>
-      </footer>
+    </Coquille>
+  );
+}
+
+export default function App() {
+  return (
+    <FournisseurCours>
+      <Application />
     </FournisseurCours>
   );
 }

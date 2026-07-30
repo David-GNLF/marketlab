@@ -6,6 +6,7 @@
   --text-primary: #0b0b0b;
   --text-secondary: #52514e;
   --muted: #898781;
+  --surface-2: #f2f1ec;
   --grid: #e1e0d9;
   --baseline: #c3c2b7;
   --border: rgba(11, 11, 11, 0.1);
@@ -23,6 +24,7 @@
     --text-primary: #ffffff;
     --text-secondary: #c3c2b7;
     --muted: #898781;
+    --surface-2: #242423;
     --grid: #2c2c2a;
     --baseline: #383835;
     --border: rgba(255, 255, 255, 0.1);
@@ -42,53 +44,127 @@ body {
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 14px;
 }
-#root { max-width: 1200px; margin: 0 auto; padding: 16px; }
+/* La coquille : rail à gauche, contenu à droite, sur toute la largeur.
+   Un terminal de marché est LARGE, jamais haut : brider la page à 1 200 px
+   laissait un tiers de l'écran vide pendant qu'un tableau de trente-six
+   lignes défilait. */
+#root { min-height: 100vh; }
 
-header.ml-header {
-  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
-  padding: 6px 0 2px;
+.ml-app { display: grid; grid-template-columns: 208px minmax(0, 1fr);
+  min-height: 100vh; }
+
+.ml-rail-nav {
+  display: flex; flex-direction: column; gap: 2px;
+  background: var(--surface); border-right: 1px solid var(--border);
+  padding: 12px 8px; position: sticky; top: 0; height: 100vh;
 }
-header.ml-header h1 {
-  font-size: 21px; margin: 0; letter-spacing: -0.015em; font-weight: 650;
+.ml-rail-marque {
+  display: flex; align-items: center; gap: 10px; padding: 4px 8px 14px;
 }
-.ml-marque { display: flex; align-items: center; gap: 11px; }
-.ml-marque svg { color: var(--series-1); }
-.ml-signature {
-  font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
+.ml-rail-marque svg { color: var(--series-1); flex: none; }
+.ml-rail-nom { display: flex; flex-direction: column; line-height: 1.15; }
+.ml-rail-nom strong { font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
+.ml-rail-nom span {
+  font-size: 9px; letter-spacing: 0.13em; text-transform: uppercase;
   color: var(--muted); margin-top: 2px;
 }
-.ml-disclaimer { color: var(--muted); font-size: 12px; max-width: 62ch; }
+.ml-rail-nav nav { display: flex; flex-direction: column; gap: 1px; }
+.ml-rail-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  background: none; border: none; border-radius: 5px;
+  padding: 7px 9px; cursor: pointer; text-align: left; font-size: 13.5px;
+  color: var(--text-secondary); text-decoration: none; line-height: 1.3;
+}
+.ml-rail-item svg { flex: none; opacity: 0.75; }
+.ml-rail-item:hover { background: var(--surface-2); color: var(--text-primary); }
+.ml-rail-item.actif {
+  background: var(--surface-2); color: var(--text-primary); font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--series-1);
+}
+.ml-rail-item.actif svg { opacity: 1; color: var(--series-1); }
+.ml-rail-pied {
+  margin-top: auto; padding-top: 10px; display: flex; flex-direction: column;
+  gap: 1px; border-top: 1px solid var(--border);
+}
+.ml-rail-item.discret { color: var(--muted); }
 
-nav.ml-nav { display: flex; gap: 4px; margin: 12px 0; border-bottom: 1px solid var(--border); }
-nav.ml-nav button {
-  background: none; border: none; border-bottom: 2px solid transparent;
-  color: var(--text-secondary); padding: 8px 12px; cursor: pointer; font-size: 14px;
+.ml-principal { display: flex; flex-direction: column; min-width: 0; }
+.ml-barre {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 11px 20px; border-bottom: 1px solid var(--border);
+  background: var(--page); position: sticky; top: 0; z-index: 5;
 }
-nav.ml-nav button.actif { color: var(--text-primary); border-bottom-color: var(--series-1); }
-nav.ml-nav { flex-wrap: wrap; }
-nav.ml-nav .ml-nav-lien {
-  margin-left: auto; text-decoration: none; color: var(--text-primary);
-  padding: 8px 12px; font-size: 14px; font-weight: 600;
+.ml-barre h1 {
+  font-size: 16px; font-weight: 650; margin: 0; letter-spacing: -0.01em;
 }
-/* Accès administration : présent en haut de chaque page, mais réduit à un
-   engrenage effacé — on le trouve quand on le cherche, il n'attire pas l'œil. */
-nav.ml-nav .ml-nav-admin {
-  text-decoration: none; color: var(--muted); font-size: 15px;
-  padding: 8px 10px; border-radius: 6px; align-self: center;
+.ml-contenu { padding: 16px 20px 8px; min-width: 0; }
+.ml-avertissement {
+  color: var(--muted); font-size: 11.5px; margin: 4px 20px 20px;
+  padding-top: 10px; border-top: 1px solid var(--border);
 }
-nav.ml-nav .ml-nav-admin:hover,
-nav.ml-nav .ml-nav-admin:focus-visible {
-  color: var(--text-primary); background: var(--surface);
+
+/* Barre d'état : ce que vaut la donnée, en permanence sous les yeux. */
+.ml-etat {
+  margin-left: auto; display: flex; gap: 14px; flex-wrap: wrap;
+  font-size: 11.5px; color: var(--muted); align-items: center;
+}
+.ml-etat-item { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.ml-etat-item.erreur { color: var(--critical); }
+.ml-pastille {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--muted);
+  flex: none;
+}
+.ml-pastille.vive { background: var(--good); }
+
+.ml-burger { display: none; }
+.ml-voile { display: none; }
+
+/* Sous 860 px, le rail se replie : il glisse par-dessus le contenu à la
+   demande. Une colonne fixe de 208 px sur un téléphone, ce serait la moitié
+   de l'écran pour de la navigation. */
+@media (max-width: 860px) {
+  .ml-app { grid-template-columns: minmax(0, 1fr); }
+  /* Le rail se range sur `left`, une valeur de MISE EN PAGE, et non sur une
+     translation animée. La nuance compte : avec `transform` + `transition`,
+     l'état au repos du rail dépend de la bonne fin d'une animation. Dans un
+     onglet qui ne compose pas (arrière-plan, économie d'énergie, moteur qui
+     n'anime pas), la transition n'avance jamais et le rail reste ouvert
+     par-dessus le contenu — constaté à 375 px pendant la vérification. Une
+     position au repos ne doit jamais être le résultat d'une animation. */
+  .ml-rail-nav {
+    position: fixed; top: 0; left: -244px; z-index: 20; width: 232px;
+    transition: left 0.18s ease;
+  }
+  .ml-app.rail-ouvert .ml-rail-nav { left: 0; }
+  .ml-burger {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: none; border: 1px solid var(--baseline); border-radius: 6px;
+    color: var(--text-primary); padding: 5px 7px; cursor: pointer;
+  }
+  .ml-voile {
+    display: block; position: fixed; inset: 0; z-index: 15;
+    background: rgba(0, 0, 0, 0.35); border: none; cursor: default;
+  }
+  .ml-contenu, .ml-barre { padding-left: 14px; padding-right: 14px; }
+  .ml-etat { width: 100%; margin-left: 0; }
 }
 
 .carte {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: 8px; padding: 16px; margin-bottom: 16px;
+  border-radius: 6px; padding: 13px 15px; margin-bottom: 12px;
 }
-.rangee { display: flex; gap: 16px; flex-wrap: wrap; align-items: end; }
+.carte h2, .carte h3 {
+  font-size: 14px; font-weight: 650; margin: 0 0 9px;
+  letter-spacing: -0.005em;
+}
+/* Tous les chiffres du site sont alignés en colonnes : dans un tableau de
+   cours, une virgule qui se décale d'un caractère d'une ligne à l'autre rend
+   la comparaison verticale impossible. */
+.valeur, .tuile .valeur, .delta, td { font-variant-numeric: tabular-nums; }
+.rangee { display: flex; gap: 22px; flex-wrap: wrap; align-items: end; }
 .tuile { min-width: 130px; }
 .tuile .libelle { color: var(--muted); font-size: 12px; }
-.tuile .valeur { font-size: 24px; font-weight: 600; }
+.tuile .valeur { font-size: 21px; font-weight: 620; letter-spacing: -0.015em; }
 .tuile .delta { font-size: 12px; }
 .delta.positif { color: var(--good); }
 .delta.negatif { color: var(--critical); }
@@ -99,7 +175,7 @@ table.ml-table th {
   border-bottom: 1px solid var(--baseline); padding: 6px 8px;
 }
 table.ml-table td {
-  padding: 6px 8px; border-bottom: 1px solid var(--grid);
+  padding: 5px 8px; border-bottom: 1px solid var(--grid);
   font-variant-numeric: tabular-nums;
 }
 table.ml-table tr:hover td { background: var(--page); }
@@ -116,19 +192,6 @@ button.action {
 button.action.secondaire { background: transparent; color: var(--text-primary); border: 1px solid var(--baseline); }
 button.action:disabled { opacity: 0.5; cursor: default; }
 
-/* Pied de page : accès discret à l'administration. Assez visible pour être
-   trouvé quand on le cherche, assez effacé pour ne pas encombrer. */
-footer.ml-pied {
-  margin: 28px 0 12px; padding-top: 12px;
-  border-top: 1px solid var(--border); text-align: right;
-}
-footer.ml-pied a {
-  color: var(--muted); font-size: 12px; text-decoration: none;
-  padding: 4px 8px; border-radius: 6px;
-}
-footer.ml-pied a:hover, footer.ml-pied a:focus-visible {
-  color: var(--text-primary); background: var(--surface);
-}
 
 /* ------------------------------------------------------- Terminal de titre
    Liste de suivi à gauche, poste de travail à droite. La colonne fixe de
@@ -140,8 +203,8 @@ footer.ml-pied a:hover, footer.ml-pied a:focus-visible {
 
 .ml-rail {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: 8px; overflow: hidden; align-self: start;
-  position: sticky; top: 12px; max-height: calc(100vh - 24px);
+  border-radius: 6px; overflow: hidden; align-self: start;
+  position: sticky; top: 62px; max-height: calc(100vh - 76px);
   display: flex; flex-direction: column;
 }
 .ml-rail-recherche {
