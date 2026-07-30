@@ -1628,6 +1628,213 @@ function PageAlertes() {
 }
 
 // ---------------------------------------------------------------- App
+// ---------------------------------------------------------------- DevApp
+//
+// L'espace consacré à l'application elle-même : d'où viennent les chiffres,
+// quand ils ont été produits, ce qui a échoué, et ce qui reste à faire.
+//
+// Le principe est le même que pour le reste du site : ne rien AFFIRMER qui ne
+// soit constaté. Tout ce qui suit est lu dans le dépôt, dans les fichiers
+// réellement publiés et dans la configuration — jamais recopié à la main dans
+// une page qui deviendrait fausse à la première modification oubliée.
+
+function Jauge({ fait, total, libelle }) {
+  const pct = total ? Math.round((fait / total) * 100) : 0;
+  return (
+    <div style={{ minWidth: 200, flex: 1 }}>
+      <div className="libelle" style={{ display: "flex",
+        justifyContent: "space-between" }}>
+        <span>{libelle}</span><span>{fait} / {total}</span>
+      </div>
+      <div style={{ height: 5, background: "var(--grid)", borderRadius: 3,
+        marginTop: 5, overflow: "hidden" }}>
+        <div style={{ width: `${pct}%`, height: "100%",
+          background: pct === 100 ? "var(--good)" : "var(--series-1)" }} />
+      </div>
+    </div>
+  );
+}
+
+const CRON_LISIBLE = (c) => {
+  const [min, heure] = c.split(" ");
+  if (heure === "*") return `à ${min.padStart(2, "0")} de chaque heure (UTC)`;
+  return `à ${heure.padStart(2, "0")} h ${min.padStart(2, "0")} UTC`;
+};
+
+function PageDevApp() {
+  const { donnees: d, erreur } = useDonnees(api.getDevApp);
+  const [tout, setTout] = useState(false);
+  if (!d) return <Chargement erreur={erreur} />;
+
+  const { depot, tests, perimetre: p, sources, automatisation, sante } = d;
+  const route = d.feuille_de_route ?? [];
+  const sections = [...new Set(route.map((r) => r.section))];
+  const livres = route.filter((r) => r.livre).length;
+
+  return (
+    <>
+      <div className="carte">
+        <h3>Ce que fait cette page</h3>
+        <p className="note">Elle décrit l'application, pas les marchés. Tout ce
+          qui s'y trouve est LU — dans le dépôt, dans les fichiers réellement
+          publiés, dans les tâches planifiées — jamais recopié à la main. Un
+          tableau de bord recopié devient faux à la première modification qu'on
+          oublie d'y reporter.</p>
+        <div className="rangee">
+          <Tuile libelle="Version" valeur={depot.version}
+                 note={`branche ${depot.branche}`} />
+          <Tuile libelle="Modifications" valeur={depot.commits_total ?? "—"}
+                 note="depuis le début du projet" />
+          <Tuile libelle="Fonctions de test" valeur={tests.fonctions}
+                 note={`${tests.fichiers} fichiers`} />
+          <Tuile libelle="Lignes de code"
+                 valeur={(depot.lignes_python + depot.lignes_front
+                          + depot.lignes_php).toLocaleString("fr-FR")}
+                 note={`dont ${depot.lignes_tests.toLocaleString("fr-FR")} de tests`} />
+        </div>
+        <p className="note">Python {depot.lignes_python.toLocaleString("fr-FR")} ·
+          front {depot.lignes_front.toLocaleString("fr-FR")} ·
+          PHP {depot.lignes_php.toLocaleString("fr-FR")}. Le compte de tests
+          porte sur les FONCTIONS de test : un test paramétré en produit
+          plusieurs à l'exécution, et deviner ce nombre reviendrait à gonfler
+          le chiffre.</p>
+      </div>
+
+      <div className="carte">
+        <h3>Dernière génération</h3>
+        <div className="rangee">
+          <Tuile libelle="Produite le" valeur={sante.genere_le ?? "—"} />
+          <Tuile libelle="Blocs" valeur={sante.blocs_produits} />
+          <Tuile libelle="Fiches" valeur={sante.fiches_produites} />
+          <Tuile libelle="Échecs" valeur={sante.erreurs.length}
+                 note={sante.erreurs.length ? "voir ci-dessous" : "aucun"} />
+        </div>
+        {sante.erreurs.length > 0 ? (
+          <>
+            <p className="note" style={{ marginTop: 8 }}>Un bloc en échec ne
+              bloque pas la publication : le reste du site part quand même, et
+              l'erreur est consignée plutôt qu'avalée.</p>
+            {sante.erreurs.map((e) => (
+              <p key={e.quoi} className="erreur" style={{ margin: "4px 0" }}>
+                <strong>{e.quoi}</strong> — {e.message}</p>
+            ))}
+          </>
+        ) : (
+          <p className="note">Aucun bloc en échec à la dernière génération.</p>
+        )}
+      </div>
+
+      <div className="carte">
+        <h3>Couverture des données</h3>
+        <div className="rangee" style={{ alignItems: "flex-start" }}>
+          <Jauge libelle="Fiches détaillées" fait={p.fiches_publiees}
+                 total={p.fiches_attendues} />
+          <Jauge libelle="Séries de bougies" fait={p.series_publiees}
+                 total={p.fiches_attendues} />
+          <Jauge libelle="Socle horaire (H1, H4)"
+                 fait={p.series_par_socle.horaire} total={p.fiches_attendues} />
+          <Jauge libelle="Socle 5 min (M5, M15)"
+                 fait={p.series_par_socle.intraday} total={p.fiches_attendues} />
+        </div>
+        <p className="note" style={{ marginTop: 10 }}>
+          {p.actifs_suivis} actifs suivis au total, dont {p.fiches_attendues} avec
+          une fiche détaillée. Poids des données publiées :{" "}
+          {p.poids_donnees_ko.toLocaleString("fr-FR")} Ko.
+          {p.series_manquantes.length > 0 && (
+            <> Séries absentes : {p.series_manquantes.join(", ")} — leur
+              graphique reste vide plutôt que d'afficher celui d'un autre
+              actif.</>
+          )}
+        </p>
+        <div className="rangee" style={{ marginTop: 6 }}>
+          {Object.entries(p.univers).map(([nom, n]) => (
+            <span key={nom} className="badge">{nom} · {n}</span>
+          ))}
+        </div>
+      </div>
+
+      <div className="carte">
+        <h3>Sources de données</h3>
+        <Table lignes={sources.fournisseurs.map((f) => ({
+          Fournisseur: f.nom, Usage: f.usage,
+          "Clé requise": f.cle ? "oui" : "non",
+        }))} />
+        <h3 style={{ marginTop: 14 }}>Accès configurés</h3>
+        <p className="note">Présence seulement : cette page ne montre jamais
+          une clé, ni même un fragment. La question posée est « la clé est-elle
+          présente dans l'environnement qui PUBLIE » — c'est-à-dire GitHub
+          Actions, pas ce navigateur.</p>
+        {sources.cles.map((c) => (
+          <p key={c.nom} style={{ margin: "4px 0" }}>
+            <span className="badge" style={{ marginRight: 8,
+              color: c.configuree ? "var(--good)" : "var(--muted)" }}>
+              {c.configuree ? "configurée" : "absente"}</span>
+            <span className="note">{c.role}</span>
+          </p>
+        ))}
+      </div>
+
+      <div className="carte">
+        <h3>Automatisation</h3>
+        {automatisation.taches.map((t) => (
+          <p key={t.fichier} style={{ margin: "5px 0" }}>
+            <strong style={{ display: "inline-block", minWidth: 210 }}>
+              {t.nom}</strong>
+            <span className="note">
+              {t.crons_utc.length
+                ? t.crons_utc.map(CRON_LISIBLE).join(" · ")
+                : "déclenchement manuel uniquement"}
+              {t.manuel && t.crons_utc.length ? " · déclenchable à la main" : ""}
+            </span>
+          </p>
+        ))}
+        <p className="note" style={{ marginTop: 8 }}>
+          {automatisation.note_planification}</p>
+      </div>
+
+      <div className="carte">
+        <h3>Feuille de route — {livres} livrés sur {route.length}</h3>
+        <p className="note">Une case n'est cochée que lorsque la chose est
+          livrée ET vérifiée en ligne. La liste vit dans le dépôt
+          (docs/FEUILLE_DE_ROUTE.md) : la page ne peut donc pas prétendre à un
+          état que le code ne porte pas.</p>
+        {sections.map((s) => (
+          <div key={s} style={{ marginTop: 10 }}>
+            <div className="libelle">{s}</div>
+            {route.filter((r) => r.section === s).map((r, i) => (
+              <p key={i} style={{ margin: "3px 0",
+                color: r.livre ? "inherit" : "var(--muted)" }}>
+                <span style={{ display: "inline-block", width: 74,
+                  fontSize: 11, color: r.livre ? "var(--good)" : "var(--muted)" }}>
+                  {r.livre ? "livré" : "à faire"}</span>
+                {r.texte}
+              </p>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      <div className="carte">
+        <h3>Journal des modifications</h3>
+        {(tout ? depot.derniers_commits : depot.derniers_commits.slice(0, 8))
+          .map((c) => (
+          <p key={c.abrege} style={{ margin: "3px 0" }}>
+            <span className="note" style={{ display: "inline-block",
+              width: 92, fontVariantNumeric: "tabular-nums" }}>{c.date}</span>
+            {c.sujet}
+          </p>
+        ))}
+        {depot.derniers_commits.length > 8 && (
+          <button className="action secondaire" style={{ marginTop: 8 }}
+                  onClick={() => setTout((v) => !v)}>
+            {tout ? "Réduire" : `Voir les ${depot.derniers_commits.length} dernières`}
+          </button>
+        )}
+      </div>
+    </>
+  );
+}
+
 const PAGES = {
   "Décisions": PageDecisions,
   "Alertes": PageAlertes,
@@ -1638,6 +1845,7 @@ const PAGES = {
   "Fondamentaux": PageFondamentaux,
   "Corrélations": PageCorrelations,
   "Portefeuille": PagePortefeuille,
+  "DevApp": PageDevApp,
 };
 
 function BandeauFlux() {

@@ -34,7 +34,8 @@ from pathlib import Path
 import pandas as pd
 
 from marketlab import (alerts, broker_tools, config, correlations, cot,
-                       decision, drivers, eco_calendar, events, forecast,
+                       decision, devapp, diagnostic, drivers, eco_calendar,
+                       events, forecast,
                        fundamentals, indicators, intraday, levels, macro,
                        news, paper, position, screener, seasonality,
                        sentiment_marche, serie, signals)
@@ -282,6 +283,11 @@ BLOCS = {
     "fondamentaux": bloc_fondamentaux,
     "correlations": bloc_correlations,
     "paper": bloc_paper,
+    # État de santé des briques, pour la console DevApp de l'admin. En DERNIER
+    # volontairement : il rend compte de ce que les blocs précédents viennent
+    # de produire (pondérations apprises, arbitrage du modèle de volatilité,
+    # correspondances FRED), donc il doit passer après eux.
+    "diagnostic": diagnostic.etat,
 }
 
 
@@ -369,6 +375,18 @@ def generer(titres: list[str] | None = None, blocs: list[str] | None = None,
                           "investissement."),
     }
     _ecrire(DOSSIER_DONNEES / "meta.json", meta)
+
+    # L'espace DevApp est écrit EN DERNIER, et ce n'est pas un détail : il
+    # compte les fiches et les séries réellement présentes sur le disque, et
+    # relit meta.json. Le produire plus tôt donnerait l'état de la génération
+    # PRÉCÉDENTE — un tableau de bord qui décrit la veille est pire que pas
+    # de tableau de bord.
+    try:
+        _ecrire(DOSSIER_DONNEES / "devapp.json", devapp.etat())
+    except Exception as exc:
+        erreurs["devapp"] = f"{type(exc).__name__}: {exc}"
+        if verbeux:
+            print(f"  devapp ECHEC : {str(exc)[:120]}", flush=True)
     return meta
 
 

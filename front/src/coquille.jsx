@@ -40,6 +40,8 @@ const GLYPHES = {
   "Fondamentaux": "M3 13V6l5-4 5 4v7zM6.5 13V9h3v4",
   "Corrélations": "M8 2v12M3 5l5 3 5-3M3 11l5-3 5 3",
   "Portefeuille": "M2 5h12v9H2zM5 5V3h6v2M2 9h12",
+  // chevrons de code : la seule section qui parle de l'application
+  "DevApp": "M5.5 5L2 8l3.5 3M10.5 5L14 8l-3.5 3M9 3l-2 10",
 };
 
 export function Glyphe({ nom }) {
