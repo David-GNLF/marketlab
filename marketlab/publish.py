@@ -407,7 +407,7 @@ def generer(titres: list[str] | None = None, blocs: list[str] | None = None,
 # l'hébergement que par un envoi manuel : le dépôt et le site pouvaient donc
 # diverger sans que rien ne le signale. C'est le genre d'écart qui fait
 # chercher un bug dans du code déjà corrigé.
-RELAIS_PHP = ["cours.php", "cours_lib.php", "serie.php"]
+RELAIS_PHP = ["cours.php", "cours_lib.php", "serie.php", "lexique.php"]
 
 # Pages PHP des espaces, énumérées FICHIER PAR FICHIER — jamais un dossier.
 # La nuance est capitale : `deploy/trading/` ne contient que du code, mais son

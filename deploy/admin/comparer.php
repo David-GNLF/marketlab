@@ -119,6 +119,7 @@ function pc(?float $x, int $d = 2): string {
   table.legende { width: auto; margin-top: .5rem; font-size: .88rem; }
   table.legende td { border: 0; padding: .12rem .8rem .12rem 0; }
 </style>
+<?= ml_lexique_styles() ?>
 </head>
 <body>
 
@@ -128,7 +129,7 @@ function pc(?float $x, int $d = 2): string {
 <div class="carte">
   <div style="display:flex; justify-content:space-between; align-items:baseline;
               flex-wrap:wrap; gap:.6rem">
-    <h2 style="margin:0">Trajectoires, en base 100</h2>
+    <h2 style="margin:0">Trajectoires, en <?= ml_terme('base100', 'base 100') ?></h2>
     <span class="periodes">
       <?php foreach (PERIODES as $p => $lib): ?>
         <a href="?p=<?= $p ?>" class="<?= $p === $periode ? 'ici' : '' ?>"><?= $lib ?></a>
@@ -171,7 +172,7 @@ function pc(?float $x, int $d = 2): string {
       <th>Compte</th>
       <?php foreach (FENETRES as $lib): ?><th class="num"><?= $lib ?></th><?php endforeach; ?>
       <th class="num">Depuis l'ouverture</th>
-      <th class="num">Baisse max</th>
+      <th class="num"><?= ml_terme('drawdown', 'Baisse max') ?></th>
       <th class="num">Relevés</th>
     </tr>
     <?php foreach ($comptes as $c): ?>
@@ -205,8 +206,8 @@ function pc(?float $x, int $d = 2): string {
   <h2 style="margin-top:0">Comportement de trading</h2>
   <div class="scroll">
   <table>
-    <tr><th>Compte</th><th class="num">Trades</th><th class="num">Réussite</th>
-        <th class="num">Facteur de profit</th><th class="num">Espérance</th>
+    <tr><th>Compte</th><th class="num">Trades</th><th class="num"><?= ml_terme('reussite', 'Réussite') ?></th>
+        <th class="num"><?= ml_terme('facteur_profit', 'Facteur de profit') ?></th><th class="num"><?= ml_terme('esperance', 'Espérance') ?></th>
         <th class="num">Durée moyenne</th></tr>
     <?php foreach ($comptes as $c): $s = $c['stats']; ?>
     <tr>

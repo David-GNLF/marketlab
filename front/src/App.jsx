@@ -1744,7 +1744,7 @@ function SectionAnalyse({ analyse: a }) {
 
       <h3 style={{ marginTop: 14 }}>Matière première</h3>
       <div className="rangee">
-        <Tuile libelle="Volatilité relevée" valeur={vol.lignes ?? "—"}
+        <Tuile libelle={<Terme code="volatilite">Volatilité relevée</Terme>} valeur={vol.lignes ?? "—"}
                note={`${vol.titres ?? 0} / ${vol.attendus ?? 0} titres`} />
         <Tuile libelle="Séances par titre" valeur={vol.seances_par_titre_median ?? "—"}
                note={(vol.periode ?? []).join(" → ")} />

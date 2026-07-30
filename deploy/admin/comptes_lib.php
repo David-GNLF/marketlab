@@ -16,6 +16,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../lexique.php';
+
 /** Série d'équité normalisée : [['t' => horodatage, 'v' => valeur], …]. */
 function ml_serie_equite(array $compte): array {
     $points = [];

@@ -107,6 +107,7 @@ function mt(?float $x): string {
   .periodes a.ici { opacity: 1; font-weight: 600;
                     border-color: rgba(128,128,128,.45); }
 </style>
+<?= ml_lexique_styles() ?>
 </head>
 <body>
 
@@ -121,7 +122,7 @@ function mt(?float $x): string {
 
 <div class="carte">
   <div class="rangee">
-    <div class="tuile"><div class="l">Équité</div>
+    <div class="tuile"><div class="l"><?= ml_terme('equite', 'Équité') ?></div>
       <div class="v"><?= mt($equite) ?></div></div>
     <div class="tuile"><div class="l">Performance</div>
       <div class="v <?= $equite >= $capital ? 'gain' : 'perte' ?>">
@@ -131,7 +132,7 @@ function mt(?float $x): string {
       <div class="v"><?= $stats['n'] ?></div></div>
     <div class="tuile"><div class="l">Positions ouvertes</div>
       <div class="v"><?= count($compte['positions'] ?? []) ?></div></div>
-    <div class="tuile"><div class="l">Baisse maximale</div>
+    <div class="tuile"><div class="l"><?= ml_terme('drawdown', 'Baisse maximale') ?></div>
       <div class="v <?= ml_drawdown_max($serie) < -10 ? 'perte' : '' ?>">
         <?= pc(ml_drawdown_max($serie), 1) ?></div>
       <div class="note">depuis un sommet</div></div>
@@ -175,16 +176,16 @@ function mt(?float $x): string {
 <div class="carte">
   <h2 style="margin-top:0">Ce que dit le journal</h2>
   <div class="rangee">
-    <div class="tuile"><div class="l">Réussite</div>
+    <div class="tuile"><div class="l"><?= ml_terme('reussite', 'Réussite') ?></div>
       <div class="v"><?= pc($stats['reussite']) ?></div>
       <div class="note"><?= $stats['gagnants'] ?> / <?= $stats['n'] ?> trades</div></div>
-    <div class="tuile"><div class="l">Facteur de profit</div>
+    <div class="tuile"><div class="l"><?= ml_terme('facteur_profit', 'Facteur de profit') ?></div>
       <div class="v <?= $stats['facteur_profit'] === null ? ''
                        : ($stats['facteur_profit'] >= 1 ? 'gain' : 'perte') ?>">
         <?= $stats['facteur_profit'] === null ? '—'
             : number_format($stats['facteur_profit'], 2, ',', ' ') ?></div>
       <div class="note">gains ÷ pertes</div></div>
-    <div class="tuile"><div class="l">Espérance / trade</div>
+    <div class="tuile"><div class="l"><?= ml_terme('esperance', 'Espérance / trade') ?></div>
       <div class="v <?= ($stats['esperance'] ?? 0) >= 0 ? 'gain' : 'perte' ?>">
         <?= mt($stats['esperance']) ?></div></div>
     <div class="tuile"><div class="l">Gain moyen</div>
@@ -232,8 +233,8 @@ function mt(?float $x): string {
   <h2 style="margin-top:0">Historique des trades (<?= count($trades) ?>)</h2>
   <div class="scroll">
   <table>
-    <tr><th>Fermé le</th><th>Actif</th><th>Sens</th>
-        <th class="num">Mise</th><th class="num">Notionnel</th>
+    <tr><th>Fermé le</th><th>Actif</th><th><?= ml_terme('long_court', 'Sens') ?></th>
+        <th class="num"><?= ml_terme('marge', 'Mise') ?></th><th class="num"><?= ml_terme('notionnel', 'Notionnel') ?></th>
         <th class="num">Entrée</th><th class="num">Sortie</th>
         <th class="num">Var. actif</th><th class="num">P&amp;L</th>
         <th class="num">Durée</th><th>Motif</th></tr>
@@ -302,9 +303,9 @@ function mt(?float $x): string {
     <tr><th>Actif</th><th>Sens</th><th class="num">Mise</th>
         <th class="num">Notionnel</th><th class="num">Entrée</th>
         <th class="num">Cours</th><th class="num">Var.</th>
-        <th class="num">P&amp;L latent</th><th class="num">Stop</th>
-        <th class="num">Objectif</th><th class="num">Ratio</th>
-        <th class="num">Liquid.</th><th class="num">Âge</th></tr>
+        <th class="num"><?= ml_terme('pnl', 'P&L latent') ?></th><th class="num"><?= ml_terme('stop', 'Stop') ?></th>
+        <th class="num"><?= ml_terme('objectif', 'Objectif') ?></th><th class="num"><?= ml_terme('ratio_gain_risque', 'Ratio') ?></th>
+        <th class="num"><?= ml_terme('liquidation', 'Liquid.') ?></th><th class="num">Âge</th></tr>
     <?php
     $total_latent = 0.0;
     foreach ($positions as $p):

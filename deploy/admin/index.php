@@ -309,6 +309,7 @@ $audit = ($connecte && is_file(ML_AUDIT))
   nav.espaces a.ici { background: color-mix(in srgb, CanvasText 10%, transparent);
     font-weight: 600; }
 </style>
+<?= ml_lexique_styles() ?>
 </head>
 <body>
 <h1>MarketLab — administration</h1>
@@ -454,7 +455,7 @@ $audit = ($connecte && is_file(ML_AUDIT))
       Le nom de chaque compte ouvre son historique détaillé —
       <a href="./comparer.php">comparer tous les comptes</a>.</p>
     <table>
-      <tr><th>Compte</th><th>Équité</th><th>Solde dispo</th><th>Positions</th>
+      <tr><th>Compte</th><th><?= ml_terme('equite', 'Équité') ?></th><th><?= ml_terme('solde', 'Solde dispo') ?></th><th>Positions</th>
           <th>Trades</th><th>Perf. 7 j</th><th>Actions</th></tr>
       <?php foreach ($comptes_trading as $n => $c):
         $serie7 = ml_serie_equite($c);
