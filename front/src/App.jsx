@@ -727,10 +727,18 @@ function Verdict({ d, rang, onTitre, court, horizonCourt }) {
             {d.note_globale} · accord {d["concordance_%"]} %</div>
         </div>
         {c && (
-          <div className="tuile" style={{ minWidth: 100 }}>
+          <div className="tuile" style={{ minWidth: 116 }}>
             <div className="libelle">P(hausse) · {c.periode_seances} séances</div>
+            {/* La probabilité CALIBRÉE domine : c'est celle que l'historique
+                autorise. La brute reste visible, barrée, parce que l'écart
+                entre les deux est en soi une information. */}
             <div className="valeur" style={{ fontSize: 18 }}>
-              {c["proba_hausse_combinee_%"]} %</div>
+              {c.proba_calibree ? `${c.proba_calibree["proba_%"]} %`
+                                : `${c["proba_hausse_combinee_%"]} %`}</div>
+            {c.proba_calibree && (
+              <div className="note" title="probabilité affichée avant calibration">
+                <s>{c["proba_hausse_combinee_%"]} %</s> avant calibration</div>
+            )}
           </div>
         )}
         {c && (
@@ -906,6 +914,29 @@ function PageDecisions({ onTitre }) {
               l'horizon depuis le {bilan.premiere_date}.</p>
             <Table lignes={bilan.par_avis} />
             <p className="note">{bilan.lecture}</p>
+            {bilan.fiabilite_probas?.length > 0 && (
+              <>
+                <h4 style={{ marginBottom: 4 }}>Les probabilités annoncées
+                  étaient-elles tenues ?</h4>
+                <p className="note">Chaque ligne compare ce que l'outil
+                  annonçait à ce qui est réellement arrivé. Un écart proche de
+                  zéro signifie une probabilité honnête.</p>
+                <Table lignes={bilan.fiabilite_probas} />
+                {bilan.calibration?.paliers && (
+                  <p className="note">
+                    Score de Brier (erreur moyenne, plus bas = mieux) :{" "}
+                    <strong>{bilan.calibration.brier_avant}</strong> avant
+                    calibration — <em>pire qu'un tirage à pile ou face
+                    (0,25)</em> — contre{" "}
+                    <strong>{bilan.calibration.brier_calibre}</strong> après.
+                    {" "}{bilan.calibration.statut} Les cartes ci-dessous
+                    affichent donc la probabilité calibrée, calculée sur{" "}
+                    {bilan.calibration.n} verdicts (taux de base observé :{" "}
+                    {bilan.calibration["taux_de_base_%"]} %).
+                  </p>
+                )}
+              </>
+            )}
           </>
         ) : (
           <p className="note">{bilan?.message ?? "Bilan indisponible."} Chaque

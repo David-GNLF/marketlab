@@ -18,6 +18,7 @@ data_local/*
 # Les pondérations apprises du bilan réel : dérivées du journal, committées
 # par le workflow pour persister d'un runner à l'autre.
 !data_local/poids_appris.json
+!data_local/calibration.json
 
 # --- Environnement et caches ---
 .venv/

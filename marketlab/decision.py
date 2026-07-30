@@ -22,9 +22,9 @@ import math
 import numpy as np
 import pandas as pd
 
-from marketlab import (broker_tools, config, drivers, events, forecast,
-                       fundamentals, indicators, levels, news, score_history,
-                       seasonality, signals)
+from marketlab import (broker_tools, calibration, config, drivers, events,
+                       forecast, fundamentals, indicators, levels, news,
+                       score_history, seasonality, signals)
 from marketlab.data import get_ohlcv
 
 JOURNAL = config.DATA_DIR / "journal_decisions.csv"
@@ -297,6 +297,12 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
         "periode_seances": horizon,
         "proba_hausse_simulee_%": p_simulee,
         "proba_hausse_combinee_%": round(p_combinee, 1),
+        # Probabilité CALIBRÉE : celle que l'historique autorise réellement
+        # pour une note de ce niveau. La combinée ci-dessus s'est révélée
+        # pire qu'un tirage à pile ou face (Brier 0,297 contre 0,250) —
+        # elle annonçait 83 % là où il montait 54 % du temps. On garde les
+        # deux côte à côte pour que l'écart reste visible.
+        "proba_calibree": calibration.proba_calibree(note_globale),
         "tendance_attendue": tendance_attendue,
         "amplitude_mediane_%": proj["rendement_median_%"],
         "intervalle_80": proj["intervalle_80"],
@@ -436,6 +442,8 @@ def bilan(horizon: int | None = None) -> dict:
         "premiere_date": df["date"].min().strftime("%Y-%m-%d"),
         "par_avis": par_avis,
         "competence": _mesurer_competence(df),
+        "calibration": calibration.apprendre(df),
+        "fiabilite_probas": calibration.courbe_fiabilite(df),
         "competence_par_horizon": [
             {**_mesurer_competence(df, f"rendement_h{h}_%", horizon_force=h),
              "horizon": h}
@@ -741,4 +749,15 @@ def calibrer() -> dict:
     POIDS_APPRIS.parent.mkdir(parents=True, exist_ok=True)
     POIDS_APPRIS.write_text(
         json.dumps(rapport, ensure_ascii=False, indent=1), encoding="utf-8")
+
+    # La calibration des probabilités s'apprend ICI, dans le même passage :
+    # `calibrer()` s'exécute avant la génération des verdicts, donc le modèle
+    # est en place quand les dossiers du jour appellent proba_calibree().
+    try:
+        modele = calibration.apprendre(df)
+        if modele.get("paliers"):
+            calibration.enregistrer(modele)
+        rapport["calibration_probas"] = modele.get("statut")
+    except Exception as exc:
+        rapport["calibration_probas"] = f"non calculée : {str(exc)[:80]}"
     return rapport
