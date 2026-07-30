@@ -507,11 +507,12 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
   footer.pied a:hover, footer.pied a:focus-visible { opacity: 1;
     background: color-mix(in srgb, CanvasText 8%, transparent); }
   @keyframes ml-flash { from { background: color-mix(in srgb,
-      #2a78d6 35%, transparent); } to { background: transparent; } }
-  .clignote { animation: ml-flash 1s ease-out; }
-  .pouls { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
-    background: #0a7a0a; animation: ml-pouls 2s infinite; vertical-align: middle; }
-  @keyframes ml-pouls { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+      #2a78d6 14%, transparent); } to { background: transparent; } }
+  .clignote { animation: ml-flash .6s ease-out; }
+  /* point statique : dans une interface financière, ce qui clignote doit
+     signaler une anomalie — pas le fonctionnement normal. */
+  .pouls { display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    background: #0a7a0a; vertical-align: middle; opacity: .75; }
   @media (prefers-reduced-motion: reduce) {
     .clignote, .pouls { animation: none; }
   }

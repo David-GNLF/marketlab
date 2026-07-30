@@ -7,6 +7,34 @@ const pct = (v, signe = false) =>
 const nb = (v) =>
   v == null ? "—" : Number(v).toLocaleString("fr-FR", { maximumFractionDigits: 4 });
 
+/**
+ * Marque MarketLab.
+ *
+ * Le dessin dit ce que fait l'outil : une courbe de marché, et sous elle la
+ * LIGNE DE RÉFÉRENCE contre laquelle on la mesure. C'est exactement le
+ * principe du projet — un rendement ne vaut que comparé à sa référence, une
+ * probabilité que confrontée à ce qui advient. Pas de flèche montante :
+ * l'outil ne promet pas la hausse, il mesure.
+ *
+ * Monochrome et en `currentColor` : lisible en thème clair comme sombre,
+ * sans image à charger.
+ */
+function Logo({ taille = 34 }) {
+  return (
+    <svg width={taille} height={taille} viewBox="0 0 40 40" role="img"
+         aria-label="MarketLab" style={{ flexShrink: 0 }}>
+      <rect x="1.5" y="1.5" width="37" height="37" rx="9"
+            fill="none" stroke="currentColor" strokeWidth="2" opacity="0.32" />
+      <line x1="9" y1="25.5" x2="31" y2="25.5" stroke="currentColor"
+            strokeWidth="1.5" strokeDasharray="2.5 2.5" opacity="0.45" />
+      <polyline points="9,29 15,21 20,24 25,14 31,17" fill="none"
+                stroke="currentColor" strokeWidth="2.4"
+                strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="25" cy="14" r="2.6" fill="currentColor" />
+    </svg>
+  );
+}
+
 function Tuile({ libelle, valeur, delta, note }) {
   return (
     <div className="tuile">
@@ -1390,7 +1418,13 @@ export default function App() {
   return (
     <FournisseurCours>
       <header className="ml-header">
-        <h1>MarketLab</h1>
+        <div className="ml-marque">
+          <Logo />
+          <div>
+            <h1>MarketLab</h1>
+            <div className="ml-signature">by GNLF Consult</div>
+          </div>
+        </div>
         <span className="ml-disclaimer">Analyses statistiques, pas des
           prédictions. Aucun contenu ne constitue un conseil en investissement.</span>
       </header>

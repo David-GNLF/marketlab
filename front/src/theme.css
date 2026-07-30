@@ -44,9 +44,20 @@ body {
 }
 #root { max-width: 1200px; margin: 0 auto; padding: 16px; }
 
-header.ml-header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
-header.ml-header h1 { font-size: 20px; margin: 8px 0; }
-.ml-disclaimer { color: var(--muted); font-size: 12px; }
+header.ml-header {
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  padding: 6px 0 2px;
+}
+header.ml-header h1 {
+  font-size: 21px; margin: 0; letter-spacing: -0.015em; font-weight: 650;
+}
+.ml-marque { display: flex; align-items: center; gap: 11px; }
+.ml-marque svg { color: var(--series-1); }
+.ml-signature {
+  font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--muted); margin-top: 2px;
+}
+.ml-disclaimer { color: var(--muted); font-size: 12px; max-width: 62ch; }
 
 nav.ml-nav { display: flex; gap: 4px; margin: 12px 0; border-bottom: 1px solid var(--border); }
 nav.ml-nav button {
