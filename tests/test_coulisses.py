@@ -1,4 +1,4 @@
-"""L'espace DevApp : des faits constatés, et surtout aucun secret.
+"""La page « Coulisses » : des faits constatés, et surtout aucun secret.
 
 Le test le plus important de ce fichier est celui des secrets. Cette page est
 publiée sur un site en ligne : elle traverse le réseau, elle est mise en cache
@@ -15,7 +15,7 @@ modification qu'on oublie d'y reporter, sans que rien ne le signale.
 import json
 import re
 
-from marketlab import config, devapp
+from marketlab import config, coulisses
 
 # Noms de champ qui trahiraient une valeur transportée par erreur.
 CHAMPS_INTERDITS = [
@@ -56,22 +56,22 @@ def _valeurs(objet, chemin=""):
 
 def test_aucun_nom_de_champ_sensible():
     """Un champ nommé « api_key » signalerait qu'une valeur voyage avec."""
-    texte = json.dumps(devapp.etat(), ensure_ascii=False, default=str).lower()
+    texte = json.dumps(coulisses.etat(), ensure_ascii=False, default=str).lower()
     trouves = [m for m in CHAMPS_INTERDITS if m.lower() in texte]
     assert not trouves, (
-        f"champs sensibles dans devapp.json : {trouves} — cette page est "
+        f"champs sensibles dans coulisses.json : {trouves} — cette page est "
         "publiée en ligne")
 
 
 def test_aucune_valeur_ressemblant_a_une_cle():
     """Le vrai test : pas de chaîne longue et aléatoire dans les valeurs."""
     suspects = []
-    for chemin, valeur in _valeurs(devapp.etat()):
+    for chemin, valeur in _valeurs(coulisses.etat()):
         for jeton in JETON_SUSPECT.findall(valeur):
             if not TOLERES.match(jeton):
                 suspects.append((chemin, jeton[:8] + "…"))
     assert not suspects, (
-        f"valeurs d'apparence secrète dans devapp.json : {suspects}")
+        f"valeurs d'apparence secrète dans coulisses.json : {suspects}")
 
 
 def test_le_detecteur_attrape_bien_une_vraie_cle():
@@ -86,7 +86,7 @@ def test_le_detecteur_attrape_bien_une_vraie_cle():
 
 def test_les_cles_ne_sont_qu_un_booleen():
     """Ni la valeur, ni sa longueur, ni un fragment : juste présent ou non."""
-    s = devapp.sources()
+    s = coulisses.sources()
     for cle in s["cles"]:
         assert set(cle) == {"nom", "role", "configuree"}, cle
         assert isinstance(cle["configuree"], bool)
@@ -100,7 +100,7 @@ def test_les_secrets_des_autres_etapes_ne_sont_pas_dits_absents():
     génère cette page. Les annoncer « absents » enverrait chercher une panne
     qui n'existe pas, et c'est exactement le tort qu'une console de
     diagnostic ne doit pas causer."""
-    for cle in devapp.sources()["cles_autres_etapes"]:
+    for cle in coulisses.sources()["cles_autres_etapes"]:
         assert "configuree" not in cle, (
             f"{cle['nom']} ne doit pas porter de verdict de configuration")
         assert cle["etape"], "l'étape qui l'emploie doit être nommée"
@@ -109,7 +109,7 @@ def test_les_secrets_des_autres_etapes_ne_sont_pas_dits_absents():
 def test_les_horaires_viennent_des_workflows():
     """Recopier un horaire dans une page, c'est garantir qu'il sera faux le
     jour où le workflow changera sans qu'on y pense."""
-    auto = devapp.automatisation()
+    auto = coulisses.automatisation()
     fichiers = {t["fichier"] for t in auto["taches"]}
     assert "publication.yml" in fichiers
     publication = next(t for t in auto["taches"]
@@ -121,7 +121,7 @@ def test_les_horaires_viennent_des_workflows():
 
 
 def test_la_feuille_de_route_vient_du_depot():
-    route = devapp.feuille_de_route()
+    route = coulisses.feuille_de_route()
     assert route, "docs/FEUILLE_DE_ROUTE.md introuvable ou illisible"
     assert all(set(r) == {"section", "livre", "texte"} for r in route)
     assert any(r["livre"] for r in route)
@@ -134,7 +134,7 @@ def test_le_compte_de_tests_ne_se_gonfle_pas():
     """Il compte des fonctions `def test_`, une grandeur exacte. Une version
     précédente devinait les cas paramétrés en comptant les virgules et
     annonçait 275 là où pytest en exécute 234."""
-    t = devapp.tests()
+    t = coulisses.tests()
     assert t["fichiers"] > 0 and t["fonctions"] > 0
     reel = sum(
         f.read_text(encoding="utf-8", errors="ignore").count("\ndef test_")
@@ -147,7 +147,7 @@ def test_le_perimetre_compte_ce_qui_est_sur_le_disque():
     """Pas la config : ce qui a RÉELLEMENT été écrit. C'est toute la valeur du
     tableau de bord — annoncer 36 séries alors que 6 sont publiées serait
     exactement le mensonge qu'il doit empêcher."""
-    p = devapp.perimetre()
+    p = coulisses.perimetre()
     dossier = config.ROOT / "site" / "donnees" / "series"
     attendu = len(list(dossier.glob("*.json"))) if dossier.exists() else 0
     assert p["series_publiees"] == attendu
@@ -158,6 +158,6 @@ def test_le_perimetre_compte_ce_qui_est_sur_le_disque():
 def test_l_etat_complet_est_serialisable():
     """Il finit dans un fichier JSON lu par un navigateur : un NaN ou un objet
     non sérialisable le rendrait illisible EN ENTIER."""
-    texte = json.dumps(devapp.etat(), ensure_ascii=False, default=str)
+    texte = json.dumps(coulisses.etat(), ensure_ascii=False, default=str)
     assert "NaN" not in texte
     json.loads(texte)

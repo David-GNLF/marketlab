@@ -26,17 +26,23 @@ def test_une_sonde_en_panne_nempeche_pas_les_autres(monkeypatch):
 
 
 def test_pas_de_doublon_avec_devapp():
-    """Les clés d'API et le périmètre sont déjà rendus par `devapp.sources()`
-    et `devapp.perimetre()`. Deux sondes répondant à la même question finissent
+    """Les clés d'API et le périmètre sont déjà rendus par `coulisses.sources()`
+    et `coulisses.perimetre()`. Deux sondes répondant à la même question finissent
     par se contredire, et c'est alors la console qu'on cesse de croire."""
     assert "cles" not in diagnostic.SONDES
     assert "perimetre" not in diagnostic.SONDES
 
 
-def test_le_diagnostic_est_greffe_dans_devapp():
-    """Une seule console, pas deux pages concurrentes."""
-    from marketlab import devapp
-    assert "analyse" in devapp.etat()
+def test_le_diagnostic_est_greffe_dans_coulisses():
+    """Une seule console, pas deux pages concurrentes.
+
+    Le module `devapp` a ete renomme `coulisses` : la page publique s'appelle
+    desormais « Coulisses », le nom « DevApp » restant a la console de
+    l'espace d'administration. Deux pages homonymes qui ne montrent pas la
+    meme chose sont une invitation a se tromper de porte.
+    """
+    from marketlab import coulisses
+    assert "analyse" in coulisses.etat()
 
 
 def test_une_panne_remonte_en_tete_de_page(monkeypatch):

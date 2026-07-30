@@ -87,4 +87,4 @@ export const getBarometres = () => charger("barometres.json");
 // État de l'application : dépôt, couverture des données, tâches planifiées,
 // feuille de route. Produit en FIN de génération — il compte ce qui vient
 // réellement d'être écrit.
-export const getDevApp = () => charger("devapp.json");
+export const getCoulisses = () => charger("coulisses.json");

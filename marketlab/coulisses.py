@@ -1,11 +1,11 @@
-"""État de l'application, publié comme le reste : l'espace DevApp.
+"""État de l'application, publié comme le reste : la page « Coulisses ».
 
 POURQUOI CE MODULE. Une plateforme d'analyse qui affiche des chiffres doit
 pouvoir dire d'où ils viennent, quand ils ont été produits, et ce qui a
 échoué en chemin. Jusqu'ici ces réponses étaient éparpillées : dans les
 journaux GitHub, dans `meta.json`, dans l'historique git, dans la tête de
-celui qui avait fait la modification. L'espace DevApp les rassemble en une
-page, servie comme tout le reste — un fichier JSON produit à la génération.
+celui qui avait fait la modification. La page « Coulisses » les rassemble en
+une page, servie comme tout le reste — un fichier JSON produit à la génération.
 
 CE QU'IL NE FAIT PAS. Il ne remplace pas la surveillance : un site statique
 ne peut pas se signaler lui-même en panne, c'est le rôle des notifications.
@@ -310,7 +310,14 @@ def feuille_de_route() -> list[dict]:
 
 
 def etat() -> dict:
-    """Le bloc complet publié dans `donnees/devapp.json`."""
+    """Le bloc complet publié dans `donnees/coulisses.json`.
+
+    NOM. « Coulisses » et non « DevApp » : la console de diagnostic de
+    l'espace d'administration porte déjà ce dernier nom, et deux pages
+    homonymes qui ne montrent pas la même chose sont une invitation à se
+    tromper de porte. Celle-ci est publique et descriptive ; l'autre est
+    derrière une connexion et sert à diagnostiquer.
+    """
     return {
         "depot": depot(),
         "tests": tests(),

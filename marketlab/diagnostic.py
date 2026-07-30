@@ -155,8 +155,8 @@ def _journal() -> dict:
     return etat
 
 
-# Les clés d'API et le périmètre ne figurent PAS ici : `devapp.sources()` et
-# `devapp.perimetre()` les couvrent déjà. Deux sondes qui répondent à la même
+# Les clés d'API et le périmètre ne figurent PAS ici : `coulisses.sources()`
+# et `coulisses.perimetre()` les couvrent déjà. Deux sondes qui répondent à la même
 # question finissent toujours par se contredire, et c'est alors la console
 # qu'on cesse de croire.
 SONDES = {

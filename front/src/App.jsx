@@ -1628,9 +1628,9 @@ function PageAlertes() {
 }
 
 // ---------------------------------------------------------------- App
-// ---------------------------------------------------------------- DevApp
+// ------------------------------------------------------------- Coulisses
 //
-// L'espace consacré à l'application elle-même : d'où viennent les chiffres,
+// La section consacrée à l'application elle-même : d'où viennent les chiffres,
 // quand ils ont été produits, ce qui a échoué, et ce qui reste à faire.
 //
 // Le principe est le même que pour le reste du site : ne rien AFFIRMER qui ne
@@ -1763,8 +1763,8 @@ function SectionAnalyse({ analyse: a }) {
   );
 }
 
-function PageDevApp() {
-  const { donnees: d, erreur } = useDonnees(api.getDevApp);
+function PageCoulisses() {
+  const { donnees: d, erreur } = useDonnees(api.getCoulisses);
   const [tout, setTout] = useState(false);
   if (!d) return <Chargement erreur={erreur} />;
 
@@ -1970,7 +1970,7 @@ const PAGES = {
   "Fondamentaux": PageFondamentaux,
   "Corrélations": PageCorrelations,
   "Portefeuille": PagePortefeuille,
-  "DevApp": PageDevApp,
+  "Coulisses": PageCoulisses,
 };
 
 function BandeauFlux() {

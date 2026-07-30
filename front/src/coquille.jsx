@@ -41,7 +41,7 @@ const GLYPHES = {
   "Corrélations": "M8 2v12M3 5l5 3 5-3M3 11l5-3 5 3",
   "Portefeuille": "M2 5h12v9H2zM5 5V3h6v2M2 9h12",
   // chevrons de code : la seule section qui parle de l'application
-  "DevApp": "M5.5 5L2 8l3.5 3M10.5 5L14 8l-3.5 3M9 3l-2 10",
+  "Coulisses": "M5.5 5L2 8l3.5 3M10.5 5L14 8l-3.5 3M9 3l-2 10",
 };
 
 export function Glyphe({ nom }) {
@@ -103,7 +103,7 @@ export function EtatDonnees({ meta, cours, actualise }) {
 /**
  * La coquille. Elle ne connaît AUCUNE page : on lui passe la liste des noms,
  * celui de la page courante, et le contenu. C'est ce qui permet d'ajouter un
- * espace (DevApp, par exemple) sans y toucher.
+ * espace (« Coulisses », par exemple) sans y toucher.
  */
 export function Coquille({ pages, page, setPage, titre, etat, children }) {
   const [ouvert, setOuvert] = useState(false);

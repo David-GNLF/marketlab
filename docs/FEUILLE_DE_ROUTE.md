@@ -1,7 +1,7 @@
 # Feuille de route MarketLab
 
-Ce fichier est **la** source de la feuille de route affichée dans l'espace
-DevApp du site. Une case n'est cochée que lorsque la chose est livrée ET
+Ce fichier est **la** source de la feuille de route affichée dans la page
+« Coulisses » du site. Une case n'est cochée que lorsque la chose est livrée ET
 vérifiée en ligne — pas quand elle est écrite.
 
 Format : `- [x] Titre — précision`.
@@ -44,7 +44,7 @@ Format : `- [x] Titre — précision`.
 - [x] Liste de suivi et filtres par thème
 - [x] Coquille en rail de navigation, pleine largeur
 - [x] Même graphique dans l'espace de trading
-- [x] Espace DevApp
+- [x] Page « Coulisses » : l'état de l'application, publié
 - [ ] Version installable sur téléphone (PWA)
 
 ## Exploitation

@@ -34,7 +34,7 @@ from pathlib import Path
 import pandas as pd
 
 from marketlab import (alerts, broker_tools, config, correlations, cot,
-                       decision, devapp, drivers, eco_calendar, events,
+                       coulisses, decision, drivers, eco_calendar, events,
                        forecast,
                        fundamentals, indicators, intraday, levels, macro,
                        news, paper, position, screener, seasonality,
@@ -375,17 +375,17 @@ def generer(titres: list[str] | None = None, blocs: list[str] | None = None,
     }
     _ecrire(DOSSIER_DONNEES / "meta.json", meta)
 
-    # L'espace DevApp est écrit EN DERNIER, et ce n'est pas un détail : il
+    # La page « Coulisses » est écrite EN DERNIER, et ce n'est pas un détail : il
     # compte les fiches et les séries réellement présentes sur le disque, et
     # relit meta.json. Le produire plus tôt donnerait l'état de la génération
     # PRÉCÉDENTE — un tableau de bord qui décrit la veille est pire que pas
     # de tableau de bord.
     try:
-        _ecrire(DOSSIER_DONNEES / "devapp.json", devapp.etat())
+        _ecrire(DOSSIER_DONNEES / "coulisses.json", coulisses.etat())
     except Exception as exc:
-        erreurs["devapp"] = f"{type(exc).__name__}: {exc}"
+        erreurs["coulisses"] = f"{type(exc).__name__}: {exc}"
         if verbeux:
-            print(f"  devapp ECHEC : {str(exc)[:120]}", flush=True)
+            print(f"  coulisses ECHEC : {str(exc)[:120]}", flush=True)
     return meta
 
 
