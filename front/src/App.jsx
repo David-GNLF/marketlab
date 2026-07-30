@@ -107,7 +107,7 @@ function PrixVivant({ symbole, secours, avecAge = true }) {
               title={c.source === "publié"
                 ? "repli sur le dernier cours publié par le site"
                 : "cotation du fournisseur"}>
-          {c.source === "publié" ? "📄" : (c.frais ? "🟢" : "⏳")}{" "}
+          {c.source === "publié" ? "publié" : (c.frais ? "direct" : "différé")}{" "}
           {ageTexte(c.age_s)}
         </span>
       )}
@@ -266,7 +266,7 @@ function PageTitre({ meta, symbole, setSymbole }) {
         <>
           {f.strategie && !f.strategie.erreur && (
             <div className="carte" style={{ borderLeft: "3px solid var(--series-1)" }}>
-              <h3 style={{ marginTop: 0 }}>🎯 {f.strategie.nom} — stratégie de
+              <h3 style={{ marginTop: 0 }}>{f.strategie.nom} — stratégie de
                 position</h3>
               <div className="rangee">
                 <div className="tuile" style={{ minWidth: 220 }}>
@@ -293,11 +293,11 @@ function PageTitre({ meta, symbole, setSymbole }) {
                 )}
               </div>
               {f.strategie.verdict?.conclusion?.texte && (
-                <p style={{ marginTop: 10 }}>🧭 <strong>Conclusion</strong> —{" "}
+                <p style={{ marginTop: 10 }}><strong>Conclusion</strong> —{" "}
                   {f.strategie.verdict.conclusion.texte}</p>
               )}
               {f.strategie.plan && (
-                <p style={{ marginTop: 10 }}>📋 Entrée {nb(f.strategie.plan.entree)} ·
+                <p style={{ marginTop: 10 }}>Entrée {nb(f.strategie.plan.entree)} ·
                   stop {nb(f.strategie.plan.stop)} · objectif{" "}
                   {nb(f.strategie.plan.objectif)} · ratio{" "}
                   {f.strategie.plan.ratio_gain_risque}
@@ -308,12 +308,12 @@ function PageTitre({ meta, symbole, setSymbole }) {
                 </p>
               )}
               {f.strategie.plan?.stop_suiveur && (
-                <p className="note">🪜 Stop suiveur (Chandelier) :{" "}
+                <p className="note">Stop suiveur (Chandelier) :{" "}
                   {nb(f.strategie.plan.stop_suiveur.niveau)} —{" "}
                   {f.strategie.plan.stop_suiveur.raison}</p>
               )}
               {f.strategie.renforts && (
-                <p className="note">🛡️ Renforts ({f.strategie.renforts.feux_verts}
+                <p className="note">Renforts ({f.strategie.renforts.feux_verts}
                   {" "}feux verts) —{" "}
                   {f.strategie.renforts.confluence?.raison}
                   {f.strategie.renforts.force_relative?.raison &&
@@ -324,7 +324,7 @@ function PageTitre({ meta, symbole, setSymbole }) {
                     <> · {f.strategie.renforts.kelly.raison}</>}</p>
               )}
               {f.strategie.verdict?.vetos?.map((v, i) => (
-                <p key={i} className="erreur">⚠️ {v}</p>
+                <p key={i} className="erreur">{v}</p>
               ))}
             </div>
           )}
@@ -368,7 +368,7 @@ function PageTitre({ meta, symbole, setSymbole }) {
 
           {f.brokers?.outils && (
             <div className="carte">
-              <h3>🧰 Les outils des brokers</h3>
+              <h3>Les outils des brokers</h3>
               <p className="note">Les six indicateurs les plus utilisés sur les
                 plateformes professionnelles. Ils décrivent — le verdict et ses
                 garde-fous restent seuls décideurs.</p>
@@ -386,14 +386,14 @@ function PageTitre({ meta, symbole, setSymbole }) {
               <p style={{ fontWeight: 600 }}>Consensus :{" "}
                 {f.brokers.consensus?.texte}</p>
               {f.brokers.avertissement_regime && (
-                <p className="erreur">⚠️ {f.brokers.avertissement_regime}</p>
+                <p className="erreur">{f.brokers.avertissement_regime}</p>
               )}
             </div>
           )}
           <div className="carte">
             <h3>Contexte</h3>
             {f.analogues && !f.analogues.erreur && (
-              <p>📚 <strong>Analogues historiques</strong> — sur les {f.analogues.k}
+              <p><strong>Analogues historiques</strong> — sur les {f.analogues.k}
                 {" "}configurations passées les plus proches : hausse dans{" "}
                 <strong>{f.analogues["proba_hausse_%"]} %</strong> des cas,
                 rendement médian {pct(f.analogues["rendement_median_%"], true)}
@@ -401,24 +401,24 @@ function PageTitre({ meta, symbole, setSymbole }) {
                 {pct(f.analogues["meilleur_%"])}).</p>
             )}
             {f.niveaux?.zones && (
-              <p>📉 <strong>Niveaux</strong> — supports :{" "}
+              <p><strong>Niveaux</strong> — supports :{" "}
                 {f.niveaux.zones.supports?.map((z) => nb(z.niveau)).join(", ") || "aucun"}
                 {" "}· résistances :{" "}
                 {f.niveaux.zones.resistances?.map((z) => nb(z.niveau)).join(", ") || "aucune"}</p>
             )}
             {f.resultats && !f.resultats.erreur && f.resultats.message && (
               <p className={f.resultats.dans_horizon ? "erreur" : ""}>
-                📣 <strong>Résultats</strong> — {f.resultats.message}</p>
+                <strong>Résultats</strong> — {f.resultats.message}</p>
             )}
             {f.moteurs?.length > 0 && f.moteurs.map((m, i) => (
-              <p key={i}>⚙️ <strong>{m.outil}</strong> — {m.lecture}</p>
+              <p key={i}><strong>{m.outil}</strong> — {m.lecture}</p>
             ))}
             {f.saisonnalite && !f.saisonnalite.erreur && (
-              <p>🗓️ <strong>Saisonnalité</strong> — {f.saisonnalite.conclusion}</p>
+              <p><strong>Saisonnalité</strong> — {f.saisonnalite.conclusion}</p>
             )}
             {f.sentiment && !f.sentiment.erreur && f.sentiment.n_titres > 0 && (
-              <p>📰 <strong>Actualités</strong> — sentiment {f.sentiment.lecture}
-                {" "}({f.sentiment.positifs}➕ / {f.sentiment.negatifs}➖ sur{" "}
+              <p><strong>Actualités</strong> — sentiment {f.sentiment.lecture}
+                {" "}({f.sentiment.positifs} positifs / {f.sentiment.negatifs} négatifs sur{" "}
                 {f.sentiment.n_titres} titres, mesure lexicale indicative).</p>
             )}
           </div>
@@ -633,22 +633,22 @@ const COULEUR_AVIS = {
 // comprendre la carte sans connaître la mécanique interne.
 function actionExplicite(d) {
   if (d.avis === "S'abstenir") {
-    return { texte: "⛔ NE PAS TRADER — un garde-fou bloque ce dossier",
+    return { texte: "NE PAS TRADER — un garde-fou bloque ce dossier",
              couleur: "var(--critical)" };
   }
   if (d.avis === "Favorable" && d.plan) {
     const t = d.taille_multiplicateur < 1
       ? ` à taille réduite (×${d.taille_multiplicateur})` : "";
-    return { texte: `🟢 ACHAT envisageable${t} — entrée ${nb(d.plan.entree)}, `
+    return { texte: `ACHAT envisageable${t} — entrée ${nb(d.plan.entree)}, `
              + `stop ${nb(d.plan.stop)}, objectif ${nb(d.plan.objectif)}`,
              couleur: "var(--good)" };
   }
   if (d.avis === "Défavorable") {
-    return { texte: "🔴 ÉVITER À L'ACHAT — analyses défavorables (le bilan "
+    return { texte: "ÉVITER À L'ACHAT — analyses défavorables (le bilan "
              + "déconseille aussi la vente à découvert : rester à l'écart)",
              couleur: "var(--critical)" };
   }
-  return { texte: "⚪ SURVEILLER — les analyses ne convergent pas assez pour agir",
+  return { texte: "SURVEILLER — les analyses ne convergent pas assez pour agir",
            couleur: "var(--muted)" };
 }
 
@@ -693,20 +693,20 @@ function PositionVive({ symbole, plan }) {
 
   let etat, couleur;
   if (prix <= stop) {
-    etat = "⛔ le stop du plan est déjà franchi — plan caduc, ne pas entrer";
+    etat = "Le stop du plan est déjà franchi — plan caduc, ne pas entrer";
     couleur = "var(--critical)";
   } else if (prix >= objectif) {
-    etat = "✅ l'objectif du plan est déjà atteint — le mouvement a eu lieu";
+    etat = "L'objectif du plan est déjà atteint — le mouvement a eu lieu";
     couleur = "var(--muted)";
   } else if (Math.abs(ecart) <= 0.5) {
-    etat = "🟢 au prix du plan — c'est le point d'entrée prévu";
+    etat = "Au prix du plan — c'est le point d'entrée prévu";
     couleur = "var(--good)";
   } else if (ecart > 0.5) {
-    etat = `⏳ ${pct(ecart)} au-dessus du plan — entrer maintenant dégrade le `
+    etat = `${pct(ecart)} au-dessus du plan — entrer maintenant dégrade le `
          + `rapport gain/risque ; attendre un repli vers ${nb(entree)}`;
     couleur = "var(--series-2)";
   } else {
-    etat = `🟢 ${pct(Math.abs(ecart))} sous le prix du plan — point d'entrée `
+    etat = `${pct(Math.abs(ecart))} sous le prix du plan — point d'entrée `
          + `plus favorable qu'au calcul`;
     couleur = "var(--good)";
   }
@@ -742,7 +742,7 @@ function PlanCourt({ court, horizon }) {
     <div style={{ marginTop: 8, paddingTop: 8,
                   borderTop: "1px dashed var(--grid)", fontSize: 13 }}>
       <span className="badge" style={{ marginRight: 8 }}>
-        ⚡ {horizon} séances</span>
+        {horizon} séances</span>
       <span style={{ color: couleur, fontWeight: 600 }}>{court.avis}</span>
       <span className="note"> · note {court.note_globale > 0 ? "+" : ""}
         {court.note_globale}</span>
@@ -814,8 +814,8 @@ function Verdict({ d, rang, onTitre, court, horizonCourt }) {
           <div className="tuile" style={{ minWidth: 112 }}
                title="ADX/DMI, Supertrend, Ichimoku, Fibonacci, Stochastique, OBV">
             <div className="libelle">outils brokers</div>
-            <div style={{ fontSize: 13 }}>{d.brokers.haussiers} 🟢 ·{" "}
-              {d.brokers.baissiers} 🔴 <span className="note">
+            <div style={{ fontSize: 13 }}>{d.brokers.haussiers} haussiers ·{" "}
+              {d.brokers.baissiers} baissiers <span className="note">
                 ({d.brokers.tendance})</span></div>
           </div>
         )}
@@ -829,10 +829,10 @@ function Verdict({ d, rang, onTitre, court, horizonCourt }) {
       <PlanCourt court={court} horizon={horizonCourt} />
       {d.brokers?.avertissement && (
         <p className="note" style={{ margin: "4px 0 0" }}>
-          ⚠️ {d.brokers.avertissement}</p>
+          {d.brokers.avertissement}</p>
       )}
       {d.vetos?.length > 0 && d.vetos.map((v, i) => (
-        <p key={i} className="erreur" style={{ margin: "4px 0 0" }}>⚠️ {v}</p>
+        <p key={i} className="erreur" style={{ margin: "4px 0 0" }}>{v}</p>
       ))}
       {ouvert && (
         <div style={{ marginTop: 10 }}>
@@ -849,7 +849,7 @@ function Verdict({ d, rang, onTitre, court, horizonCourt }) {
           ))}
           {d.contexte_marche && Object.keys(d.contexte_marche).length > 0 && (
             <div style={{ marginTop: 8 }}>
-              <p style={{ margin: "0 0 2px" }}>🧪 <strong>Briques candidates</strong>{" "}
+              <p style={{ margin: "0 0 2px" }}><strong>Briques candidates</strong>{" "}
                 <span className="note">— mesurées à chaque verdict, sans aucun
                 poids tant qu'elles n'ont rien prouvé</span></p>
               {Object.entries(d.contexte_marche).map(([nom, m]) => (
@@ -866,11 +866,11 @@ function Verdict({ d, rang, onTitre, court, horizonCourt }) {
             </div>
           )}
           {d.conclusion?.texte && (
-            <p style={{ marginTop: 8 }}>🧭 <strong>Conclusion</strong> —{" "}
+            <p style={{ marginTop: 8 }}><strong>Conclusion</strong> —{" "}
               {d.conclusion.texte}</p>
           )}
           {d.plan && (
-            <p style={{ marginTop: 8 }}>📋 Plan : entrée {nb(d.plan.entree)} ·
+            <p style={{ marginTop: 8 }}>Plan : entrée {nb(d.plan.entree)} ·
               stop {nb(d.plan.stop)} · objectif {nb(d.plan.objectif)} ·
               ratio {d.plan.ratio_gain_risque} ·
               P(stop) {d.plan["proba_toucher_stop_%"]} % ·
@@ -925,7 +925,7 @@ function PageDecisions({ onTitre }) {
             : comp.sens === "positif" ? "var(--good)" : "var(--baseline)"}` }}>
           <h3 style={{ marginTop: 0, color: comp.sens === "négatif"
               ? "var(--critical)" : "inherit" }}>
-            {comp.sens === "négatif" ? "⚠️ " : comp.sens === "positif" ? "✅ " : "🔍 "}
+            {comp.sens === "négatif" ? ""}
             Ce que vaut cet outil, mesuré sur ses propres verdicts</h3>
           <p>{comp.lecture}</p>
           <p className="note">Mesure : corrélation de rang entre la note
@@ -977,7 +977,7 @@ function PageDecisions({ onTitre }) {
             réordonne du plus favorable au plus défavorable selon le critère
             choisi. Chaque carte dit explicitement quoi faire, et « pourquoi ? »
             ouvre le détail. Le classement suit l'horizon officiel de{" "}
-            {donnees.horizon_officiel ?? 20} séances ; la ligne ⚡ donne le
+            {donnees.horizon_officiel ?? 20} séances ; la seconde ligne donne le
             pari indépendant à {donnees.horizon_court ?? 5} séances, dont la
             prévision, le stop et l'objectif sont recalculés pour cette
             fenêtre — les deux peuvent diverger, et c'est normal.</span>
@@ -1165,7 +1165,7 @@ function RapportSeance() {
   if (!r?.robots?.length) return null;
   return (
     <div className="carte">
-      <h3>🔬 Rapport de séance — ce qui était prévu contre ce qui est advenu</h3>
+      <h3>Rapport de séance — ce qui était prévu contre ce qui est advenu</h3>
       <p className="note">{r.lecture}</p>
       {r.robots.map((b) => (
         <div key={b.nom} style={{ marginTop: 12 }}>
@@ -1207,7 +1207,7 @@ function PageConcours() {
   return (
     <>
       <div className="carte">
-        <h3>🏆 Concours de trading virtuel</h3>
+        <h3>Concours de trading virtuel</h3>
         <p className="note">Chaque compte part avec{" "}
           {nb(donnees.capital_depart)} $ virtuels. Les robots appliquent les
           verdicts de l'outil — les battre, c'est battre la machine.
@@ -1216,11 +1216,11 @@ function PageConcours() {
         {donnees.experience && (
           <p className="note" style={{ borderLeft: "3px solid var(--series-1)",
                                        paddingLeft: 10 }}>
-            🔬 <strong>Expérience en cours</strong> — {donnees.experience}</p>
+            <strong>Expérience en cours</strong> — {donnees.experience}</p>
         )}
         <Table lignes={donnees.comptes?.map((c, i) => ({
           "#": i + 1,
-          compte: (c.est_robot ? "🤖 " : "👤 ") + c.nom,
+          compte: "" + c.nom,
           horizon: c.horizon ? `${c.horizon} séances` : "—",
           "équité $": c.equite,
           "perf %": c["perf_%"],
@@ -1230,7 +1230,7 @@ function PageConcours() {
       </div>
       {robots.map((robot) => (
         <div className="carte" key={robot.nom}>
-          <h3>🤖 {robot.nom} — horizon {robot.horizon ?? "?"} séances,
+          <h3>{robot.nom} — horizon {robot.horizon ?? "?"} séances,
             en transparence totale</h3>
           <p className="note">{donnees.regles_robot}</p>
           <h4>Positions ouvertes — suivies en direct</h4>
@@ -1319,7 +1319,7 @@ function PageAlertes() {
   return (
     <>
       <div className="carte">
-        <h3>🔔 Fil des alertes</h3>
+        <h3>Fil des alertes</h3>
         <p className="note">Le scanner est déclenché chaque heure ; les
           exécutions planifiées gratuites de GitHub étant au mieux-effort,
           seule une partie aboutit. Chaque déclenchement obtenu lance donc une
@@ -1355,9 +1355,9 @@ function PageAlertes() {
 
 // ---------------------------------------------------------------- App
 const PAGES = {
-  "🎯 Décisions": PageDecisions,
-  "🔔 Alertes": PageAlertes,
-  "🏆 Concours": PageConcours,
+  "Décisions": PageDecisions,
+  "Alertes": PageAlertes,
+  "Concours": PageConcours,
   "Marchés": PageMarches,
   "Titre": PageTitre,
   "Macro & agenda": PageMacro,
@@ -1381,7 +1381,7 @@ function BandeauFlux() {
 }
 
 export default function App() {
-  const [page, setPage] = useState("🎯 Décisions");
+  const [page, setPage] = useState("Décisions");
   const [symbole, setSymbole] = useState(null);
   const { donnees: meta, erreur } = useDonnees(api.getMeta);
 
@@ -1391,7 +1391,7 @@ export default function App() {
   return (
     <FournisseurCours>
       <header className="ml-header">
-        <h1>📈 MarketLab</h1>
+        <h1>MarketLab</h1>
         <span className="ml-disclaimer">Analyses statistiques, pas des
           prédictions. Aucun contenu ne constitue un conseil en investissement.</span>
       </header>
@@ -1400,12 +1400,12 @@ export default function App() {
           <button key={p} className={p === page ? "actif" : ""}
                   onClick={() => setPage(p)}>{p}</button>
         ))}
-        <a href="trading/" className="ml-nav-lien">🏦 Trader</a>
+        <a href="trading/" className="ml-nav-lien">Espace de trading</a>
         {/* Discret mais ATTEIGNABLE : un engrenage sans libellé, dans la barre
             de navigation. Placé en pied de page, il se retrouvait dix écrans
             plus bas sur la page Décisions — donc invisible en pratique. */}
         <a href="admin/" className="ml-nav-admin" title="Administration"
-           aria-label="Espace d'administration">⚙</a>
+           aria-label="Espace d'administration">Administration</a>
       </nav>
       {erreur && <p className="erreur">Données indisponibles : {erreur}</p>}
       {meta && (
@@ -1423,7 +1423,7 @@ export default function App() {
           propre connexion, réservée au rôle « admin », avec verrouillage après
           échecs répétés. */}
       <footer className="ml-pied">
-        <a href="admin/" title="Espace d'administration">⚙ Administration</a>
+        <a href="admin/" title="Espace d'administration">Administration</a>
       </footer>
     </FournisseurCours>
   );

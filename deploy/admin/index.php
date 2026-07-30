@@ -297,7 +297,7 @@ $audit = ($connecte && is_file(ML_AUDIT))
 </style>
 </head>
 <body>
-<h1>🛠️ MarketLab — administration</h1>
+<h1>MarketLab — administration</h1>
 
 <?php if ($message): ?>
   <p class="<?= $message[0] ?>"><?= h($message[1]) ?></p>
@@ -334,7 +334,7 @@ $audit = ($connecte && is_file(ML_AUDIT))
   </p>
 
   <div class="carte">
-    <h2>✉️ Inviter un utilisateur</h2>
+    <h2>Inviter un utilisateur</h2>
     <p class="note">L'invité reçoit un lien par e-mail et définit SON mot de
       passe : personne d'autre ne le connaît. Le rôle « trading » crée aussi
       son compte virtuel de 1 000 $.</p>
@@ -383,7 +383,7 @@ $audit = ($connecte && is_file(ML_AUDIT))
   <?php endif; ?>
 
   <div class="carte">
-    <h2>👥 Utilisateurs (<?= count($comptes_site) ?>)</h2>
+    <h2>Utilisateurs (<?= count($comptes_site) ?>)</h2>
     <table>
       <tr><th>Identifiant</th><th>E-mail</th><th>Rôles</th><th>Actions</th></tr>
       <?php foreach ($comptes_site as $n => $hachage):
@@ -428,7 +428,7 @@ $audit = ($connecte && is_file(ML_AUDIT))
   </div>
 
   <div class="carte">
-    <h2>🏦 Comptes de trading virtuel (<?= count($comptes_trading) ?>)</h2>
+    <h2>Comptes de trading virtuel (<?= count($comptes_trading) ?>)</h2>
     <p class="note">Équité = cash + marges engagées + P&amp;L latent (la mesure
       du concours). Solde dispo = cash utilisable pour de nouveaux ordres.</p>
     <table>
@@ -436,7 +436,7 @@ $audit = ($connecte && is_file(ML_AUDIT))
           <th>Trades</th><th>Actions</th></tr>
       <?php foreach ($comptes_trading as $n => $c): ?>
       <tr>
-        <td><?= $n === 'claude' ? '🤖 ' : '👤 ' ?><strong><?= h($n) ?></strong></td>
+        <td><?= $n === 'claude' ? 'robot ' : '' ?><strong><?= h($n) ?></strong></td>
         <td><strong><?= ml_montant(ml_equite_trading($c)) ?> $</strong></td>
         <td class="note"><?= ml_montant((float)($c['solde'] ?? 0)) ?> $</td>
         <td><?= count($c['positions'] ?? []) ?></td>
@@ -466,7 +466,7 @@ $audit = ($connecte && is_file(ML_AUDIT))
 
   <?php if ($audit): ?>
   <div class="carte">
-    <h2>📜 Journal d'audit (25 dernières actions)</h2>
+    <h2>Journal d'audit (25 dernières actions)</h2>
     <?php foreach (array_reverse($audit) as $l): ?>
       <p class="note" style="margin:3px 0"><?= h($l) ?></p>
     <?php endforeach; ?>

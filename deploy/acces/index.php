@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $invitation) {
 </style>
 </head>
 <body>
-<h1>📈 MarketLab</h1>
+<h1>MarketLab</h1>
 
 <?php if ($termine): ?>
   <div class="carte">

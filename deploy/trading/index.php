@@ -518,7 +518,7 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
 </style>
 </head>
 <body>
-<h1>🏦 MarketLab — trading virtuel</h1>
+<h1>MarketLab — trading virtuel</h1>
 <p class="note">Argent 100 % virtuel — 1 000 $ de départ, levier jusqu'à
   ×<?= LEVIER_MAX ?>, spread simulé de <?= SPREAD_PCT ?> %.
   <strong>Cotations rafraîchies en continu</strong> : crypto en temps réel,
@@ -576,13 +576,13 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
   <nav class="ancres">
     <a href="../" title="Retour au site">← Le site</a>
     <a href="../admin/" title="Administration" aria-label="Administration"
-       class="engrenage">⚙</a>
-    <a href="#marche">👁 Marché</a>
-    <a href="#ticket">🧾 Nouvel ordre</a>
-    <a href="#positions">📌 Positions (<?= count($compte['positions']) ?>)</a>
-    <a href="#ordres">⏳ Ordres en attente (<?= count($compte['ordres']) ?>)</a>
-    <a href="#historique">📜 Historique</a>
-    <a href="#moncompte">⚙️ Mon compte</a>
+       class="engrenage">Administration</a>
+    <a href="#marche">Marché</a>
+    <a href="#ticket">Nouvel ordre</a>
+    <a href="#positions">Positions (<?= count($compte['positions']) ?>)</a>
+    <a href="#ordres">Ordres en attente (<?= count($compte['ordres']) ?>)</a>
+    <a href="#historique">Historique</a>
+    <a href="#moncompte">Mon compte</a>
   </nav>
 
   <div class="carte grille">
@@ -608,10 +608,10 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
     toutes les 30 secondes.</p>
 
   <div class="carte" id="marche">
-    <h2>👁 Observation du marché</h2>
+    <h2>Observation du marché</h2>
     <p class="note">Cours rafraîchis automatiquement, avec l'âge réel de
-      chaque cotation (🟢 = direct, ⏳ = différé de la source gratuite,
-      📄 = repli sur l'instantané publié). L'avis, lui, vient de l'analyse
+      chaque cotation : « direct », « différé » (source gratuite),
+      « fermé » ou « publié » (repli sur l'instantané). L'avis, lui, vient de l'analyse
       quotidienne. « Trader » pré-remplit le ticket d'ordre ; le détail
       complet (salle de marché SENS / QUAND / MARGE) est sur
       <a href="../">le site</a>, onglet Titre.</p>
@@ -631,10 +631,10 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
               : (($f['var_pct'] >= 0 ? '+' : '')
                  . montant($f['var_pct'], 2) . ' %') ?></td>
         <td class="note" data-age="<?= h($sym) ?>">
-          <?= $f['source'] === 'publié' ? '📄 publié'
+          <?= $f['source'] === 'publié' ? 'publié'
               : (ml_marche_ouvert($f)
-                 ? '🟢 ' . h(ml_cours_age_texte($f['age_s']))
-                 : '🌙 fermé · ' . h(ml_cours_age_texte($f['age_s']))) ?></td>
+                 ? 'direct · ' . h(ml_cours_age_texte($f['age_s']))
+                 : 'fermé · ' . h(ml_cours_age_texte($f['age_s']))) ?></td>
         <td class="<?= str_starts_with((string)$f['avis'], 'Achat')
             ? 'avis-achat' : (str_starts_with((string)$f['avis'], 'Vente')
             ? 'avis-vente' : 'note') ?>"><?= h($f['avis'] ?? '—') ?></td>
@@ -649,7 +649,7 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
   </div>
 
   <div class="carte" id="ticket">
-    <h2>🧾 Nouvel ordre</h2>
+    <h2>Nouvel ordre</h2>
     <form method="post" id="form-ticket">
       <input type="hidden" name="a" value="ouvrir">
       <input type="hidden" name="csrf" value="<?= jeton_csrf() ?>">
@@ -664,8 +664,8 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
           </select></div>
         <div><label>Sens</label>
           <select name="sens" id="t-sens">
-            <option value="long">🟢 Acheter (long)</option>
-            <option value="short">🔴 Vendre (short)</option></select></div>
+            <option value="long">Acheter (long)</option>
+            <option value="short">Vendre (short)</option></select></div>
         <div><label>Type d'ordre</label>
           <select name="type_ordre" id="t-type">
             <option value="marche">Au marché (immédiat)</option>
@@ -698,7 +698,7 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
   </div>
 
   <div class="carte" id="positions">
-    <h2>📌 Positions ouvertes</h2>
+    <h2>Positions ouvertes</h2>
     <?php if (!$compte['positions']): ?>
       <p class="note">Aucune position.</p>
     <?php else: ?>
@@ -718,9 +718,9 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
           data-sens="<?= $p['sens'] === 'long' ? 1 : -1 ?>">
         <td><strong><?= h($p['symbole']) ?></strong>
           <?php if (($p['source'] ?? '') === 'ordre'): ?>
-            <span class="note" title="issue d'un ordre en attente">⏳</span>
+            <span class="note" title="issue d'un ordre en attente">(ordre)</span>
           <?php endif; ?></td>
-        <td><?= $p['sens'] === 'long' ? '🟢 long' : '🔴 short' ?></td>
+        <td><?= $p['sens'] === 'long' ? 'long' : 'short' ?></td>
         <td>×<?= (int)$p['levier'] ?></td>
         <td><?= montant($p['marge'], 0) ?> $</td>
         <td><?= round($p['prix_entree'], 4) ?></td>
@@ -764,7 +764,7 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
   </div>
 
   <div class="carte" id="ordres">
-    <h2>⏳ Ordres en attente</h2>
+    <h2>Ordres en attente</h2>
     <?php if (!$compte['ordres']): ?>
       <p class="note">Aucun ordre en attente. Un ordre limite ou stop placé
         dans le ticket ci-dessus apparaîtra ici jusqu'à son exécution (dès
@@ -780,7 +780,7 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
             $c = dernier_cours($o['symbole']); ?>
       <tr>
         <td><strong><?= h($o['symbole']) ?></strong></td>
-        <td><?= $o['sens'] === 'long' ? '🟢 long' : '🔴 short' ?></td>
+        <td><?= $o['sens'] === 'long' ? 'long' : 'short' ?></td>
         <td><?= h($o['type']) ?></td>
         <td><?= round($o['prix'], 4) ?></td>
         <td data-prix="<?= h($o['symbole']) ?>">
@@ -807,7 +807,7 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
   </div>
 
   <div class="carte" id="historique">
-    <h2>📜 Historique
+    <h2>Historique
       (<?= count($compte['historique'] ?? []) ?> trades clos)</h2>
     <?php $hist = $compte['historique'] ?? [];
           if (!$hist): ?>
@@ -843,7 +843,7 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
   </div>
 
   <div class="carte" id="moncompte">
-    <h2>⚙️ Mon compte</h2>
+    <h2>Mon compte</h2>
     <p class="note">Créé le <?= h($compte['cree_le'] ?? '?') ?> ·
       capital initial <?= montant($compte['capital_initial'], 0) ?> $.</p>
     <div class="grille">
@@ -925,9 +925,9 @@ const ML = {
             : `${c.var_pct >= 0 ? '+' : ''}${nf(c.var_pct, 2)} %`));
       document.querySelectorAll(`[data-age="${CSS.escape(sym)}"]`)
         .forEach((el) => {
-          el.textContent = c.source === 'publié' ? '📄 publié'
-            : c.marche_ouvert ? `🟢 ${ageTexte(c.age_s)}`
-                              : `🌙 fermé · ${ageTexte(c.age_s)}`;
+          el.textContent = c.source === 'publié' ? 'publié'
+            : c.marche_ouvert ? `direct · ${ageTexte(c.age_s)}`
+                              : `fermé · ${ageTexte(c.age_s)}`;
         });
       // le ticket doit calculer sur le prix vivant
       document.querySelectorAll(`#t-symbole option[value="${CSS.escape(sym)}"]`)
@@ -1061,7 +1061,7 @@ const ML = {
      propre connexion réservée au rôle « admin ». -->
 <footer class="pied">
   <a href="../" title="Retour au site">← Le site</a>
-  <a href="../admin/" title="Espace d'administration">⚙ Administration</a>
+  <a href="../admin/" title="Espace d'administration">Administration</a>
 </footer>
 </body>
 </html>
