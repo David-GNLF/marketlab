@@ -27,6 +27,8 @@ publication des autres, et l'erreur est consignée dans meta.json.
 """
 
 import json
+import posixpath
+import re
 import shutil
 import traceback
 from pathlib import Path
@@ -417,12 +419,57 @@ PAGES_ESPACES = [
     "trading/index.php",
     "admin/index.php",
     "admin/commun.php",
+    "admin/comptes_lib.php",
+    "admin/compte.php",
+    "admin/comparer.php",
     "acces/index.php",
 ]
 
+# `require` / `include` d'un fichier voisin, tels qu'écrits dans ces pages.
+_DEPENDANCE_PHP = re.compile(
+    r"(?:require|include)(?:_once)?\s*__DIR__\s*\.\s*['\"]/([^'\"]+)['\"]")
+
+
+def _dependances_manquantes(copies: list[str]) -> list[str]:
+    """Fichiers exigés par une page publiée mais absents de la publication.
+
+    LE PIÈGE QUE ÇA FERME, vécu le 2026-07-30. `admin/index.php` a reçu un
+    `require __DIR__ . '/comptes_lib.php'` sans que le fichier soit ajouté à
+    PAGES_ESPACES. La publication a donc mis en ligne un index qui exige un
+    fichier absent : erreur fatale PHP, panneau d'administration injoignable,
+    et RIEN ne l'avait signalé — ni les tests, ni la vérification de cohérence,
+    puisque tout allait bien côté dépôt.
+
+    La liste explicite reste la bonne conception (copier `deploy/trading/` en
+    entier écraserait les portefeuilles réels), mais elle demande qu'on pense à
+    l'alimenter. Cette vérification s'en charge à notre place.
+    """
+    publies = set(copies)
+    manquantes = []
+    for nom in copies:
+        chemin = RACINE_SITE / nom
+        try:
+            contenu = chemin.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        dossier = str(Path(nom).parent).replace("\\", "/")
+        for exige in _DEPENDANCE_PHP.findall(contenu):
+            brut = exige if dossier in ("", ".") else f"{dossier}/{exige}"
+            # normaliser les « .. » : `trading/index.php` exige
+            # `__DIR__ . '/../cours_lib.php'`, qui désigne bien le
+            # `cours_lib.php` de la racine, déjà publié
+            attendu = posixpath.normpath(brut)
+            if attendu not in publies:
+                manquantes.append(f"{nom} exige {attendu}")
+    return manquantes
+
 
 def copier_php() -> list[str]:
-    """Copie les fichiers PHP versionnés dans le site. Renvoie les noms copiés."""
+    """Copie les fichiers PHP versionnés dans le site. Renvoie les noms copiés.
+
+    Lève si une page publiée dépend d'un fichier qui ne l'est pas : mieux vaut
+    une publication qui échoue bruyamment qu'un espace en erreur fatale.
+    """
     copies = []
     for nom in RELAIS_PHP + PAGES_ESPACES:
         source = config.ROOT / "deploy" / nom
@@ -431,6 +478,11 @@ def copier_php() -> list[str]:
             cible.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, cible)
             copies.append(nom)
+    manquantes = _dependances_manquantes(copies)
+    if manquantes:
+        raise RuntimeError(
+            "Dépendance PHP non publiée — ajouter le fichier à PAGES_ESPACES : "
+            + " ; ".join(manquantes))
     return copies
 
 
