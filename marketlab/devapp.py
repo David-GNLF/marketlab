@@ -41,9 +41,17 @@ from marketlab import config, diagnostic
 # D'où la règle : pour un fournisseur, on interroge le LECTEUR RÉEL de la clé
 # (`fred.api_key()`, `premium.api_key()`), jamais un nom de variable recopié
 # ici. Le jour où un nom change, la console suit toute seule.
-CLES_ATTENDUES = {
-    "MARKETLAB_FTP_HOTE": "publication du site (FTPS)",
-    "MARKETLAB_NTFY_TOPIC": "notifications d'alerte",
+# UN SECRET N'EST VISIBLE QUE DE L'ÉTAPE QUI LE REÇOIT. Ces deux-là sont bien
+# configurés, mais ils sont passés aux étapes d'ENVOI (publication FTPS, robot,
+# notifications) — pas à celle qui génère l'instantané, d'où sort cette page.
+# Elle ne peut donc pas les voir, et les annoncer « absents » serait faux.
+#
+# On ne les ajoute pas non plus à l'étape de génération pour faire joli : un
+# secret se donne à ce qui en a besoin, jamais « au cas où ». Ils sont donc
+# listés à part, avec la mention de l'étape qui les emploie.
+CLES_HORS_GENERATION = {
+    "MARKETLAB_FTP_HOTE": ("publication du site (FTPS)", "envoi du site"),
+    "MARKETLAB_NTFY_TOPIC": ("notifications d'alerte", "veille et robot"),
 }
 
 # Fournisseurs dont la clé se lit par leur propre module.
@@ -208,18 +216,19 @@ def sources() -> dict:
         ],
         # Uniquement un booléen : jamais la valeur, jamais un fragment.
         #
-        # Vraie question posée : la clé est-elle présente dans l'environnement
-        # qui PUBLIE ? En local elle apparaîtra souvent absente, et c'est
-        # exact — c'est GitHub Actions qui publie.
+        # Ceux-ci répondent d'eux-mêmes : on interroge le lecteur réel de la
+        # clé au lieu de recopier un nom de variable qui peut changer.
         "cles": [
-            {"nom": nom, "role": role, "configuree": bool(os.environ.get(nom))}
-            for nom, role in CLES_ATTENDUES.items()
-        ] + [
-            # Ceux-là répondent d'eux-mêmes : on interroge le lecteur réel de
-            # la clé au lieu de recopier un nom de variable qui peut changer.
             {"nom": nom, "role": role,
              "configuree": _cle_fournisseur(module, fonction)}
             for nom, (role, module, fonction) in LECTEURS_DE_CLE.items()
+        ],
+        # Vus depuis ailleurs : la génération ne les reçoit pas, elle ne peut
+        # donc rien en dire. Les déclarer « absents » serait un mensonge.
+        "cles_autres_etapes": [
+            {"nom": nom, "role": role, "etape": etape,
+             "visible_ici": bool(os.environ.get(nom))}
+            for nom, (role, etape) in CLES_HORS_GENERATION.items()
         ],
     }
 

@@ -1866,17 +1866,35 @@ function PageDevApp() {
         }))} />
         <h3 style={{ marginTop: 14 }}>Accès configurés</h3>
         <p className="note">Présence seulement : cette page ne montre jamais
-          une clé, ni même un fragment. La question posée est « la clé est-elle
-          présente dans l'environnement qui PUBLIE » — c'est-à-dire GitHub
-          Actions, pas ce navigateur.</p>
+          une clé, ni même un fragment. Ce qui est constaté ici, c'est ce que
+          voit l'étape qui GÉNÈRE le site — pas ce navigateur.</p>
         {sources.cles.map((c) => (
           <p key={c.nom} style={{ margin: "4px 0" }}>
             <span className="badge" style={{ marginRight: 8,
-              color: c.configuree ? "var(--good)" : "var(--muted)" }}>
+              color: c.configuree ? "var(--good)" : "var(--critical)" }}>
               {c.configuree ? "configurée" : "absente"}</span>
+            <strong style={{ marginRight: 8 }}>{c.nom}</strong>
             <span className="note">{c.role}</span>
           </p>
         ))}
+        {sources.cles_autres_etapes?.length > 0 && (
+          <>
+            <p className="note" style={{ marginTop: 10 }}>Les accès suivants
+              sont remis à d'AUTRES étapes de la chaîne. La génération ne les
+              reçoit pas — un secret se donne à ce qui en a besoin, jamais au
+              cas où — elle ne peut donc pas se prononcer sur eux. Leur bon
+              fonctionnement se constate autrement : si l'envoi FTPS échouait,
+              le site ne serait pas à jour ; si le canal d'alerte échouait,
+              vous ne recevriez plus rien.</p>
+            {sources.cles_autres_etapes.map((c) => (
+              <p key={c.nom} style={{ margin: "4px 0" }}>
+                <span className="badge" style={{ marginRight: 8 }}>
+                  {c.etape}</span>
+                <span className="note">{c.role}</span>
+              </p>
+            ))}
+          </>
+        )}
       </div>
 
       <SectionAnalyse analyse={d.analyse} />

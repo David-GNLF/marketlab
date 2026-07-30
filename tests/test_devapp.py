@@ -34,9 +34,24 @@ def test_aucun_secret_dans_le_bloc_publie():
 
 def test_les_cles_ne_sont_qu_un_booleen():
     """Ni la valeur, ni sa longueur, ni un fragment : juste présent ou non."""
-    for cle in devapp.sources()["cles"]:
+    s = devapp.sources()
+    for cle in s["cles"]:
         assert set(cle) == {"nom", "role", "configuree"}, cle
         assert isinstance(cle["configuree"], bool)
+    for cle in s["cles_autres_etapes"]:
+        assert set(cle) == {"nom", "role", "etape", "visible_ici"}, cle
+        assert isinstance(cle["visible_ici"], bool)
+
+
+def test_les_secrets_des_autres_etapes_ne_sont_pas_dits_absents():
+    """Ils sont configurés — simplement remis à une AUTRE étape que celle qui
+    génère cette page. Les annoncer « absents » enverrait chercher une panne
+    qui n'existe pas, et c'est exactement le tort qu'une console de
+    diagnostic ne doit pas causer."""
+    for cle in devapp.sources()["cles_autres_etapes"]:
+        assert "configuree" not in cle, (
+            f"{cle['nom']} ne doit pas porter de verdict de configuration")
+        assert cle["etape"], "l'étape qui l'emploie doit être nommée"
 
 
 def test_les_horaires_viennent_des_workflows():
