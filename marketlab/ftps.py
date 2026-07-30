@@ -282,6 +282,28 @@ def purger_assets(session: ftplib.FTP_TLS, base: str, dossier_local: Path,
     return bilan
 
 
+# Ce qui ne DOIT jamais partir vers l'hébergement, même si un essai local en a
+# laissé une copie dans `site/`.
+#
+# `trading/comptes/` est le cas grave : ces fichiers sont les portefeuilles
+# réels, ils vivent sur l'hébergement et NULLE PART ailleurs. Un compte de
+# test créé pendant une vérification locale écraserait un vrai compte, solde
+# compris. La règle est donc inversée par rapport au reste du site : sur cette
+# arborescence, c'est l'hébergement qui fait autorité, jamais le poste.
+EXCLUS_DE_LA_PUBLICATION = (
+    "trading/comptes",     # portefeuilles : l'hébergement fait foi
+    "admin/sessions",      # sessions administrateur
+    "cache",               # caches des relais PHP
+    "routeur-essai.php",   # routeur de vérification locale, jamais en ligne
+)
+
+
+def _a_exclure(chemin: Path, racine: Path) -> bool:
+    relatif = chemin.relative_to(racine).as_posix()
+    return any(relatif == e or relatif.startswith(e + "/")
+               for e in EXCLUS_DE_LA_PUBLICATION)
+
+
 def publier(dossier_local: Path | None = None, verbeux: bool = True,
             purger: bool = True) -> dict:
     """Envoie le contenu de `site/` vers l'hébergement. Renvoie le bilan."""
@@ -292,7 +314,8 @@ def publier(dossier_local: Path | None = None, verbeux: bool = True,
 
     cfg = charger_config()
     base = cfg["dossier_distant"].rstrip("/")
-    fichiers = sorted(p for p in dossier_local.rglob("*") if p.is_file())
+    fichiers = sorted(p for p in dossier_local.rglob("*")
+                      if p.is_file() and not _a_exclure(p, dossier_local))
     if not fichiers:
         raise RuntimeError(f"Aucun fichier dans {dossier_local}")
 

@@ -294,10 +294,29 @@ $audit = ($connecte && is_file(ML_AUDIT))
     color-mix(in srgb, CanvasText 6%, transparent); padding: 8px;
     border-radius: 6px; }
   form.enligne { display: inline; }
+  /* Bandeau de navigation entre les trois espaces. L'administration était
+     le seul cul-de-sac de la plateforme : on y entrait, on n'en ressortait
+     qu'en retapant l'adresse à la main. Même barre que l'espace de trading,
+     mêmes destinations, à la même place. */
+  nav.espaces { display: flex; gap: 4px; flex-wrap: wrap; margin: 10px 0 16px;
+    border-bottom: 1px solid color-mix(in srgb, CanvasText 12%, transparent);
+    padding-bottom: 8px; }
+  nav.espaces a { text-decoration: none; color: CanvasText; font-size: 13px;
+    padding: 6px 10px; border-radius: 6px;
+    border: 1px solid color-mix(in srgb, CanvasText 18%, transparent); }
+  nav.espaces a:hover { background: color-mix(in srgb, CanvasText 7%, transparent); }
+  nav.espaces a.ici { background: color-mix(in srgb, CanvasText 10%, transparent);
+    font-weight: 600; }
 </style>
 </head>
 <body>
 <h1>MarketLab — administration</h1>
+
+<nav class="espaces">
+  <a href="../" title="Retour au site d'analyse">← Le site</a>
+  <a href="../trading/" title="Espace de trading virtuel">Espace de trading</a>
+  <a href="./" class="ici" aria-current="page">Administration</a>
+</nav>
 
 <?php if ($message): ?>
   <p class="<?= $message[0] ?>"><?= h($message[1]) ?></p>

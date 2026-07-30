@@ -2,8 +2,8 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import * as api from "./api";
 import { GraphiqueCone } from "./charts";
 import {
-  ECHELLES, GardeGraphique, GraphiqueTerminal, TYPES, dernieresSeances,
-  enBougies, fusionner, precision,
+  GardeGraphique, GraphiqueTerminal, PAS, TYPES, agreger, enBougies,
+  fusionner, precision, socle,
 } from "./graphique";
 
 const pct = (v, signe = false) =>
@@ -319,11 +319,13 @@ function useSerie(symbole, fine) {
                    document.removeEventListener("visibilitychange", reveil); };
   }, [symbole, fine]);
 
-  const intraday = useMemo(
-    () => fusionner(donnees?.intraday, fraiche),
-    [donnees, fraiche]);
-  return { quotidien: donnees?.quotidien, intraday, erreur,
-           fraiche: Boolean(fraiche) };
+  // Les trois socles publiés, la tête fraîche recollée sur le plus fin.
+  const series = useMemo(() => ({
+    quotidien: donnees?.quotidien,
+    horaire: donnees?.horaire,
+    intraday: fusionner(donnees?.intraday, fraiche),
+  }), [donnees, fraiche]);
+  return { series, erreur, fraiche: Boolean(fraiche) };
 }
 
 /** Liste de suivi : le sélecteur de titre d'un terminal, pas un menu déroulant.
@@ -372,8 +374,8 @@ function ListeSuivi({ titres, actif, onChoisir }) {
 }
 
 /** Barreau d'outils du graphique : échelle de temps, type de tracé, surcouches. */
-function BarreOutils({ echelle, setEchelle, type, setType,
-                       surcouches, setSurcouches, log, setLog, intradayDispo }) {
+function BarreOutils({ pas, setPas, type, setType,
+                       surcouches, setSurcouches, log, setLog, dispo }) {
   const bascule = (cle) => setSurcouches((s) => ({ ...s, [cle]: !s[cle] }));
   const surcouche = (cle, libelle, titre) => (
     <button type="button" title={titre}
@@ -382,18 +384,19 @@ function BarreOutils({ echelle, setEchelle, type, setType,
   );
   return (
     <div className="ml-outils">
-      <div className="ml-groupe" role="group" aria-label="Échelle de temps">
-        {ECHELLES.map((e) => {
-          // Sans barres fines publiées (BRVM, titre récent, source en panne),
-          // les échelles intrajournalières n'ont rien à montrer : mieux vaut
-          // un bouton désactivé et explicite qu'un graphique vide.
-          const off = e.source === "intraday" && !intradayDispo;
+      <div className="ml-groupe" role="group" aria-label="Pas de bougie">
+        {PAS.map((e) => {
+          // Sans le socle correspondant (BRVM, titre récent, source en
+          // panne), le pas n'a rien à montrer : mieux vaut un bouton
+          // désactivé et explicite qu'un graphique vide.
+          const off = !dispo?.[e.base];
           return (
             <button key={e.cle} type="button" disabled={off}
-                    title={off ? "aucune barre 5 min disponible pour ce titre"
-                               : `${e.libelle} d'historique`}
-                    className={"ml-chip" + (echelle === e.cle ? " actif" : "")}
-                    onClick={() => setEchelle(e.cle)}>{e.libelle}</button>
+                    title={off
+                      ? `aucune barre ${e.libelle} disponible pour ce titre`
+                      : `une bougie = ${e.libelle}`}
+                    className={"ml-chip" + (pas === e.cle ? " actif" : "")}
+                    onClick={() => setPas(e.cle)}>{e.libelle}</button>
           );
         })}
       </div>
@@ -453,7 +456,7 @@ function PageTitre({ meta, symbole, setSymbole }) {
   const actif = symbole && dispo.includes(symbole) ? symbole : dispo[0];
   const { donnees: f, erreur } = useDonnees(() => api.getTitre(actif), [actif]);
 
-  const [echelle, setEchelle] = useState("6M");
+  const [pas, setPas] = useState("D1");
   const [type, setType] = useState("bougies");
   const [log, setLog] = useState(false);
   const [surcouches, setSurcouches] = useState({
@@ -462,26 +465,20 @@ function PageTitre({ meta, symbole, setSymbole }) {
   });
   const [survol, setSurvol] = useState(null);
 
-  const conf = ECHELLES.find((e) => e.cle === echelle) ?? ECHELLES[4];
-  const fine = conf.source === "intraday";
-  const { quotidien, intraday, fraiche } = useSerie(actif, fine);
+  const conf = PAS.find((e) => e.cle === pas) ?? PAS[4];
+  const fine = conf.base === "intraday";
+  const { series, fraiche } = useSerie(actif, fine);
 
-  // Le bloc réellement tracé : découpé à l'échelle demandée, et rien de plus.
+  // Le bloc réellement tracé : le socle qui convient au pas, agrégé au pas.
   const bloc = useMemo(() => {
-    if (fine) return dernieresSeances(intraday, conf.seances);
-    if (!quotidien?.t?.length) return null;
-    const n = Math.min(conf.barres, quotidien.t.length);
-    if (n >= quotidien.t.length) return quotidien;
-    const debut = quotidien.t.length - n;
-    const coupe = (c) => (Array.isArray(c) ? c.slice(debut) : c);
-    return {
-      ...quotidien, t: coupe(quotidien.t), o: coupe(quotidien.o),
-      h: coupe(quotidien.h), l: coupe(quotidien.l), c: coupe(quotidien.c),
-      v: coupe(quotidien.v), sma50: coupe(quotidien.sma50),
-      sma200: coupe(quotidien.sma200), bb_upper: coupe(quotidien.bb_upper),
-      bb_lower: coupe(quotidien.bb_lower), n,
-    };
-  }, [fine, intraday, quotidien, conf]);
+    const base = socle(series, conf);
+    return base ? agreger(base, conf) : null;
+  }, [series, conf]);
+  const soclesDispo = useMemo(() => ({
+    intraday: Boolean(series.intraday?.t?.length),
+    horaire: Boolean(series.horaire?.t?.length),
+    quotidien: Boolean(series.quotidien?.t?.length),
+  }), [series]);
 
   // Sur une vue intrajournalière, les moyennes 50/200 séances n'existent pas :
   // les demander tracerait une ligne plate absurde. On les retire de la
@@ -489,10 +486,14 @@ function PageTitre({ meta, symbole, setSymbole }) {
   // intactes en repassant au quotidien.
   const surcouchesActives = useMemo(() => ({
     ...surcouches,
-    sma50: surcouches.sma50 && !fine,
-    sma200: surcouches.sma200 && !fine,
-    bollinger: surcouches.bollinger && !fine,
-  }), [surcouches, fine]);
+    // Les moyennes et bandes publiées sont calculées sur des SÉANCES :
+    // les afficher sur un pas de 5 minutes ou de quatre heures tracerait
+    // une courbe qui ne veut rien dire. Elles restent cochées, simplement
+    // sans effet hors du pas quotidien, et l'utilisateur les retrouve.
+    sma50: surcouches.sma50 && conf.cle === "D1",
+    sma200: surcouches.sma200 && conf.cle === "D1",
+    bollinger: surcouches.bollinger && conf.cle === "D1",
+  }), [surcouches, conf]);
 
   const derniere = useMemo(() => {
     const b = enBougies(bloc);
@@ -529,16 +530,16 @@ function PageTitre({ meta, symbole, setSymbole }) {
             </div>
 
             <div className="carte">
-              <BarreOutils echelle={echelle} setEchelle={setEchelle}
+              <BarreOutils pas={pas} setPas={setPas}
                            type={type} setType={setType}
                            surcouches={surcouches} setSurcouches={setSurcouches}
-                           log={log} setLog={setLog}
-                           intradayDispo={Boolean(intraday?.t?.length)} />
+                           log={log} setLog={setLog} dispo={soclesDispo} />
               <LectureOHLC point={survol} derniere={derniere} dec={dec} />
               {bloc?.t?.length ? (
-                <GardeGraphique key={`${actif}-${type}-${echelle}`}>
+                <GardeGraphique key={`${actif}-${type}-${pas}`}>
                   <GraphiqueTerminal
                     bloc={bloc} type={type} surcouches={surcouchesActives}
+                    barresVisibles={conf.visibles}
                     logarithmique={log} hauteur={430} onSurvol={setSurvol}
                     plan={surcouches.plan ? f.strategie?.plan : null}
                     niveaux={surcouches.niveaux ? f.niveaux?.zones : null} />
@@ -549,11 +550,15 @@ function PageTitre({ meta, symbole, setSymbole }) {
                   publication la produira.</p>
               )}
               <p className="note">
+                {`Une bougie = ${conf.libelle}. `}
                 {fine
                   ? (fraiche
-                     ? "Barres de 5 minutes rafraîchies toutes les minutes depuis la source."
-                     : "Barres de 5 minutes de la dernière publication : le relais direct n'a rien renvoyé (marché fermé ou source indisponible).")
-                  : "Bougies quotidiennes de clôture à clôture."}
+                     ? "Série rafraîchie chaque minute depuis la source."
+                     : "Série de la dernière publication : le relais direct n'a rien renvoyé (marché fermé ou source indisponible).")
+                  : conf.cle === "D1"
+                    ? "Clôture à clôture, cinq ans d'historique."
+                    : "Agrégé dans le navigateur à partir du socle "
+                      + (conf.base === "horaire" ? "horaire." : "quotidien.")}
                 {surcouches.plan && f.strategie?.plan &&
                   " Le plan du verdict est tracé sur le prix : entrée pleine, stop en rouge, objectif en vert."}
                 {" "}Molette pour zoomer, glisser pour se déplacer.

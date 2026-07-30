@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "build": "vite build && vite build --config vite.trading.config.js",
+    "preview": "vite preview",
+    "build:trading": "vite build --config vite.trading.config.js"
   },
   "dependencies": {
     "lightweight-charts": "^4.2.3",

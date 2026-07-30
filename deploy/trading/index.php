@@ -82,6 +82,28 @@ function cotations(): array {
     return $cotations;
 }
 
+/** Thème de chaque actif (Forex, Crypto, Actions US…), lu dans le screener
+ *  publié. C'est la config du moteur qui fait foi, jamais une déduction par
+ *  suffixe : « Actions US », « Actions EU » et « Actions Asie » ne se
+ *  distinguent pas autrement, et c'est justement la distinction utile pour
+ *  lire un tableau de trente-six lignes. */
+function themes_actifs(): array {
+    static $themes = null;
+    if ($themes !== null) return $themes;
+    $themes = [];
+    $f = DOSSIER_DONNEES . '/screener.json';
+    foreach (json_decode((string)@file_get_contents($f), true) ?: [] as $l) {
+        if (!empty($l['symbole']) && !empty($l['theme'])) {
+            $themes[$l['symbole']] = $l['theme'];
+        }
+    }
+    return $themes;
+}
+
+function theme_actif(string $symbole): string {
+    return themes_actifs()[$symbole] ?? 'Autres';
+}
+
 /** Identité de l'actif (nom, avis de l'outil) : elle vient de l'instantané
  *  publié, qui est le travail d'analyse — seul le PRIX est rafraîchi. */
 function identite_titre(string $symbole): ?array {
@@ -484,6 +506,37 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
   .tuile .l { font-size: 12px; opacity: .65; }
   .tuile .v { font-size: 20px; font-weight: 600; }
   .pos { color: #0a7a0a; } .neg { color: #d03b3b; }
+  .filtres { display: flex; gap: 14px; flex-wrap: wrap; align-items: end;
+    margin-bottom: 10px; }
+  .filtres label { display: flex; flex-direction: column; gap: 3px;
+    font-size: 12px; opacity: .75; }
+  .filtres select, .filtres input { font-size: 13px; padding: 5px 7px;
+    border-radius: 6px; border: 1px solid
+    color-mix(in srgb, CanvasText 25%, transparent); background: Canvas;
+    color: CanvasText; }
+  .actions-ligne { display: flex; gap: 5px; white-space: nowrap; }
+  .mini { font: inherit; font-size: 12.5px; padding: 4px 9px; cursor: pointer;
+    border-radius: 6px; text-decoration: none; color: CanvasText;
+    background: none; border: 1px solid
+    color-mix(in srgb, CanvasText 30%, transparent); }
+  .mini:hover { background: color-mix(in srgb, CanvasText 7%, transparent); }
+  tr.selectionnee > td { background: color-mix(in srgb, CanvasText 7%, transparent); }
+  .entete-graph { display: flex; gap: 18px; align-items: flex-start;
+    flex-wrap: wrap; justify-content: space-between; margin-bottom: 8px; }
+  .outils { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; }
+  .groupe { display: flex; gap: 2px; flex-wrap: wrap; }
+  .puce { font: inherit; font-size: 12.5px; padding: 4px 9px; cursor: pointer;
+    background: none; border: 1px solid transparent; border-radius: 5px;
+    color: color-mix(in srgb, CanvasText 72%, transparent); }
+  .puce:hover:not(:disabled) { background:
+    color-mix(in srgb, CanvasText 7%, transparent); color: CanvasText; }
+  .puce.actif { background: color-mix(in srgb, CanvasText 82%, transparent);
+    color: Canvas; border-color: transparent; }
+  .puce:disabled { opacity: .35; cursor: not-allowed; }
+  .ohlc { display: flex; gap: 13px; flex-wrap: wrap; font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+    color: color-mix(in srgb, CanvasText 72%, transparent); }
+  .ohlc b { color: CanvasText; }
   nav.ancres { display: flex; gap: 4px; flex-wrap: wrap; margin: 10px 0;
     border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
     padding-bottom: 8px; }
@@ -579,6 +632,7 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
     <a href="../admin/" title="Administration" aria-label="Administration"
        class="engrenage">Administration</a>
     <a href="#marche">Marché</a>
+    <a href="#graphique">Graphique</a>
     <a href="#ticket">Nouvel ordre</a>
     <a href="#positions">Positions (<?= count($compte['positions']) ?>)</a>
     <a href="#ordres">Ordres en attente (<?= count($compte['ordres']) ?>)</a>
@@ -616,15 +670,38 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
       quotidienne. « Trader » pré-remplit le ticket d'ordre ; le détail
       complet (salle de marché SENS / QUAND / MARGE) est sur
       <a href="../">le site</a>, onglet Titre.</p>
+    <div class="filtres">
+      <label>Thème
+        <select id="f-theme">
+          <option value="">Tous les thèmes</option>
+          <?php foreach (array_unique(array_map('theme_actif', $actifs)) as $th):
+                  if ($th === 'Autres') continue; ?>
+            <option value="<?= h($th) ?>"><?= h($th) ?></option>
+          <?php endforeach; ?>
+        </select></label>
+      <label>Avis
+        <select id="f-avis">
+          <option value="">Tous les avis</option>
+          <option value="Achat">Achat (fort ou simple)</option>
+          <option value="Vente">Vente (forte ou simple)</option>
+          <option value="Neutre">Neutre</option>
+        </select></label>
+      <label>Chercher
+        <input type="search" id="f-texte" placeholder="AAPL, cuivre, Bitcoin…"></label>
+      <span class="note" id="f-compte"></span>
+    </div>
     <div class="defile">
-    <table>
-      <tr><th>Actif</th><th>Nom</th><th>Cours</th><th>Var. séance</th>
+    <table id="tab-marche">
+      <tr><th>Actif</th><th>Nom</th><th>Thème</th><th>Cours</th><th>Var. séance</th>
           <th>Fraîcheur</th><th>Avis de l'outil</th><th></th></tr>
       <?php foreach ($actifs as $sym): $f = fiche_titre($sym);
             if (!$f) continue; ?>
-      <tr>
+      <tr data-ligne="<?= h($sym) ?>" data-theme="<?= h(theme_actif($sym)) ?>"
+          data-avis="<?= h($f['avis'] ?? '') ?>"
+          data-cherche="<?= h(mb_strtolower($sym . ' ' . $f['nom'])) ?>">
         <td><strong><?= h($sym) ?></strong></td>
         <td class="note"><?= h($f['nom']) ?></td>
+        <td class="note"><?= h(theme_actif($sym)) ?></td>
         <td data-prix="<?= h($sym) ?>"><?= round($f['prix'], 4) ?></td>
         <td data-var="<?= h($sym) ?>"
             class="<?= ($f['var_pct'] ?? 0) >= 0 ? 'pos' : 'neg' ?>">
@@ -639,14 +716,35 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
         <td class="<?= str_starts_with((string)$f['avis'], 'Achat')
             ? 'avis-achat' : (str_starts_with((string)$f['avis'], 'Vente')
             ? 'avis-vente' : 'note') ?>"><?= h($f['avis'] ?? '—') ?></td>
-        <td><a class="sobre" style="text-decoration:none;padding:4px 8px;
-             border-radius:6px;border:1px solid
-             color-mix(in srgb, CanvasText 30%, transparent)"
-             href="?s=<?= urlencode($sym) ?>#ticket">Trader</a></td>
+        <td class="actions-ligne">
+          <button type="button" class="mini" data-voir="<?= h($sym) ?>"
+                  title="Afficher ce titre sur le graphique">Voir</button>
+          <a class="mini" href="?s=<?= urlencode($sym) ?>#ticket"
+             title="Pré-remplir le ticket d'ordre">Trader</a></td>
       </tr>
       <?php endforeach; ?>
     </table>
     </div>
+  </div>
+
+  <div class="carte" id="graphique">
+    <div class="entete-graph">
+      <div>
+        <h2 style="margin:0">Graphique</h2>
+        <div class="note" id="g-legende">—</div>
+      </div>
+      <div class="ohlc" id="g-ohlc"></div>
+    </div>
+    <div class="outils">
+      <div class="groupe" id="g-pas" role="group" aria-label="Pas de bougie"></div>
+      <div class="groupe" id="g-type" role="group" aria-label="Type de tracé"></div>
+      <div class="groupe">
+        <button type="button" class="puce" id="g-log"
+                title="axe des prix logarithmique">Log</button>
+      </div>
+    </div>
+    <div id="g-toile" style="width:100%;height:360px"></div>
+    <p class="note" id="g-etat">Chargement du graphique…</p>
   </div>
 
   <div class="carte" id="ticket">
@@ -875,6 +973,7 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
     </div>
   </div>
 
+<script src="../marketlab-graphique.js?v=<?= @filemtime(dirname(__DIR__) . '/marketlab-graphique.js') ?: 1 ?>"></script>
 <script>
 // --------------------------------------------------------------- cotations
 // La page se met à jour toute seule : prix, variations, P&L des positions,
@@ -1054,6 +1153,211 @@ const ML = {
               el.addEventListener('change', recalc); }
   });
   recalc();
+})();
+
+/* ------------------------------------------------------------------ marché
+   Filtres du tableau. Trente-six lignes à plat, c'était une liste ; avec le
+   thème, l'avis et une recherche, cela devient un outil de lecture. Tout se
+   fait ici, dans le navigateur : la page est déjà servie, aucun aller-retour
+   serveur n'est justifié pour masquer des lignes. */
+(function () {
+  const theme = document.getElementById('f-theme');
+  const avis = document.getElementById('f-avis');
+  const texte = document.getElementById('f-texte');
+  const compte = document.getElementById('f-compte');
+  if (!theme) return;
+  const lignes = [...document.querySelectorAll('tr[data-ligne]')];
+
+  function filtrer() {
+    const q = (texte.value || '').trim().toLowerCase();
+    let vus = 0;
+    for (const tr of lignes) {
+      const ok = (!theme.value || tr.dataset.theme === theme.value)
+        && (!avis.value || (tr.dataset.avis || '').startsWith(avis.value))
+        && (!q || (tr.dataset.cherche || '').includes(q));
+      tr.style.display = ok ? '' : 'none';
+      if (ok) vus++;
+    }
+    compte.textContent = vus === lignes.length
+      ? lignes.length + ' actifs'
+      : vus + ' actif' + (vus > 1 ? 's' : '') + ' sur ' + lignes.length;
+  }
+  theme.addEventListener('change', filtrer);
+  avis.addEventListener('change', filtrer);
+  texte.addEventListener('input', filtrer);
+  filtrer();
+})();
+
+/* --------------------------------------------------------------- graphique
+   Le graphique est le MÊME composant que celui du site : un seul module,
+   construit depuis les mêmes sources (front/src/terminal-chart.js). Deux
+   implémentations divergeraient au premier correctif.
+
+   Ce qu'il apporte ici et que ne fait aucune plateforme de broker : le plan
+   qu'on est en train de SAISIR — prix de déclenchement, stop, objectif — est
+   tracé sur le prix pendant la frappe. La question « mon stop est-il sous le
+   dernier creux ? » se répond à l'œil, avant de valider, au lieu de se
+   deviner à partir de trois nombres dans un formulaire. */
+(function () {
+  const toile = document.getElementById('g-toile');
+  if (!toile || !window.MarketLabGraphique) return;
+  const G = window.MarketLabGraphique;
+
+  const etat = document.getElementById('g-etat');
+  const legende = document.getElementById('g-legende');
+  const boiteOhlc = document.getElementById('g-ohlc');
+  const selSymbole = document.getElementById('t-symbole');
+
+  let pasCourant = 'D1';
+  let typeCourant = 'bougies';
+  let log = false;
+  let derniereConnue = null;
+  let decimales = 2;
+  let soclesDispo = {};
+
+  const nombre = (v, d) => v == null ? '—'
+    : Number(v).toLocaleString('fr-FR',
+        { minimumFractionDigits: d, maximumFractionDigits: d });
+
+  function ecrireOhlc(b, apercu) {
+    if (!b) { boiteOhlc.textContent = ''; return; }
+    const hausse = b.close >= b.open;
+    const ecart = b.open ? ((b.close / b.open - 1) * 100) : null;
+    boiteOhlc.innerHTML =
+      '<span>O <b>' + nombre(b.open, decimales) + '</b></span>' +
+      '<span>H <b>' + nombre(b.high, decimales) + '</b></span>' +
+      '<span>B <b>' + nombre(b.low, decimales) + '</b></span>' +
+      '<span>C <b class="' + (hausse ? 'pos' : 'neg') + '">'
+        + nombre(b.close, decimales) + '</b></span>' +
+      (ecart == null ? '' : '<span class="' + (hausse ? 'pos' : 'neg') + '">'
+        + (ecart >= 0 ? '+' : '') + ecart.toFixed(2) + ' %</span>') +
+      (apercu ? '' : '<span style="opacity:.6">dernière bougie</span>');
+  }
+
+  const pilote = G.monter(toile, {
+    symbole: selSymbole ? selSymbole.value : null,
+    pas: pasCourant, type: typeCourant, hauteur: 360,
+    surEtat: function (e) {
+      if (e.survol !== undefined) { ecrireOhlc(e.survol || derniereConnue,
+                                               Boolean(e.survol)); return; }
+      if (e.chargement) { etat.textContent = 'Chargement de ' + e.symbole + '…'; return; }
+      if (e.vide) {
+        legende.textContent = (e.symbole || '') + ' · aucune série disponible';
+        etat.textContent = "Aucune série de bougies publiée pour cet actif "
+          + "— la prochaine publication la produira. Le graphique reste vide "
+          + "plutôt que d'afficher celui de l'actif précédent.";
+        boiteOhlc.textContent = '';
+        derniereConnue = null;
+        return;
+      }
+      derniereConnue = e.derniere;
+      decimales = e.decimales;
+      soclesDispo = e.socles || {};
+      legende.textContent = e.symbole + ' · une bougie = ' + e.pas;
+      ecrireOhlc(e.derniere, false);
+      etat.textContent = e.fraiche
+        ? 'Barres de la séance en cours, rafraîchies chaque minute.'
+        : 'Molette pour zoomer, glisser pour se déplacer. '
+          + 'Les niveaux du ticket sont tracés sur le prix.';
+      dessinerBoutons();
+    },
+  });
+
+  /* --- barreaux d'outils, construits depuis la MÊME liste que le site */
+  function dessinerBoutons() {
+    const zonePas = document.getElementById('g-pas');
+    const zoneType = document.getElementById('g-type');
+    if (!zonePas.dataset.pret) {
+      for (const p of G.PAS) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'puce'; b.textContent = p.libelle;
+        b.title = 'une bougie = ' + p.libelle;
+        b.dataset.pas = p.cle; b.dataset.base = p.base;
+        b.addEventListener('click', function () {
+          pasCourant = p.cle; pilote.pas(p.cle); majActifs();
+        });
+        zonePas.appendChild(b);
+      }
+      const noms = { bougies: 'Bougies', barres: 'Barres OHLC',
+                     ligne: 'Ligne', montagne: 'Montagne' };
+      for (const cle of G.TYPES_TRACE) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'puce'; b.textContent = noms[cle];
+        b.dataset.type = cle;
+        b.addEventListener('click', function () {
+          typeCourant = cle; pilote.type(cle); majActifs(); tracerPlan();
+        });
+        zoneType.appendChild(b);
+      }
+      zonePas.dataset.pret = '1';
+    }
+    majActifs();
+  }
+
+  function majActifs() {
+    for (const b of document.querySelectorAll('#g-pas .puce')) {
+      b.classList.toggle('actif', b.dataset.pas === pasCourant);
+      // Un pas sans socle publié n'a rien à montrer : bouton éteint et dit,
+      // plutôt qu'un graphique vide qu'on croirait cassé.
+      b.disabled = soclesDispo[b.dataset.base] === false;
+    }
+    for (const b of document.querySelectorAll('#g-type .puce')) {
+      b.classList.toggle('actif', b.dataset.type === typeCourant);
+    }
+    document.getElementById('g-log').classList.toggle('actif', log);
+  }
+
+  document.getElementById('g-log').addEventListener('click', function () {
+    log = !log; pilote.logarithmique(log); majActifs();
+  });
+
+  /* --- le plan en cours de saisie, tracé sur le prix */
+  const champ = (id) => document.getElementById(id);
+  function tracerPlan() {
+    const lignes = [];
+    const type = champ('t-type');
+    const prix = champ('t-prix');
+    const stop = champ('t-stop');
+    const obj = champ('t-objectif');
+    if (type && type.value !== 'marche' && prix && prix.value) {
+      lignes.push({ prix: prix.value, titre: 'déclenchement',
+                    couleur: 'accent', style: 'plein' });
+    }
+    if (stop && stop.value) {
+      lignes.push({ prix: stop.value, titre: 'stop', couleur: 'baisse' });
+    }
+    if (obj && obj.value) {
+      lignes.push({ prix: obj.value, titre: 'objectif', couleur: 'hausse' });
+    }
+    pilote.lignes(lignes);
+  }
+  for (const id of ['t-prix', 't-stop', 't-objectif', 't-type']) {
+    const el = champ(id);
+    if (el) { el.addEventListener('input', tracerPlan);
+              el.addEventListener('change', tracerPlan); }
+  }
+
+  /* --- choisir un actif : depuis le ticket ou depuis le tableau */
+  function choisir(sym) {
+    pilote.symbole(sym);
+    for (const tr of document.querySelectorAll('tr[data-ligne]')) {
+      tr.classList.toggle('selectionnee', tr.dataset.ligne === sym);
+    }
+    tracerPlan();
+  }
+  if (selSymbole) {
+    selSymbole.addEventListener('change', function () { choisir(selSymbole.value); });
+    choisir(selSymbole.value);
+  }
+  for (const b of document.querySelectorAll('[data-voir]')) {
+    b.addEventListener('click', function () {
+      const sym = b.dataset.voir;
+      if (selSymbole) selSymbole.value = sym;
+      choisir(sym);
+      document.getElementById('graphique').scrollIntoView(
+        { behavior: 'smooth', block: 'start' });
+    });
+  }
 })();
 </script>
 <?php endif; ?>

@@ -19,9 +19,17 @@ DEUX PROFONDEURS, DEUX RÔLES :
   * quotidien — cinq ans, pour la structure : tendance de fond, supports
     anciens, régime de volatilité. C'est l'échelle où le moteur de décision
     travaille.
+  * une heure — cent vingt jours, pour la tendance intermédiaire : c'est le
+    pas que regardent la plupart des opérateurs pour situer un mouvement entre
+    la séance et le mois.
   * cinq minutes — cinq séances, pour l'exécution : à quel moment de la
     journée entrer, où la séance a réellement ouvert, si le plan a déjà été
     approché. C'est l'échelle qui manquait entièrement.
+
+Les pas intermédiaires (15 min, 4 h, semaine, mois) ne sont PAS publiés : ils
+s'agrègent dans le navigateur à partir de ces trois socles, en une passe.
+Publier sept séries là où trois suffisent multiplierait le poids du site sans
+ajouter une seule information.
 
 Les barres 5 min publiées ici sont un SOCLE, pas le direct : elles datent de
 la dernière publication ou du dernier balayage de veille. La fraîcheur à la
@@ -43,6 +51,13 @@ JOURS_QUOTIDIEN = 1825
 # la journée à celles qui la précèdent. Yahoo ne sert de toute façon les
 # barres fines que sur une fenêtre glissante courte.
 SEANCES_INTRADAY = 5
+# Profondeur de la série HORAIRE. Elle existe pour une raison simple : les pas
+# « 1 h » et « 4 h » ne peuvent pas être fabriqués à partir des barres 5 min,
+# qui ne couvrent que cinq séances — on obtiendrait trente bougies horaires,
+# de quoi ne rien lire du tout. Cent vingt jours donnent environ 800 barres
+# horaires, soit une vraie lecture de tendance intermédiaire.
+JOURS_HORAIRE = 120
+INTERVALLE_HORAIRE = "1h"
 
 # Colonnes de bougie, dans l'ordre attendu par le front.
 OHLCV = ("open", "high", "low", "close", "volume")
@@ -130,6 +145,19 @@ def intrajournaliere(symbole: str, seances: int = SEANCES_INTRADAY,
     return bloc
 
 
+def horaire(symbole: str, jours: int = JOURS_HORAIRE) -> dict:
+    """Barres horaires lues dans le magasin local. Renvoie {} si rien n'y est."""
+    journees = intraday.journees_archivees(symbole, INTERVALLE_HORAIRE)
+    if not journees:
+        return {}
+    df = intraday.lire(symbole, INTERVALLE_HORAIRE, depuis=journees[-jours:][0])
+    if df is None or df.empty:
+        return {}
+    bloc = serie(df, quotidien=False, surcouches=False)
+    bloc["interval"] = INTERVALLE_HORAIRE
+    return bloc
+
+
 def payload(symbole: str, df: pd.DataFrame) -> dict:
     """Le fichier `titres/<SYM>.serie.json` complet.
 
@@ -146,4 +174,7 @@ def payload(symbole: str, df: pd.DataFrame) -> dict:
     intra = intrajournaliere(symbole)
     if intra:
         bloc["intraday"] = intra
+    heure = horaire(symbole)
+    if heure:
+        bloc["horaire"] = heure
     return bloc

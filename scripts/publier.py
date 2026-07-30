@@ -51,6 +51,9 @@ def main() -> int:
                 print(f"    - {cle} : {message[:100]}")
         relais = publish.copier_php()
         print(f"  relais PHP : {', '.join(relais) or 'aucun'}")
+        print("  module graphique : "
+              + ("copié" if publish.copier_module_graphique()
+                 else "ABSENT (lancer « npm run build --prefix front »)"))
         if publish.copier_front():
             print("  front React copié")
         else:

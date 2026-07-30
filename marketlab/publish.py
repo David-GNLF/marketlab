@@ -314,9 +314,14 @@ def generer(titres: list[str] | None = None, blocs: list[str] | None = None,
         try:
             bilan_intra = intraday.capturer(
                 list(titres), jours=serie.SEANCES_INTRADAY + 1)
+            bilan_h = intraday.capturer(
+                list(titres), interval=serie.INTERVALLE_HORAIRE,
+                jours=serie.JOURS_HORAIRE)
             if verbeux:
                 print(f"  barres 5 min : {bilan_intra['barres']} sur "
-                      f"{bilan_intra['titres']} titre(s)", flush=True)
+                      f"{bilan_intra['titres']} titre(s) ; barres 1 h : "
+                      f"{bilan_h['barres']} sur {bilan_h['titres']} titre(s)",
+                      flush=True)
         except Exception as exc:
             erreurs["intraday"] = f"{type(exc).__name__}: {exc}"
             if verbeux:
@@ -381,17 +386,51 @@ def generer(titres: list[str] | None = None, blocs: list[str] | None = None,
 # chercher un bug dans du code déjà corrigé.
 RELAIS_PHP = ["cours.php", "cours_lib.php", "serie.php"]
 
+# Pages PHP des espaces, énumérées FICHIER PAR FICHIER — jamais un dossier.
+# La nuance est capitale : `deploy/trading/` ne contient que du code, mais son
+# jumeau sur l'hébergement contient `comptes/`, c'est-à-dire les portefeuilles
+# réels des utilisateurs et des robots. Copier un dossier entier, un jour où
+# un fichier d'état traînerait côté local, écraserait des comptes. Une liste
+# explicite ne peut pas faire ça.
+#
+# Les `.htaccess` sont volontairement EXCLUS : ce sont des réglages
+# d'hébergement (authentification, redirections), posés une fois, et le dépôt
+# n'est pas l'autorité dessus.
+PAGES_ESPACES = [
+    "trading/index.php",
+    "admin/index.php",
+    "admin/commun.php",
+    "acces/index.php",
+]
+
 
 def copier_php() -> list[str]:
-    """Copie les relais PHP versionnés dans le site. Renvoie les noms copiés."""
+    """Copie les fichiers PHP versionnés dans le site. Renvoie les noms copiés."""
     copies = []
-    for nom in RELAIS_PHP:
+    for nom in RELAIS_PHP + PAGES_ESPACES:
         source = config.ROOT / "deploy" / nom
         if source.is_file():
-            RACINE_SITE.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, RACINE_SITE / nom)
+            cible = RACINE_SITE / nom
+            cible.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, cible)
             copies.append(nom)
     return copies
+
+
+def copier_module_graphique() -> bool:
+    """Copie le graphique en module autonome, pour l'espace de trading (PHP).
+
+    C'est le MÊME code que celui du site, construit une seconde fois par Vite
+    en bundle sans dépendance. L'espace de trading n'a pas de bundler : sans
+    ce fichier, il faudrait y réécrire un graphique, et deux implémentations
+    divergent toujours.
+    """
+    source = config.ROOT / "front" / "dist-trading" / "marketlab-graphique.js"
+    if not source.is_file():
+        return False
+    RACINE_SITE.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, RACINE_SITE / source.name)
+    return True
 
 
 def copier_front() -> bool:
