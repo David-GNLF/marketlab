@@ -25,12 +25,17 @@ mensuel n'est connue qu'au mois suivant. Pour un indice agrégé sur trois mois,
 c'est acceptable ; pour réagir à une publication dans la minute, ça ne l'est
 pas — et ce module ne le prétend pas.
 
-CONSÉQUENCE À ACCEPTER D'EMBLÉE : au démarrage, ce module ne produit RIEN. Il
-faut deux publications successives d'un même indicateur pour en tirer une seule
-surprise, soit un à deux mois d'accumulation avant le premier score utilisable.
-C'est exactement la même contrainte que la volatilité réalisée : sans relevé
-conservé, l'historique ne se constituera jamais — donc plus tôt on commence à
-conserver, mieux c'est.
+LA VOIE SANS RETARD, en complément. FRED publie le résultat le jour même. En
+croisant le réalisé FRED et le consensus ForexFactory, la surprise est connue
+IMMÉDIATEMENT — pour les indicateurs américains dont la correspondance a été
+PROUVÉE (cf. `marketlab/realises.py`, qui confronte chaque correspondance au
+chiffre que le flux imprime déjà et écarte celles qui ne concordent pas).
+`surprises()` réunit les deux sources et fait primer la voie sans retard.
+
+Le chaînage garde son utilité : il couvre les devises que FRED ne suit pas et
+les indicateurs hors table. Mais il ne produit rien avant un à deux mois
+d'accumulation, là où la voie FRED produit dès la première publication
+observée.
 
 TROIS AUTRES DIFFICULTÉS, TRAITÉES EXPLICITEMENT.
 
@@ -259,6 +264,84 @@ def reconstituer(historique: pd.DataFrame | None = None) -> pd.DataFrame:
                          .reset_index(drop=True)
 
 
+def sans_retard(historique: pd.DataFrame | None = None,
+                valides: set | None = None) -> pd.DataFrame:
+    """Surprises du JOUR MÊME, via le réalisé FRED croisé au consensus du flux.
+
+    Le chaînage ci-dessus attend la publication suivante pour connaître un
+    résultat. FRED, lui, publie le jour même : pour les indicateurs dont la
+    correspondance est PROUVÉE (`realises.correspondances_valides()`), la
+    surprise est disponible immédiatement.
+
+    Seules les correspondances vérifiées sont utilisées. Une surprise absente
+    vaut mieux qu'une surprise fausse, qui aurait l'apparence d'un signal.
+    """
+    from marketlab import realises  # import tardif : évite un cycle
+
+    hist = charger_calendrier() if historique is None else historique
+    if hist is None or hist.empty:
+        return pd.DataFrame(columns=COLONNES)
+    try:
+        valides = realises.correspondances_valides() if valides is None else valides
+    except Exception:
+        return pd.DataFrame(columns=COLONNES)
+    if not valides:
+        return pd.DataFrame(columns=COLONNES)
+
+    lignes = []
+    for _, ev in hist.iterrows():
+        devise, titre = ev.get("devise", ""), ev.get("evenement", "")
+        if (devise, titre) not in valides:
+            continue
+        prevu = pd.to_numeric(ev.get("prevision"), errors="coerce")
+        if not np.isfinite(prevu):
+            continue
+        try:
+            # arrondi à la précision du consensus : le marché a comparé le
+            # chiffre publié arrondi, pas l'indice à pleine précision
+            reel = realises.valeur_realisee(
+                devise, titre, ev["date"],
+                precision=realises.decimales(prevu))
+        except Exception:
+            reel = None
+        if reel is None or not np.isfinite(reel):
+            continue
+        lignes.append({
+            "date": str(ev["date"]), "devise": devise, "evenement": titre,
+            "impact": ev.get("impact", ""), "prevision": float(prevu),
+            "resultat": float(reel),
+            "ecart": (float(reel) - float(prevu)) * sens(titre),
+        })
+    if not lignes:
+        return pd.DataFrame(columns=COLONNES)
+    return pd.DataFrame(lignes)[COLONNES]
+
+
+def surprises(historique: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Toutes les surprises connues : sans retard quand c'est possible, par
+    chaînage sinon.
+
+    Les deux sources se recouvrent partiellement — le chaînage finit par
+    connaître ce que FRED savait déjà. En cas de doublon, la version SANS
+    RETARD gagne : c'est la même publication, mesurée plus tôt et sans passer
+    par une valeur « précédente » qui a pu être révisée entre-temps.
+    """
+    hist = charger_calendrier() if historique is None else historique
+    immediat = sans_retard(hist)
+    chaine = reconstituer(hist)
+    if not immediat.empty:
+        immediat = immediat.assign(source="fred")
+    if not chaine.empty:
+        chaine = chaine.assign(source="chainage")
+    cadres = [c for c in (immediat, chaine) if not c.empty]
+    if not cadres:
+        return pd.DataFrame(columns=[*COLONNES, "source"])
+    fusion = pd.concat(cadres, ignore_index=True)
+    fusion = fusion.drop_duplicates(subset=["date", "devise", "evenement"],
+                                    keep="first")
+    return fusion.sort_values(["date", "devise", "evenement"]).reset_index(drop=True)
+
+
 # ---------------------------------------------------------------------------
 # Normalisation et score
 # ---------------------------------------------------------------------------
@@ -307,7 +390,7 @@ def score_par_devise(historique: pd.DataFrame | None = None,
     Positif = les statistiques sortent MIEUX qu'attendu, ce qui soutient la
     devise ; négatif = elles déçoivent.
     """
-    hist = reconstituer() if historique is None else historique
+    hist = surprises() if historique is None else historique
     z = normaliser(hist)
     if z.empty:
         return {}
