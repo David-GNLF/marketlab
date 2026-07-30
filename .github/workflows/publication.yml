@@ -97,15 +97,27 @@ jobs:
       # publication suivante du même indicateur. Sans cette accumulation
       # quotidienne, l'indice de surprise ne pourra jamais exister — et il ne
       # produira rien avant un à deux cycles de publication.
+      # Cette étape aussi interroge FRED : l'indice de surprise confronte le
+      # consensus au chiffre RÉELLEMENT publié, qu'elle va chercher là-bas.
       - name: Instantané du calendrier économique
         continue-on-error: true
+        env:
+          MARKETLAB_FRED_API_KEY: ${{ secrets.MARKETLAB_FRED_API_KEY }}
         run: python -c "from marketlab import surprise; print(surprise.mettre_a_jour_calendrier())"
 
       - name: Arbitrage du modèle de volatilité
         continue-on-error: true
         run: python -c "from marketlab import har; r = har.calibrer(); print('HAR retenu :', r['retenu'])"
 
+      # La clé FRED va à l'étape de GÉNÉRATION, pas à celle de publication :
+      # c'est ici que macro.py et drivers.py interrogent la Réserve fédérale
+      # (inflation, taux directeur, chômage, courbe, taux réels, dollar).
+      # Sans clé l'API répond quand même, mais avec des quotas anonymes qu'un
+      # balayage quotidien de six séries peut heurter — et une série manquée
+      # dégrade le régime macro sans rien casser de visible.
       - name: Générer l'instantané
+        env:
+          MARKETLAB_FRED_API_KEY: ${{ secrets.MARKETLAB_FRED_API_KEY }}
         run: python scripts/publier.py --generer-seul
 
       # Garde-fou : toute dérive de périmètre (un univers absent du screener,

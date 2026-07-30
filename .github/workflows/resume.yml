@@ -42,4 +42,5 @@ jobs:
       - name: Calculer et envoyer le résumé
         env:
           MARKETLAB_NTFY_TOPIC: ${{ secrets.MARKETLAB_NTFY_TOPIC }}
+          MARKETLAB_FRED_API_KEY: ${{ secrets.MARKETLAB_FRED_API_KEY }}
         run: python scripts/resume_quotidien.py
