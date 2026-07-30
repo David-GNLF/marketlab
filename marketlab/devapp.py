@@ -26,15 +26,42 @@ import re
 import subprocess
 from pathlib import Path
 
-from marketlab import config
+from marketlab import config, diagnostic
 
 # Ce dont on cherche la présence, jamais la valeur.
+#
+# NE PAS DEVINER LES NOMS. Ces deux-là étaient faux : `MARKETLAB_FRED_CLE` et
+# `MARKETLAB_TWELVE_CLE` n'existent nulle part — le code lit
+# `MARKETLAB_FRED_API_KEY` (data/fred.py) et, pour Twelve Data, la seule clé
+# `twelvedata_api_key` du fichier providers.json, sans variable
+# d'environnement. La page annonçait donc « absente » sur une clé configurée et
+# opérationnelle. Dans une console de diagnostic, c'est la pire des pannes :
+# elle rapporte de la fiction et on lui fait confiance.
+#
+# D'où la règle : pour un fournisseur, on interroge le LECTEUR RÉEL de la clé
+# (`fred.api_key()`, `premium.api_key()`), jamais un nom de variable recopié
+# ici. Le jour où un nom change, la console suit toute seule.
 CLES_ATTENDUES = {
     "MARKETLAB_FTP_HOTE": "publication du site (FTPS)",
     "MARKETLAB_NTFY_TOPIC": "notifications d'alerte",
-    "MARKETLAB_FRED_CLE": "séries macroéconomiques (FRED)",
-    "MARKETLAB_TWELVE_CLE": "cotations de secours (Twelve Data)",
 }
+
+# Fournisseurs dont la clé se lit par leur propre module.
+LECTEURS_DE_CLE = {
+    "FRED": ("séries macroéconomiques et millésimes ALFRED",
+             "marketlab.data.fred", "api_key"),
+    "Twelve Data": ("cotations de secours (actions US, forex)",
+                    "marketlab.data.premium", "api_key"),
+}
+
+
+def _cle_fournisseur(module: str, fonction: str) -> bool:
+    """True si le fournisseur a une clé utilisable, sans jamais la révéler."""
+    try:
+        import importlib
+        return getattr(importlib.import_module(module), fonction)() is not None
+    except Exception:
+        return False
 
 
 def _git(*args: str) -> str:
@@ -173,14 +200,19 @@ def sources() -> dict:
              "cle": False},
         ],
         # Uniquement un booléen : jamais la valeur, jamais un fragment.
+        #
+        # Vraie question posée : la clé est-elle présente dans l'environnement
+        # qui PUBLIE ? En local elle apparaîtra souvent absente, et c'est
+        # exact — c'est GitHub Actions qui publie.
         "cles": [
-            {"nom": nom, "role": role,
-             # Vraie question posée : la clé est-elle présente dans
-             # l'environnement qui PUBLIE ? En local elle apparaîtra souvent
-             # absente, et c'est exact — c'est GitHub Actions qui publie.
-             "configuree": bool(os.environ.get(nom))
-             or bool(locales.get(nom.lower().replace("marketlab_", "")))}
+            {"nom": nom, "role": role, "configuree": bool(os.environ.get(nom))}
             for nom, role in CLES_ATTENDUES.items()
+        ] + [
+            # Ceux-là répondent d'eux-mêmes : on interroge le lecteur réel de
+            # la clé au lieu de recopier un nom de variable qui peut changer.
+            {"nom": nom, "role": role,
+             "configuree": _cle_fournisseur(module, fonction)}
+            for nom, (role, module, fonction) in LECTEURS_DE_CLE.items()
         ],
     }
 
@@ -270,5 +302,14 @@ def etat() -> dict:
         "sources": sources(),
         "automatisation": automatisation(),
         "sante": sante(),
+        # Santé des briques d'ANALYSE, par opposition à celle de la chaîne de
+        # publication traitée juste au-dessus : quelles correspondances FRED
+        # sont prouvées, quel modèle de volatilité a été retenu ou écarté,
+        # jusqu'où va le relevé de volatilité réalisée. Ces briques décident
+        # SEULES de s'activer, et leur verdict se prononçait jusqu'ici dans les
+        # journaux de GitHub Actions, que personne ne lit. Une brique
+        # désactivée en silence est indiscernable d'une brique qui n'a jamais
+        # marché.
+        "analyse": diagnostic.etat(),
         "feuille_de_route": feuille_de_route(),
     }
