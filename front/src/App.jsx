@@ -925,7 +925,6 @@ function PageDecisions({ onTitre }) {
             : comp.sens === "positif" ? "var(--good)" : "var(--baseline)"}` }}>
           <h3 style={{ marginTop: 0, color: comp.sens === "négatif"
               ? "var(--critical)" : "inherit" }}>
-            {comp.sens === "négatif" ? ""}
             Ce que vaut cet outil, mesuré sur ses propres verdicts</h3>
           <p>{comp.lecture}</p>
           <p className="note">Mesure : corrélation de rang entre la note
