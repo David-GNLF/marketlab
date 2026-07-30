@@ -2,8 +2,8 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import * as api from "./api";
 import { GraphiqueCone } from "./charts";
 import {
-  ECHELLES, GraphiqueTerminal, TYPES, dernieresSeances, enBougies,
-  fusionner, precision,
+  ECHELLES, GardeGraphique, GraphiqueTerminal, TYPES, dernieresSeances,
+  enBougies, fusionner, precision,
 } from "./graphique";
 
 const pct = (v, signe = false) =>
@@ -536,11 +536,13 @@ function PageTitre({ meta, symbole, setSymbole }) {
                            intradayDispo={Boolean(intraday?.t?.length)} />
               <LectureOHLC point={survol} derniere={derniere} dec={dec} />
               {bloc?.t?.length ? (
-                <GraphiqueTerminal
-                  bloc={bloc} type={type} surcouches={surcouchesActives}
-                  logarithmique={log} hauteur={430} onSurvol={setSurvol}
-                  plan={surcouches.plan ? f.strategie?.plan : null}
-                  niveaux={surcouches.niveaux ? f.niveaux?.zones : null} />
+                <GardeGraphique key={`${actif}-${type}-${echelle}`}>
+                  <GraphiqueTerminal
+                    bloc={bloc} type={type} surcouches={surcouchesActives}
+                    logarithmique={log} hauteur={430} onSurvol={setSurvol}
+                    plan={surcouches.plan ? f.strategie?.plan : null}
+                    niveaux={surcouches.niveaux ? f.niveaux?.zones : null} />
+                </GardeGraphique>
               ) : (
                 <p className="note" style={{ padding: "40px 0", textAlign: "center" }}>
                   Série de bougies indisponible pour ce titre. La prochaine

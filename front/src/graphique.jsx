@@ -18,7 +18,7 @@
 // se prennent les mauvaises décisions. Ici la question « le stop est-il sous
 // le dernier creux ? » se répond d'un coup d'œil.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Component, useEffect, useMemo, useRef, useState } from "react";
 import {
   ColorType, CrosshairMode, LineStyle, createChart,
 } from "lightweight-charts";
@@ -58,6 +58,48 @@ function jetons() {
     s1: v("--series-1"), s2: v("--series-2"), s3: v("--series-3"),
     hausse: v("--good"), baisse: v("--critical"),
   };
+}
+
+
+/**
+ * Filet de sécurité autour du graphique.
+ *
+ * POURQUOI. Le graphique est le seul morceau du site qui dessine en canvas via
+ * une bibliothèque tierce, et une exception pendant un rendu React NON
+ * RATTRAPÉE ne casse pas le composant fautif : elle démonte toute la page. La
+ * fiche d'un titre porte le verdict, le plan, les vetos — l'essentiel de la
+ * décision. Il serait absurde que tout cela disparaisse parce qu'une série
+ * mal formée a fait trébucher un chandelier.
+ *
+ * Ce n'est pas une excuse pour ne pas corriger la cause : l'erreur reste
+ * écrite en clair à l'écran et dans la console.
+ */
+export class GardeGraphique extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { panne: null };
+  }
+
+  static getDerivedStateFromError(erreur) {
+    return { panne: erreur };
+  }
+
+  componentDidCatch(erreur, info) {
+    console.error("Graphique en panne :", erreur, info);
+  }
+
+  render() {
+    if (this.state.panne) {
+      return (
+        <p className="erreur" style={{ padding: "36px 0", textAlign: "center" }}>
+          Le graphique n'a pas pu être tracé ({String(this.state.panne.message
+            ?? this.state.panne).slice(0, 120)}). Le reste de la fiche — verdict,
+          plan, niveaux — est intact ci-dessous.
+        </p>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 // ---------------------------------------------------------------- composant
