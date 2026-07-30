@@ -24,6 +24,13 @@ jobs:
     steps:
       - name: Récupérer le code
         uses: actions/checkout@v4
+        with:
+          # Historique COMPLET. Par défaut, actions/checkout ne prend qu'un
+          # commit : l'espace DevApp affichait alors « 1 modification depuis le
+          # début du projet » et un journal d'une seule ligne. Un tableau de
+          # bord qui invente ses propres chiffres ne vaut rien. Le dépôt est
+          # petit, le surcoût se compte en secondes.
+          fetch-depth: 0
 
       - name: Python
         uses: actions/setup-python@v5

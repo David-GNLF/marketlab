@@ -1683,8 +1683,11 @@ function PageDevApp() {
         <div className="rangee">
           <Tuile libelle="Version" valeur={depot.version}
                  note={`branche ${depot.branche}`} />
-          <Tuile libelle="Modifications" valeur={depot.commits_total ?? "—"}
-                 note="depuis le début du projet" />
+          <Tuile libelle="Modifications"
+                 valeur={depot.commits_total ?? "historique tronqué"}
+                 note={depot.historique_complet === false
+                   ? "le runner a cloné sans historique"
+                   : "depuis le début du projet"} />
           <Tuile libelle="Fonctions de test" valeur={tests.fonctions}
                  note={`${tests.fichiers} fichiers`} />
           <Tuile libelle="Lignes de code"

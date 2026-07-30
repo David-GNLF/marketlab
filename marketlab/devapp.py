@@ -87,10 +87,17 @@ def depot() -> dict:
             commits.append({"abrege": morceaux[0], "date": morceaux[1],
                             "sujet": morceaux[2]})
     total = _git("rev-list", "--count", "HEAD")
+    # Un clone superficiel (le défaut d'actions/checkout) ne contient qu'un
+    # commit : compter dedans donnerait « 1 modification depuis le début du
+    # projet ». Mieux vaut avouer qu'on ne sait pas que publier un chiffre faux
+    # — c'est précisément ce que cette page est censée ne jamais faire.
+    superficiel = _git("rev-parse", "--is-shallow-repository") == "true"
     return {
         "version": _version_front(),
         "branche": _git("rev-parse", "--abbrev-ref", "HEAD") or "inconnue",
-        "commits_total": int(total) if total.isdigit() else None,
+        "historique_complet": not superficiel,
+        "commits_total": (int(total) if total.isdigit() and not superficiel
+                          else None),
         "derniers_commits": commits,
         "lignes_python": _compter("marketlab", "*.py") + _compter("scripts", "*.py"),
         "lignes_tests": _compter("tests", "*.py"),
