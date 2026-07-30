@@ -409,6 +409,11 @@ def main() -> int:
                               if est_robot else None),
                 "journal": (compte.get("journal_robot", [])[-15:]
                             if est_robot else None),
+                # Le détail des trades clos est exposé pour TOUS les comptes,
+                # robots comme humains : sans lui, on constate une perte sans
+                # jamais savoir sur quoi ni pourquoi.
+                "bilan_trades": bilan_trades(compte),
+                "trades": _detail_trades(compte),
                 "equity": compte["equity"][-120:],
             })
     finally:
@@ -442,6 +447,68 @@ def main() -> int:
     print(f"\nconcours.json écrit : {len(classement)} compte(s)")
     notifier_mouvements(mouvements)
     return 0
+
+
+def bilan_trades(compte: dict) -> dict:
+    """Appréciation chiffrée des trades clos d'un compte.
+
+    Sans ce bilan, le site n'affichait qu'une équité : on voyait qu'on
+    perdait, sans savoir sur quoi ni pourquoi. Or c'est exactement ce détail
+    qui permet de corriger les règles — un stop trop serré, un motif de
+    sortie qui revient trop souvent, une classe d'actif qui coûte.
+    """
+    hist = compte.get("historique", [])
+    if not hist:
+        return {"n": 0, "message": "aucun trade clos pour l'instant"}
+    pnls = [float(t.get("pnl", 0)) for t in hist]
+    gains = [p for p in pnls if p > 0]
+    pertes = [p for p in pnls if p <= 0]
+
+    par_motif: dict[str, dict] = {}
+    for t in hist:
+        m = par_motif.setdefault(str(t.get("motif", "?")), {"n": 0, "pnl": 0.0})
+        m["n"] += 1
+        m["pnl"] += float(t.get("pnl", 0))
+    for m in par_motif.values():
+        m["pnl"] = round(m["pnl"], 2)
+
+    pire = min(hist, key=lambda t: float(t.get("pnl", 0)))
+    meilleur = max(hist, key=lambda t: float(t.get("pnl", 0)))
+    return {
+        "n": len(hist),
+        "pnl_total": round(sum(pnls), 2),
+        "gagnants": len(gains), "perdants": len(pertes),
+        "taux_reussite_%": round(len(gains) / len(hist) * 100, 1),
+        "gain_moyen": round(sum(gains) / len(gains), 2) if gains else None,
+        "perte_moyenne": round(sum(pertes) / len(pertes), 2) if pertes else None,
+        "pire_trade": {"symbole": pire["symbole"], "pnl": round(float(pire["pnl"]), 2),
+                       "motif": pire.get("motif")},
+        "meilleur_trade": {"symbole": meilleur["symbole"],
+                           "pnl": round(float(meilleur["pnl"]), 2),
+                           "motif": meilleur.get("motif")},
+        "par_motif": par_motif,
+    }
+
+
+def _detail_trades(compte: dict, maxi: int = 25) -> list[dict]:
+    """Les derniers trades clos, du plus récent au plus ancien, avec de quoi
+    juger chacun : combien on a risqué, ce que ça a rendu, et pourquoi c'est
+    sorti."""
+    detail = []
+    for t in reversed(compte.get("historique", [])[-maxi:]):
+        marge = float(t.get("marge", 0)) or 1.0
+        entree, sortie = float(t.get("entree", 0)), float(t.get("sortie", 0))
+        detail.append({
+            "symbole": t.get("symbole"), "sens": t.get("sens"),
+            "levier": t.get("levier"), "marge_$": round(marge, 2),
+            "entrée": round(entree, 4), "sortie": round(sortie, 4),
+            "variation_%": round((sortie / entree - 1) * 100, 2) if entree else None,
+            "P&L_$": round(float(t.get("pnl", 0)), 2),
+            "P&L_sur_mise_%": round(float(t.get("pnl", 0)) / marge * 100, 1),
+            "motif": t.get("motif"),
+            "ouvert_le": t.get("ouvert_le"), "fermé_le": t.get("ferme_le"),
+        })
+    return detail
 
 
 def notifier_mouvements(mouvements: list[tuple[str, list[str], float]]) -> bool:

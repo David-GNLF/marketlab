@@ -22,9 +22,9 @@ import math
 import numpy as np
 import pandas as pd
 
-from marketlab import (broker_tools, calibration, config, drivers, events,
-                       forecast, fundamentals, indicators, levels, news,
-                       score_history, seasonality, signals)
+from marketlab import (broker_tools, calibration, config, contexte, drivers,
+                       events, forecast, fundamentals, indicators, levels,
+                       news, score_history, seasonality, signals)
 from marketlab.data import get_ohlcv
 
 JOURNAL = config.DATA_DIR / "journal_decisions.csv"
@@ -226,6 +226,13 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
                 (cons["haussiers"] - cons["baissiers"]) / cons["total"] * 100, 1)
     except Exception:
         pass
+    # Trois briques de CONTEXTE DE MARCHÉ, candidates elles aussi : filtre de
+    # tendance du marché de rattachement, force relative contre son indice,
+    # alignement des échelles hebdomadaire et quotidienne. Journalisées et
+    # mesurées comme les autres, sans peser tant qu'elles n'ont rien prouvé.
+    contexte_detail = contexte.candidats(symbole, df)
+    for nom, mesure in contexte_detail.items():
+        candidats[nom] = round(float(mesure["note"]), 1)
 
     poids, poids_meta = poids_effectifs()
     poids_total = sum(poids[c] for c in composantes)
@@ -339,6 +346,7 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
              "note": round(c["note"], 1), "raisons": c["raisons"]}
             for nom, c in composantes.items()],
         "candidats": candidats,
+        "contexte_marche": contexte_detail,
         "ponderation": poids_meta,
         "vetos": vetos,
         "regime": regime,

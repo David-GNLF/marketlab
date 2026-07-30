@@ -788,6 +788,24 @@ function Verdict({ d, rang, onTitre, court, horizonCourt }) {
               {c.raisons.join(" · ")}
             </p>
           ))}
+          {d.contexte_marche && Object.keys(d.contexte_marche).length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <p style={{ margin: "0 0 2px" }}>🧪 <strong>Briques candidates</strong>{" "}
+                <span className="note">— mesurées à chaque verdict, sans aucun
+                poids tant qu'elles n'ont rien prouvé</span></p>
+              {Object.entries(d.contexte_marche).map(([nom, m]) => (
+                <p key={nom} className="note" style={{ margin: "2px 0" }}>
+                  <strong style={{ display: "inline-block", minWidth: 150 }}>
+                    {nom.replace(/_/g, " ")}</strong>
+                  <span style={{ display: "inline-block", minWidth: 52,
+                                 color: m.note > 5 ? "var(--good)"
+                                   : m.note < -5 ? "var(--critical)" : "inherit" }}>
+                    {m.note > 0 ? "+" : ""}{Math.round(m.note)}</span>{" "}
+                  {m.raison}
+                </p>
+              ))}
+            </div>
+          )}
           {d.conclusion?.texte && (
             <p style={{ marginTop: 8 }}>🧭 <strong>Conclusion</strong> —{" "}
               {d.conclusion.texte}</p>
@@ -1037,6 +1055,37 @@ function PageConcours() {
             <>
               <h4>Positions ouvertes</h4>
               <Table lignes={robot.positions} />
+            </>
+          )}
+          {robot.bilan_trades?.n > 0 && (
+            <>
+              <h4>Ce que valent ses trades</h4>
+              <div className="rangee" style={{ marginBottom: 8 }}>
+                <Tuile libelle="Trades clos" valeur={robot.bilan_trades.n} />
+                <Tuile libelle="P&L réalisé"
+                       valeur={`${robot.bilan_trades.pnl_total > 0 ? "+" : ""}${
+                         robot.bilan_trades.pnl_total} $`} />
+                <Tuile libelle="Taux de réussite"
+                       valeur={`${robot.bilan_trades["taux_reussite_%"]} %`}
+                       note={`${robot.bilan_trades.gagnants} gagnant(s) · ${
+                         robot.bilan_trades.perdants} perdant(s)`} />
+                <Tuile libelle="Gain moyen"
+                       valeur={robot.bilan_trades.gain_moyen != null
+                         ? `${robot.bilan_trades.gain_moyen} $` : "—"} />
+                <Tuile libelle="Perte moyenne"
+                       valeur={robot.bilan_trades.perte_moyenne != null
+                         ? `${robot.bilan_trades.perte_moyenne} $` : "—"} />
+              </div>
+              {robot.bilan_trades.par_motif && (
+                <p className="note">Sorties par motif —{" "}
+                  {Object.entries(robot.bilan_trades.par_motif)
+                    .map(([m, v]) => `${m} : ${v.n} pour ${v.pnl > 0 ? "+" : ""}${v.pnl} $`)
+                    .join(" · ")}. C'est ici qu'on voit ce qui coûte : un motif
+                  qui revient souvent et toujours en perte désigne une règle à
+                  corriger.</p>
+              )}
+              <h4>Chaque trade en détail</h4>
+              <Table lignes={robot.trades} max={15} />
             </>
           )}
           {robot.journal?.length > 0 && (
