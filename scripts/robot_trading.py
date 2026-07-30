@@ -34,7 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pandas as pd
 
-from marketlab import config, ftps, notify
+from marketlab import config, ftps, notify, risque_portefeuille
 from marketlab.data import get_ohlcv
 
 CAPITAL_DEPART = 1000.0
@@ -311,11 +311,37 @@ def decisions_robot(compte: dict, verdicts: list[dict]) -> list[str]:
             continue
         equite = _equite(compte)
         mise = round(equite * PART_EQUITE * d["taille_multiplicateur"], 2)
+        levier = LEVIERS.get(d.get("classe", "Actions"), 2)
+
+        # RISQUE D'ENSEMBLE. Jusqu'ici chaque position était dimensionnée
+        # SEULE : quatre lignes à 5 % passaient pour quatre paris alors
+        # qu'elles pouvaient n'en être qu'un. Le 17/06/2026, les plus fortes
+        # secousses ont touché EURUSD, AUDUSD, GBPUSD, USDCHF et l'or le même
+        # jour — un choc du dollar, un seul.
+        # Le facteur se calcule sur les corrélations de RÉGIME TENDU et non sur
+        # la moyenne : se croire diversifié les jours de stress est exactement
+        # l'erreur qu'on cherche à éviter.
+        try:
+            risque = risque_portefeuille.evaluer(
+                compte["positions"], equite,
+                {"symbole": d["symbole"], "sens": "long",
+                 "marge": mise, "levier": levier})
+        except Exception as exc:      # un garde-fou en panne s'efface
+            risque = {"facteur": 1.0,
+                      "raisons": [f"non mesurable : {str(exc)[:60]}"]}
+        if risque["facteur"] <= 0:
+            journal.append(f"ÉCARTÉ {d['symbole']} (concentration) : "
+                           + " ; ".join(risque["raisons"]))
+            continue
+        if risque["facteur"] < 1:
+            mise = round(mise * risque["facteur"], 2)
+            journal.append(f"TAILLE RÉDUITE {d['symbole']} → {mise} $ : "
+                           + " ; ".join(risque["raisons"]))
+
         if mise < 10 or mise > compte["solde"]:
             journal.append(f"IGNORÉ {d['symbole']} : mise calculée {mise} $ "
                            "hors limites")
             continue
-        levier = LEVIERS.get(d.get("classe", "Actions"), 2)
         prix = float(d["plan"]["entree"]) * (1 + SPREAD_PCT / 100)
         notionnel = mise * levier
         compte["solde"] -= mise
