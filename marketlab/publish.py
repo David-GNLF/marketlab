@@ -39,7 +39,7 @@ from marketlab import (alerts, broker_tools, config, correlations, cot,
                        coulisses, decision, drivers, eco_calendar, events,
                        forecast,
                        fundamentals, glossaire, indicators, intraday, levels, macro,
-                       news, paper, position, screener, seasonality, synthese,
+                       news, paper, position, regimes, screener, seasonality, synthese,
                        sentiment_marche, serie, signals)
 from marketlab.data import get_ohlcv
 
@@ -217,6 +217,15 @@ def _classe_actif(symbole: str) -> str:
     return "Actions"
 
 
+def _sur_regimes() -> dict:
+    """IC conditionnel au regime. Ne doit jamais faire tomber la publication :
+    c'est une mesure d'appoint, pas un bloc vital."""
+    try:
+        return regimes.analyser()
+    except Exception as exc:
+        return {"mesurable": False, "raison": f"{type(exc).__name__}: {exc}"}
+
+
 def bloc_verdicts() -> dict:
     """Dossiers de décision + journalisation + bilan des verdicts passés.
 
@@ -267,6 +276,10 @@ def bloc_verdicts() -> dict:
             # Lecture d'ensemble : où est le vent par classe d'actif, et quel
             # est le VRAI pari derrière les paires de devises.
             "synthese": synthese.bloc(dossiers),
+            # L'IC est-il uniforme, ou l'outil se trompe-t-il surtout dans un
+            # regime ? Une moyenne unique suppose une capacite constante ; ce
+            # bloc verifie l'hypothese au lieu de la poser.
+            "par_regime": _sur_regimes(),
             "horizon_officiel": HORIZON_OFFICIEL,
             "horizon_court": HORIZON_COURT,
             "dossiers_court": courts,

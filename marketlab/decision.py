@@ -517,9 +517,26 @@ def _mesurer_competence(df: pd.DataFrame, colonne: str = "rendement_reel_%",
     # Newey-West : les IC de dates proches sont corrélés entre eux
     retard = min(horizon, n_dates - 1)
     var = float(serie.var(ddof=1))
+    var_simple = var
     for k in range(1, retard + 1):
         var += 2 * (1 - k / (retard + 1)) * float(
             np.cov(serie[:-k], serie[k:])[0, 1])
+
+    # GARDE-FOU SUR LA CORRECTION. Newey-West additionne des autocovariances
+    # estimées : sur un échantillon court, leur somme peut annuler la variance,
+    # voire la rendre négative. Le plancher `max(var, 1e-12)` transformait
+    # alors une variance nulle en certitude absolue — mesuré sur un
+    # sous-échantillon de 63 dates : t = −288 819 pour un IC de −0,05.
+    # Un t de cet ordre n'est pas un signal, c'est une division par zéro.
+    #
+    # La correction est donc REJETÉE quand elle détruit plus des trois quarts
+    # de la variance : on retombe sur la variance simple, qui surestime la
+    # certitude mais reste finie — et l'on signale que la correction n'a pas
+    # tenu, plutôt que de publier un chiffre invraisemblable.
+    correction_degeneree = var <= 0 or var < var_simple / 4
+    if correction_degeneree:
+        var = var_simple
+
     err = math.sqrt(max(var, 1e-12) / n_dates)
     t = moyenne / err if err > 0 else 0.0
     episodes = max(int(n_dates / max(horizon, 1)), 1)
@@ -548,6 +565,10 @@ def _mesurer_competence(df: pd.DataFrame, colonne: str = "rendement_reel_%",
     # pas la même chose qu'un outil non concluant sur un échantillon capable.
     detectable = round(2.8 * err, 3) if err > 0 else None
     return {"n_dates": n_dates, "episodes_independants": episodes,
+            # Signalé et non tu : une correction rejetée veut dire que
+            # l'échantillon est trop court pour la mériter, donc que le t
+            # affiché SURESTIME la certitude.
+            "correction_rejetee": bool(correction_degeneree),
             "ic_transversal_moyen": round(moyenne, 4), "t": round(t, 2),
             "horizon_seances": horizon, "sens": sens, "lecture": lecture,
             "ic_detectable": detectable,
