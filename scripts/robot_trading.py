@@ -38,12 +38,23 @@ from marketlab import config, ftps, notify
 from marketlab.data import get_ohlcv
 
 CAPITAL_DEPART = 1000.0
-# Deux robots, mêmes règles, horizons différents. C'est une expérience
-# contrôlée : tout ce qui les sépare est la fenêtre de temps du verdict, donc
-# l'écart de performance mesure la valeur de l'horizon — rien d'autre.
+# TROIS robots, mêmes règles, UNE variable chacun. C'est une expérience
+# contrôlée : « claude » est la référence, « claude5 » n'en diffère que par
+# l'horizon, « claudefx » que par l'univers. Changer deux choses à la fois
+# rendrait tout écart ininterprétable.
 ROBOTS = {
-    "claude": {"cle": "dossiers", "horizon": 20},
-    "claude5": {"cle": "dossiers_court", "horizon": 5},
+    # tous marchés, horizon officiel : la référence
+    "claude": {"cle": "dossiers", "horizon": 20, "classes": None,
+               "libelle": "tous marchés, 20 séances"},
+    # même univers, horizon court : isole la valeur de l'HORIZON
+    "claude5": {"cle": "dossiers_court", "horizon": 5, "classes": None,
+                "libelle": "tous marchés, 5 séances"},
+    # même horizon que la référence, univers restreint au forex : isole la
+    # valeur de la SPÉCIALISATION. Le forex a ses propres moteurs (carry,
+    # différentiels de taux) et une volatilité bien plus faible que les
+    # actions ou les matières — d'où un levier ×5 contre ×2.
+    "claudefx": {"cle": "dossiers", "horizon": 20, "classes": ["Forex"],
+                 "libelle": "forex uniquement, 20 séances"},
 }
 SPREAD_PCT = 0.05
 MAX_POSITIONS = 4
@@ -334,12 +345,16 @@ def main() -> int:
         print("verdicts.json absent : lancer la génération d'abord")
         return 1
     publie = json.loads(VERDICTS_LOCAL.read_text(encoding="utf-8"))
-    verdicts_par_robot = {
-        nom: publie.get(cfg_robot["cle"]) or []
-        for nom, cfg_robot in ROBOTS.items()}
+    verdicts_par_robot = {}
+    for nom, cfg_robot in ROBOTS.items():
+        v = publie.get(cfg_robot["cle"]) or []
+        classes = cfg_robot.get("classes")
+        if classes:
+            v = [d for d in v if d.get("classe") in classes]
+        verdicts_par_robot[nom] = v
     for nom, v in verdicts_par_robot.items():
-        print(f"robot « {nom} » : {len(v)} verdict(s) à "
-              f"{ROBOTS[nom]['horizon']} séances")
+        print(f"robot « {nom} » ({ROBOTS[nom].get('libelle', '')}) : "
+              f"{len(v)} verdict(s) retenu(s)")
 
     cfg = ftps.charger_config()
     session = ftps._connecter(cfg)
@@ -401,6 +416,7 @@ def main() -> int:
             classement.append({
                 "nom": compte["nom"], "est_robot": est_robot,
                 "horizon": ROBOTS.get(compte["nom"], {}).get("horizon"),
+                "specialite": ROBOTS.get(compte["nom"], {}).get("libelle"),
                 "equite": equite,
                 "perf_%": round((equite / compte["capital_initial"] - 1) * 100, 2),
                 "n_positions": len(compte["positions"]),
@@ -436,13 +452,19 @@ def main() -> int:
                          "forex ×5, matières ×3, actions/crypto ×2 ; 4 "
                          "positions max ; stop/objectif du plan ; clôture si "
                          "le verdict se retourne ; tout est journalisé."),
-        "robots": [{"nom": n, "horizon": c["horizon"]}
+        "robots": [{"nom": n, "horizon": c["horizon"],
+                    "specialite": c.get("libelle")}
                    for n, c in ROBOTS.items()],
-        "experience": ("Deux robots suivent EXACTEMENT les mêmes règles et ne "
-                       "diffèrent que par l'horizon du verdict : « claude » à "
-                       "20 séances, « claude5 » à 5 séances. L'écart entre "
-                       "eux ne mesure donc qu'une chose — ce que vaut "
-                       "l'horizon."),
+        "experience": ("Trois robots suivent EXACTEMENT les mêmes règles et ne "
+                       "diffèrent que par un paramètre chacun. « claude » "
+                       "(tous marchés, 20 séances) est la référence. "
+                       "« claude5 » n'en diffère que par l'HORIZON "
+                       "(5 séances) : l'écart mesure ce que vaut "
+                       "l'horizon. « claudefx » n'en diffère que par "
+                       "l'UNIVERS (forex uniquement) : l'écart mesure ce "
+                       "que vaut la spécialisation. Une variable à la "
+                       "fois, sinon on ne saurait pas à quoi attribuer "
+                       "la différence."),
         "avertissement": "Argent virtuel — l'environnement mesure la "
                          "fiabilité de l'outil, il ne constitue pas un "
                          "conseil en investissement.",
