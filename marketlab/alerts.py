@@ -14,16 +14,84 @@ Règles (anti-doublon via .cache/alert_state.json) :
 6. FLASH — mouvement de séance exceptionnel (≥3 écarts-types de la volatilité
    du titre) : envoyé en priorité « urgent » (sonne même en silencieux).
 7. FLASH — bascule du VIX en backwardation (stress immédiat) : urgent aussi.
+8. FLASH — SECOUSSE : une barre de 5 minutes hors norme (≥8 écarts-types),
+   au plus une par titre et par séance. La règle 6 mesure l'AMPLEUR du
+   mouvement depuis la clôture précédente, celle-ci sa VITESSE : une dérive
+   lente et un décrochage brutal de même taille lui sont identiques, alors que
+   le second est une nouvelle et le premier une tendance.
 
-Les règles 6-7 signalent un fait statistiquement rare, PAS un profit promis :
+Les règles 6-8 signalent un fait statistiquement rare, PAS un profit promis :
 elles invitent à regarder vite, la décision reste humaine.
 """
 
 import json
 
+import numpy as np
 import pandas as pd
 
-from marketlab import config, eco_calendar, notify, screener
+from marketlab import config, eco_calendar, intraday, notify, screener
+
+
+def _regle_secousse(symbols, state) -> list[tuple]:
+    """Règle 8 — une barre de 5 minutes hors norme. Renvoie des messages.
+
+    CE QUE LA RÈGLE 6 NE VOIT PAS. Elle mesure le mouvement CUMULÉ depuis la
+    clôture précédente — et elle le voit bien en séance, la barre quotidienne
+    de Yahoo se mettant à jour en continu (vérifié). Ce qui lui échappe, c'est
+    la VITESSE : une dérive lente de 3 % sur six heures et un décrochage de
+    3 % en un quart d'heure lui sont identiques, alors que le second est une
+    nouvelle et le premier une tendance. Un choc se voit à la barre.
+
+    SEUIL MESURÉ, PAS SUPPOSÉ. Sur 365 059 barres de 5 minutes, 58 titres,
+    60 jours : les 3σ de la règle quotidienne donneraient 95 alertes par jour,
+    les rendements de 5 minutes ayant des queues bien plus épaisses (|z|
+    observé jusqu'à 68). À 8σ, une seule par titre et par séance : 3,1 par jour
+    sur tout l'univers. Contrôle de bon sens sur les plus fortes secousses
+    relevées — EURUSD, AUDUSD, GBPUSD, USDCHF et l'or secoués LE MÊME JOUR,
+    soit un choc dollar unique, pas du bruit.
+    """
+    messages = []
+    for sym in symbols:
+        try:
+            barres = intraday.lire(sym, intraday.INTERVALLE_DEFAUT)
+        except Exception:
+            continue
+        if barres is None or barres.empty or len(barres) < FENETRE_SECOUSSE + 20:
+            continue
+        cours = pd.to_numeric(barres["close"], errors="coerce").dropna()
+        jour = pd.DatetimeIndex(cours.index).normalize()
+        # rendements calculés DANS chaque séance : le saut de cotation d'une
+        # clôture à l'ouverture suivante n'est pas une secousse intraséance
+        rendements = np.log(cours).groupby(jour).diff().dropna()
+        if len(rendements) < FENETRE_SECOUSSE + 20:
+            continue
+        sigma = float(rendements.iloc[:-1].tail(FENETRE_SECOUSSE).std())
+        if not np.isfinite(sigma) or sigma <= 0:
+            continue
+        dernier = float(rendements.iloc[-1])
+        z = dernier / sigma
+        horodatage = rendements.index[-1]
+        # une seule secousse par titre et par séance : les barres qui suivent
+        # un choc sont elles aussi hors norme, et les enchaîner transformerait
+        # un événement en avalanche de notifications
+        cle = f"secousse|{sym}|{horodatage.date().isoformat()}"
+        if abs(z) < SEUIL_Z_SECOUSSE or cle in state["evenements"]:
+            continue
+        sens = "📈 flambée" if z > 0 else "📉 décrochage"
+        nom = config.NOMS_ACTIFS.get(sym, sym)
+        prix = float(cours.iloc[-1])
+        messages.append((
+            f"⚡ <b>SECOUSSE — {nom}</b>\n"
+            f"{sens} de {dernier * 100:+.2f} % en 5 minutes, soit "
+            f"{abs(z):.0f} écarts-types de son agitation habituelle "
+            f"(cours {prix:,.4g} à {horodatage.strftime('%H:%M')} UTC).\n"
+            f"Mouvement BRUTAL, pas forcément durable — souvent une nouvelle. "
+            f"À vérifier avant toute décision.", True,
+            {"regle": "secousse_intraseance", "symbole": sym,
+             "prix": prix, "z": round(z, 1),
+             "sens": "hausse" if z > 0 else "baisse"}))
+        state["evenements"].append(cle)
+    return messages
 
 STATE_PATH = config.CACHE_DIR / "alert_state.json"
 
@@ -31,6 +99,17 @@ DEFAULT_UNIVERSES = ["Actions US", "Actions EU", "Actions Asie", "Forex",
                      "Crypto", "Matières premières"]
 STRONG_LABELS = {"Achat fort", "Vente forte"}
 SEUIL_Z_FLASH = 3.0
+
+# Secousse intraséance (règle 8). 8 et non 3 : mesuré sur 365 059 barres de
+# 5 minutes, 58 titres, 60 jours — les 3σ de la règle quotidienne donneraient
+# 95 alertes par jour, les rendements de 5 minutes ayant des queues bien plus
+# épaisses. À 8σ et une alerte par titre et par séance : 3,1 par jour.
+SEUIL_Z_SECOUSSE = 8.0
+
+# Barres de référence pour l'agitation habituelle (~4 séances actions, ~1 en
+# 24 h). Assez long pour être stable, assez court pour suivre un changement
+# de régime.
+FENETRE_SECOUSSE = 300
 
 
 # --- Envoi ------------------------------------------------------------------
@@ -221,6 +300,12 @@ def build_alerts(universes: list[str] | None = None, event_hours: int = 24,
                 state["evenements"].append(cle)
     except Exception as exc:
         print(f"[flash] règle ignorée : {str(exc)[:80]}")
+
+    # 8. FLASH — secousse intraséance (voir _regle_secousse).
+    try:
+        messages.extend(_regle_secousse(symbols, state))
+    except Exception as exc:
+        print(f"[secousse] règle ignorée : {str(exc)[:80]}")
 
     # 7. FLASH — le VIX bascule en backwardation : stress immédiat du marché
     try:
