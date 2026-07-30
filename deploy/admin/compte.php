@@ -37,9 +37,32 @@ if ($nom === '' || !preg_match('/^[a-z0-9_-]{1,32}$/i', $nom)
     $compte = ml_lire(ML_TRADING . "/$nom.json");
     $serie = ml_serie_equite($compte);
     $stats = ml_stats_trades($compte);
-    $equite = ml_equite_compte($compte);
     $capital = (float)($compte['capital_initial'] ?? ML_CAPITAL_TRADING);
     $trades = array_reverse($compte['historique'] ?? []);   // le plus récent d'abord
+    $positions = $compte['positions'] ?? [];
+
+    // Un SEUL appel au relais pour toute la page : l'équité et le détail des
+    // positions partagent les mêmes cotations. Deux appels donneraient deux
+    // instantanés à quelques secondes d'écart, donc un P&L latent qui ne
+    // correspondrait pas tout à fait à l'équité affichée juste au-dessus.
+    $cotes = $positions
+        ? ml_cours(array_values(array_unique(array_column($positions, 'symbole'))))
+        : [];
+    $prix_injectes = [];
+    foreach ($cotes as $sym => $c) $prix_injectes[$sym] = $c['prix'] ?? null;
+    $equite = ml_equite_compte($compte, $prix_injectes ?: null);
+
+    // couleur cohérente avec la page de comparaison
+    $tous_noms = [];
+    foreach (glob(ML_TRADING . '/*.json') ?: [] as $f) {
+        $tous_noms[] = basename($f, '.json');
+    }
+    $couleur = ml_couleur_compte($nom, $tous_noms ?: [$nom]);
+
+    // période affichée par la courbe
+    $periode = isset($_GET['p']) ? (int)$_GET['p'] : 0;
+    if (!in_array($periode, [0, 7, 30, 90], true)) $periode = 0;
+    $vue = ml_filtrer_serie($serie, $periode ?: null);
 }
 
 function pc(?float $x, int $d = 1): string {
@@ -78,6 +101,11 @@ function mt(?float $x): string {
   .scroll { overflow-x: auto; }
   .badge { display: inline-block; padding: .05rem .5rem; border-radius: 1rem;
            font-size: .78rem; background: rgba(128,128,128,.16); }
+  .periodes a { text-decoration: none; padding: .12rem .5rem; opacity: .6;
+                border: 1px solid transparent; border-radius: .3rem;
+                font-size: .85rem; }
+  .periodes a.ici { opacity: 1; font-weight: 600;
+                    border-color: rgba(128,128,128,.45); }
 </style>
 </head>
 <body>
@@ -111,9 +139,18 @@ function mt(?float $x): string {
 </div>
 
 <div class="carte">
-  <h2 style="margin-top:0">Évolution de l'équité</h2>
-  <?= ml_courbe_svg([['nom' => $nom, 'points' => $serie,
-                      'couleur' => ml_couleur_compte($nom)]], 720, 200, false) ?>
+  <div style="display:flex; justify-content:space-between; align-items:baseline;
+              flex-wrap:wrap; gap:.6rem">
+    <h2 style="margin:0">Évolution de l'équité</h2>
+    <span class="periodes">
+      <?php foreach ([7 => '7 j', 30 => '30 j', 90 => '90 j', 0 => 'Tout'] as $p => $lib): ?>
+        <a href="?nom=<?= urlencode($nom) ?>&amp;p=<?= $p ?>"
+           class="<?= $p === $periode ? 'ici' : '' ?>"><?= $lib ?></a>
+      <?php endforeach; ?>
+    </span>
+  </div>
+  <?= ml_courbe_svg([['nom' => $nom, 'points' => $vue,
+                      'couleur' => $couleur]], 720, 220, false) ?>
   <p class="note">Un relevé par passage du robot, le soir. La courbe commence
     au premier passage suivant l'ouverture du compte — pas à sa création.</p>
   <div class="rangee">
@@ -195,24 +232,37 @@ function mt(?float $x): string {
   <h2 style="margin-top:0">Historique des trades (<?= count($trades) ?>)</h2>
   <div class="scroll">
   <table>
-    <tr><th>Fermé le</th><th>Actif</th><th>Sens</th><th class="num">Levier</th>
-        <th class="num">Mise</th><th class="num">Entrée</th>
-        <th class="num">Sortie</th><th class="num">P&amp;L</th>
+    <tr><th>Fermé le</th><th>Actif</th><th>Sens</th>
+        <th class="num">Mise</th><th class="num">Notionnel</th>
+        <th class="num">Entrée</th><th class="num">Sortie</th>
+        <th class="num">Var. actif</th><th class="num">P&amp;L</th>
         <th class="num">Durée</th><th>Motif</th></tr>
     <?php foreach ($trades as $t):
       $pnl = (float)($t['pnl'] ?? 0);
       $marge = (float)($t['marge'] ?? 0);
+      $levier = (float)($t['levier'] ?? 1) ?: 1.0;
+      $sens = ($t['sens'] ?? 'long') === 'short' ? -1 : 1;
+      $entree = (float)($t['entree'] ?? 0);
+      $sortie = (float)($t['sortie'] ?? 0);
+      $var = $entree > 0 ? ($sortie / $entree - 1) * 100 * $sens : null;
       $o = strtotime((string)($t['ouvert_le'] ?? ''));
       $f = strtotime((string)($t['ferme_le'] ?? ''));
       $duree = ($o && $f && $f >= $o) ? ($f - $o) / 86400 : null; ?>
       <tr>
-        <td class="note"><?= h((string)($t['ferme_le'] ?? '—')) ?></td>
+        <td class="note"><?= h((string)($t['ferme_le'] ?? '—')) ?>
+          <?php if ($o): ?>
+            <div style="font-size:.8em">ouvert <?= h(date('d/m H:i', $o)) ?></div>
+          <?php endif; ?>
+        </td>
         <td><strong><?= h((string)($t['symbole'] ?? '?')) ?></strong></td>
-        <td><?= h((string)($t['sens'] ?? '—')) ?></td>
-        <td class="num">×<?= h((string)($t['levier'] ?? '—')) ?></td>
+        <td><?= h((string)($t['sens'] ?? '—')) ?>
+            <span class="note">×<?= h((string)($t['levier'] ?? '—')) ?></span></td>
         <td class="num"><?= ml_montant($marge) ?></td>
-        <td class="num"><?= h((string)($t['entree'] ?? '—')) ?></td>
-        <td class="num"><?= h((string)($t['sortie'] ?? '—')) ?></td>
+        <td class="num note"><?= ml_montant($marge * $levier, 0) ?></td>
+        <td class="num"><?= ml_prix($entree) ?></td>
+        <td class="num"><?= ml_prix($sortie) ?></td>
+        <td class="num <?= ($var ?? 0) >= 0 ? 'gain' : 'perte' ?>">
+          <?= $var === null ? '—' : sprintf('%+.2f %%', $var) ?></td>
         <td class="num <?= $pnl >= 0 ? 'gain' : 'perte' ?>">
           <strong><?= sprintf('%+.2f', $pnl) ?></strong>
           <?php if ($marge > 0): ?>
@@ -226,9 +276,13 @@ function mt(?float $x): string {
     <?php endforeach; ?>
   </table>
   </div>
-  <p class="note">Le pourcentage à côté du P&amp;L rapporte le gain à la MISE
-    engagée, pas au capital : c'est ce qui rend deux trades de tailles
-    différentes comparables.</p>
+  <p class="note">Deux pourcentages, et il ne faut pas les confondre.
+    <strong>Var. actif</strong> est le mouvement du titre lui-même ; celui à
+    côté du P&amp;L rapporte le gain à la MISE engagée, donc multiplié par le
+    levier. 2330.TW a baissé de 5,4 % — la perte sur la mise a été de 10,8 %,
+    parce que la position était à effet deux. Le second chiffre est le seul
+    qui rende comparables deux trades de tailles différentes ; le premier dit
+    si le marché a bougé beaucoup ou peu.</p>
 </div>
 <?php else: ?>
 <div class="carte">
@@ -237,28 +291,81 @@ function mt(?float $x): string {
 </div>
 <?php endif; ?>
 
-<?php if ($compte['positions'] ?? []): ?>
+<?php if ($positions): ?>
 <div class="carte">
-  <h2 style="margin-top:0">Positions ouvertes (<?= count($compte['positions']) ?>)</h2>
+  <h2 style="margin-top:0">Positions ouvertes (<?= count($positions) ?>)</h2>
+  <p class="note">Cours du relais, au même instant que l'équité affichée en
+    haut de page. Les distances sont mesurées depuis le cours ACTUEL, pas
+    depuis l'entrée : c'est ce qui reste à parcourir qui compte.</p>
   <div class="scroll">
   <table>
-    <tr><th>Actif</th><th>Sens</th><th class="num">Levier</th>
-        <th class="num">Mise</th><th class="num">Entrée</th>
-        <th class="num">Stop</th><th class="num">Objectif</th><th>Ouvert le</th></tr>
-    <?php foreach ($compte['positions'] as $p): ?>
+    <tr><th>Actif</th><th>Sens</th><th class="num">Mise</th>
+        <th class="num">Notionnel</th><th class="num">Entrée</th>
+        <th class="num">Cours</th><th class="num">Var.</th>
+        <th class="num">P&amp;L latent</th><th class="num">Stop</th>
+        <th class="num">Objectif</th><th class="num">Ratio</th>
+        <th class="num">Liquid.</th><th class="num">Âge</th></tr>
+    <?php
+    $total_latent = 0.0;
+    foreach ($positions as $p):
+      $sym = (string)($p['symbole'] ?? '?');
+      $d = ml_position_detail($p, $cotes[$sym] ?? null);
+      if ($d['pnl'] !== null) $total_latent += $d['pnl'];
+      $o = strtotime((string)($p['ouvert_le'] ?? ''));
+      $age = $o ? (time() - $o) / 86400 : null; ?>
       <tr>
-        <td><strong><?= h((string)($p['symbole'] ?? '?')) ?></strong></td>
-        <td><?= h((string)($p['sens'] ?? '—')) ?></td>
-        <td class="num">×<?= h((string)($p['levier'] ?? '—')) ?></td>
+        <td><strong><?= h($sym) ?></strong></td>
+        <td><?= h((string)($p['sens'] ?? '—')) ?>
+            <span class="note">×<?= h((string)($p['levier'] ?? '—')) ?></span></td>
         <td class="num"><?= ml_montant((float)($p['marge'] ?? 0)) ?></td>
-        <td class="num"><?= h((string)($p['prix_entree'] ?? '—')) ?></td>
-        <td class="num"><?= h((string)($p['stop'] ?? '—')) ?></td>
-        <td class="num"><?= h((string)($p['objectif'] ?? '—')) ?></td>
-        <td class="note"><?= h((string)($p['ouvert_le'] ?? '—')) ?></td>
+        <td class="num note"><?= ml_montant($d['notionnel'], 0) ?></td>
+        <td class="num"><?= ml_prix((float)($p['prix_entree'] ?? 0)) ?></td>
+        <td class="num"><?= $d['prix'] === null
+          ? '<span class="note">indispo.</span>' : ml_prix((float)$d['prix']) ?></td>
+        <td class="num <?= ($d['variation_%'] ?? 0) >= 0 ? 'gain' : 'perte' ?>">
+          <?= $d['variation_%'] === null ? '—'
+              : sprintf('%+.2f %%', $d['variation_%']) ?></td>
+        <td class="num <?= ($d['pnl'] ?? 0) >= 0 ? 'gain' : 'perte' ?>">
+          <?= $d['pnl'] === null ? '—' : '<strong>' . sprintf('%+.2f', $d['pnl'])
+              . '</strong>' ?>
+          <?php if ($d['pnl_%_marge'] !== null): ?>
+            <span class="note">(<?= sprintf('%+.1f %%', $d['pnl_%_marge']) ?>)</span>
+          <?php endif; ?>
+        </td>
+        <td class="num"><?= empty($p['stop']) ? '—' : ml_prix((float)$p['stop']) ?>
+          <?php if ($d['vers_stop_%'] !== null): ?>
+            <span class="note"><?= sprintf('%+.1f %%', $d['vers_stop_%']) ?></span>
+          <?php endif; ?>
+        </td>
+        <td class="num"><?= empty($p['objectif']) ? '—' : ml_prix((float)$p['objectif']) ?>
+          <?php if ($d['vers_objectif_%'] !== null): ?>
+            <span class="note"><?= sprintf('%+.1f %%', $d['vers_objectif_%']) ?></span>
+          <?php endif; ?>
+        </td>
+        <td class="num <?= ($d['ratio'] ?? 0) >= 1.2 ? 'gain'
+                          : (($d['ratio'] ?? 9) < 1 ? 'perte' : '') ?>">
+          <?= $d['ratio'] === null ? '—'
+              : number_format($d['ratio'], 2, ',', ' ') ?></td>
+        <td class="num note" title="Cours auquel la mise serait entièrement perdue">
+          <?= ml_prix($d['liquidation']) ?></td>
+        <td class="num note"><?= $age === null ? '—'
+          : number_format($age, 1, ',', ' ') . ' j' ?></td>
       </tr>
     <?php endforeach; ?>
+    <tr>
+      <td colspan="7" class="note">Total latent</td>
+      <td class="num <?= $total_latent >= 0 ? 'gain' : 'perte' ?>">
+        <strong><?= sprintf('%+.2f', $total_latent) ?></strong></td>
+      <td colspan="5"></td>
+    </tr>
   </table>
   </div>
+  <p class="note"><strong>Ratio</strong> = ce qu'il reste à gagner jusqu'à
+    l'objectif rapporté à ce qu'on risque jusqu'au stop, calculé depuis le
+    cours actuel. Sous 1, la position a déjà donné le meilleur d'elle-même :
+    on risque plus que ce qu'on peut encore prendre.
+    <strong>Liquid.</strong> = cours auquel la mise serait entièrement perdue,
+    soit 1/levier de parcours depuis l'entrée dans le mauvais sens.</p>
 </div>
 <?php endif; ?>
 

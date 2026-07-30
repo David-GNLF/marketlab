@@ -192,10 +192,137 @@ def test_courbe_produit_un_trace_par_compte():
     assert "#111" in svg and "#222" in svg
 
 
+def test_les_couleurs_sont_toutes_distinctes():
+    """DÉFAUT CONSTATÉ À L'ÉCRAN : la couleur venait d'un hachage du nom
+    (crc32 % 8) et deux comptes sur cinq — frejus et claude5 — ont reçu le
+    même orange. Une légende où deux entrées portent la même pastille ne sert
+    plus à rien."""
+    noms = ["claude", "claude5", "claudefx", "david", "frejus"]
+    liste = "['" + "', '".join(noms) + "']"
+    c = _appeler(f"ml_couleurs_comptes({liste})")
+    assert len(set(c.values())) == len(noms)
+
+
 def test_la_couleur_dun_compte_est_stable():
-    """Un compte doit garder sa couleur d'un écran à l'autre, sinon la légende
-    de la page de comparaison ne veut plus rien dire."""
-    a = _appeler("ml_couleur_compte('claude')")
-    b = _appeler("ml_couleur_compte('claude')")
+    """Elle ne doit pas changer d'une page à l'autre, sinon on ne peut plus
+    relier une courbe à sa légende."""
+    noms = "['claude', 'claude5', 'david']"
+    a = _appeler(f"ml_couleurs_comptes({noms})['claude']")
+    b = _appeler(f"ml_couleur_compte('claude', {noms})")
     assert a == b and a.startswith("#")
-    assert _appeler("ml_couleur_compte('david')") != a or True  # collision tolérée
+
+
+# ---------------------------------------------------------------------------
+# Affichage des prix
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("valeur,attendu_decimales", [
+    (2224.1516, 2), (321.82083, 3), (6.395196, 4), (0.5432198, 5),
+])
+def test_le_prix_sadapte_a_sa_grandeur(valeur, attendu_decimales):
+    """Les cours arrivent bruts du relais. Huit décimales sur un indice à
+    2 224 donnent une fausse impression de précision."""
+    rendu = _appeler(f"ml_prix({valeur})")
+    assert rendu.count(",") == 1
+    assert len(rendu.split(",")[1]) == attendu_decimales
+
+
+def test_un_prix_minuscule_garde_ses_chiffres():
+    rendu = _appeler("ml_prix(0.00003214)")
+    assert "3214" in rendu.replace(" ", "").replace(" ", "")
+
+
+# ---------------------------------------------------------------------------
+# Détail d'une position ouverte
+# ---------------------------------------------------------------------------
+
+def _position(**kw):
+    base = {"symbole": "AAPL", "sens": "long", "marge": 50.0, "levier": 2,
+            "quantite": 1.0, "prix_entree": 100.0, "stop": 90.0,
+            "objectif": 120.0}
+    base.update(kw)
+    return base
+
+
+def test_pnl_latent_et_variation_sont_distincts():
+    """Le titre monte de 10 %, mais la position est à effet deux : le gain sur
+    la MISE est de 20 %. Confondre les deux fait lire un risque pour un autre."""
+    d = _appeler("ml_position_detail($compte, ['prix' => 110.0])",
+                 _position(quantite=1.0))
+    assert d["variation_%"] == pytest.approx(10.0)
+    assert d["pnl"] == pytest.approx(10.0)
+    assert d["pnl_%_marge"] == pytest.approx(20.0)
+
+
+def test_le_sens_court_inverse_la_variation():
+    d = _appeler("ml_position_detail($compte, ['prix' => 90.0])",
+                 _position(sens="short"))
+    assert d["variation_%"] == pytest.approx(10.0)   # baisse = gain
+    assert d["pnl"] > 0
+
+
+def test_prix_de_liquidation():
+    """La mise est perdue quand le cours a parcouru 1/levier depuis l'entrée."""
+    d = _appeler("ml_position_detail($compte, null)", _position(levier=2))
+    assert d["liquidation"] == pytest.approx(50.0)
+    d = _appeler("ml_position_detail($compte, null)", _position(levier=5))
+    assert d["liquidation"] == pytest.approx(80.0)
+
+
+def test_distances_mesurees_depuis_le_cours_actuel():
+    """C'est ce qu'il RESTE à parcourir qui compte, pas l'écart d'origine."""
+    d = _appeler("ml_position_detail($compte, ['prix' => 110.0])", _position())
+    assert d["vers_stop_%"] == pytest.approx(90 / 110 * 100 - 100)
+    assert d["vers_objectif_%"] == pytest.approx(120 / 110 * 100 - 100)
+    # ratio = ce qui reste à gagner ÷ ce qu'on risque encore
+    assert d["ratio"] == pytest.approx(
+        abs(120 / 110 - 1) / abs(90 / 110 - 1), rel=1e-6)
+
+
+def test_position_sans_cotation_ne_ment_pas():
+    """Un symbole qui n'a pas répondu ne doit pas produire un P&L de zéro,
+    qui se lirait comme « position à l'équilibre »."""
+    d = _appeler("ml_position_detail($compte, null)", _position())
+    assert d["pnl"] is None and d["variation_%"] is None
+    assert d["notionnel"] == pytest.approx(100.0)   # marge × levier
+
+
+# ---------------------------------------------------------------------------
+# Filtrage par période
+# ---------------------------------------------------------------------------
+
+def test_filtrer_sur_tout_ne_retire_rien():
+    serie = [{"t": "2020-01-01 22:00", "v": 1000.0},
+             {"t": "2026-07-30 22:00", "v": 1100.0}]
+    assert len(_appeler("ml_filtrer_serie($serie, null)", None, serie)) == 2
+
+
+def test_filtrer_ecarte_les_points_trop_anciens():
+    serie = [{"t": "2020-01-01 22:00", "v": 1000.0},
+             {"t": "2026-07-30 22:00", "v": 1100.0}]
+    garde = _appeler("ml_filtrer_serie($serie, 7)", None, serie)
+    assert len(garde) == 1 and garde[0]["v"] == 1100.0
+
+
+# ---------------------------------------------------------------------------
+# Tracé enrichi
+# ---------------------------------------------------------------------------
+
+def test_un_marqueur_par_releve():
+    """Quatre points reliés sans marqueurs se lisent comme une mesure
+    continue : le trait suggère une densité de données qui n'existe pas."""
+    serie = [{"t": "2026-07-0%d 22:00" % i, "v": 1000.0 + i}
+             for i in range(1, 6)]
+    svg = _appeler("ml_courbe_svg([['nom' => 'a', 'points' => $serie]])",
+                   None, serie)
+    assert svg.count("<circle") >= 5
+    assert "<title>" in svg          # infobulle native, sans JavaScript
+
+
+def test_la_grille_est_chiffree():
+    serie = [{"t": "2026-07-0%d 22:00" % i, "v": 1000.0 + i}
+             for i in range(1, 6)]
+    svg = _appeler("ml_courbe_svg([['nom' => 'a', 'points' => $serie]])",
+                   None, serie)
+    assert svg.count("<line") >= 5   # 5 graduations horizontales
+    assert svg.count("<text") >= 7   # valeurs + dates

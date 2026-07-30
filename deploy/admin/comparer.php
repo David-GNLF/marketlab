@@ -27,34 +27,60 @@ function h(string $s): string {
 }
 
 const FENETRES = [7 => '7 jours', 30 => '30 jours', 90 => '90 jours'];
+const PERIODES = [7 => '7 jours', 30 => '30 jours', 90 => '90 jours',
+                  0 => 'Tout'];
 
-$comptes = [];
+// Période affichée par le graphique. 0 = tout l'historique.
+$periode = isset($_GET['p']) ? (int)$_GET['p'] : 0;
+if (!array_key_exists($periode, PERIODES)) $periode = 0;
+$fenetre_graphique = $periode ?: null;
+
+$brut = [];
 foreach (glob(ML_TRADING . '/*.json') ?: [] as $f) {
     $c = ml_lire($f);
     $nom = (string)($c['nom'] ?? basename($f, '.json'));
-    if ($nom === '') continue;
+    if ($nom !== '') $brut[$nom] = $c;
+}
+$couleurs = ml_couleurs_comptes(array_keys($brut));
+
+$comptes = [];
+foreach ($brut as $nom => $c) {
     $serie = ml_serie_equite($c);
     $capital = (float)($c['capital_initial'] ?? ML_CAPITAL_TRADING);
     $equite = ml_equite_compte($c);
+    $vue = ml_filtrer_serie($serie, $fenetre_graphique);
     $comptes[$nom] = [
-        'nom' => $nom, 'serie' => $serie, 'equite' => $equite,
+        'nom' => $nom, 'serie' => $serie, 'vue' => $vue, 'equite' => $equite,
         'capital' => $capital,
         'depuis_ouverture' => ($equite / max($capital, 1e-9) - 1) * 100,
+        // performance SUR LA PÉRIODE AFFICHÉE : c'est elle qui doit figurer
+        // dans la légende, sinon le classement des couleurs contredit ce que
+        // le graphique montre
+        'perf_vue' => count($vue) >= 2
+            ? ($vue[count($vue) - 1]['v'] / max($vue[0]['v'], 1e-9) - 1) * 100
+            : null,
         'drawdown' => ml_drawdown_max($serie),
         'stats' => ml_stats_trades($c),
         'releves' => count($serie),
-        'couleur' => ml_couleur_compte($nom),
+        'releves_vue' => count($vue),
+        'couleur' => $couleurs[$nom],
     ];
 }
 uasort($comptes, fn($a, $b) => $b['depuis_ouverture'] <=> $a['depuis_ouverture']);
 
+// Légende ordonnée par performance SUR LA PÉRIODE AFFICHÉE : on lit le
+// graphique de haut en bas, la légende doit suivre le même ordre.
+$legende = $comptes;
+uasort($legende, fn($a, $b) => ($b['perf_vue'] ?? -INF) <=> ($a['perf_vue'] ?? -INF));
+
 $series_svg = [];
-foreach ($comptes as $c) {
-    if (count($c['serie']) >= 2) {
-        $series_svg[] = ['nom' => $c['nom'], 'points' => $c['serie'],
+foreach ($legende as $c) {
+    if (count($c['vue']) >= 2) {
+        $series_svg[] = ['nom' => $c['nom'], 'points' => $c['vue'],
                          'couleur' => $c['couleur']];
     }
 }
+$exclus = array_filter($comptes, fn($c) => count($c['vue']) < 2);
 
 function pc(?float $x, int $d = 2): string {
     return $x === null ? '—' : number_format($x, $d, ',', "\u{202F}") . ' %';
@@ -85,6 +111,13 @@ function pc(?float $x, int $d = 2): string {
   .pastille { display: inline-block; width: .6rem; height: .6rem;
               border-radius: 50%; margin-right: .4rem; }
   .scroll { overflow-x: auto; }
+  .periodes a { text-decoration: none; padding: .12rem .5rem; opacity: .6;
+                border: 1px solid transparent; border-radius: .3rem;
+                font-size: .85rem; }
+  .periodes a.ici { opacity: 1; font-weight: 600;
+                    border-color: rgba(128,128,128,.45); }
+  table.legende { width: auto; margin-top: .5rem; font-size: .88rem; }
+  table.legende td { border: 0; padding: .12rem .8rem .12rem 0; }
 </style>
 </head>
 <body>
@@ -93,19 +126,41 @@ function pc(?float $x, int $d = 2): string {
 <p class="note"><a href="./">← Administration</a></p>
 
 <div class="carte">
-  <h2 style="margin-top:0">Trajectoires, en base 100</h2>
+  <div style="display:flex; justify-content:space-between; align-items:baseline;
+              flex-wrap:wrap; gap:.6rem">
+    <h2 style="margin:0">Trajectoires, en base 100</h2>
+    <span class="periodes">
+      <?php foreach (PERIODES as $p => $lib): ?>
+        <a href="?p=<?= $p ?>" class="<?= $p === $periode ? 'ici' : '' ?>"><?= $lib ?></a>
+      <?php endforeach; ?>
+    </span>
+  </div>
   <?= ml_courbe_svg($series_svg, 860, 260, true) ?>
-  <p class="note" style="margin-top:.6rem">
-    <?php foreach ($comptes as $c): ?>
-      <span style="margin-right:1rem; white-space:nowrap">
-        <span class="pastille" style="background:<?= h($c['couleur']) ?>"></span>
-        <?= h($c['nom']) ?></span>
+
+  <table class="legende">
+    <?php foreach ($legende as $c): if (count($c['vue']) < 2) continue; ?>
+      <tr>
+        <td><span class="pastille" style="background:<?= h($c['couleur']) ?>"></span>
+            <a href="./compte.php?nom=<?= urlencode($c['nom']) ?>"><?= h($c['nom']) ?></a></td>
+        <td class="num <?= ($c['perf_vue'] ?? 0) >= 0 ? 'gain' : 'perte' ?>">
+          <strong><?= pc($c['perf_vue']) ?></strong></td>
+        <td class="num note"><?= $c['releves_vue'] ?> relevés</td>
+      </tr>
     <?php endforeach; ?>
-  </p>
+  </table>
+
+  <?php if ($exclus): ?>
+    <p class="note">Absents du graphique, faute d'au moins deux relevés sur la
+      période : <?= h(implode(', ', array_keys($exclus))) ?>. Un compte sans
+      mouvement n'a rien à tracer — ce n'est pas une donnée manquante.</p>
+  <?php endif; ?>
+
   <p class="note">Base 100 au premier relevé de CHAQUE compte, et non en
     dollars : deux comptes ouverts à des dates différentes n'ont pas le même
     point de départ, et superposer des montants comparerait des trajectoires
-    décalées plutôt que des performances.</p>
+    décalées plutôt que des performances. Le cercle creux marque le premier
+    relevé d'un compte ouvert après les autres. Chaque point est un relevé
+    réel — survolez-le pour la date et le montant.</p>
 </div>
 
 <div class="carte">
