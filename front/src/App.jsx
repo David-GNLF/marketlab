@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import * as api from "./api";
 import { Coquille, EtatDonnees } from "./coquille";
 import { PanneauGlossaire, Terme } from "./glossaire";
+import { Contributions, ParCategorie, ParDevise } from "./synthese";
 import { GraphiqueCone } from "./charts";
 import {
   GardeGraphique, GraphiqueTerminal, PAS, TYPES, agreger, enBougies,
@@ -1114,7 +1115,17 @@ function Verdict({ d, rang, onTitre, court, horizonCourt }) {
       ))}
       {ouvert && (
         <div style={{ marginTop: 10 }}>
-          {d.composantes?.map((c) => (
+          {/* La décomposition remplace la simple liste des composantes : elle
+              montre le POIDS de chacune dans la note, pas seulement sa valeur.
+              Une composante à +50 qui pèse 5 % explique moins qu'une à +20 qui
+              en pèse 30, et la liste brute laissait croire l'inverse. */}
+          {d.contributions?.lignes?.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <Contributions contributions={d.contributions}
+                             note={d.note_globale} />
+            </div>
+          )}
+          {!d.contributions?.lignes?.length && d.composantes?.map((c) => (
             <p key={c.nom} className="note" style={{ margin: "4px 0" }}>
               <strong style={{ display: "inline-block", minWidth: 110 }}>
                 {c.nom}</strong>{" "}
@@ -1212,6 +1223,12 @@ function PageDecisions({ onTitre }) {
           Un <Terme code="veto">veto</Terme> peut écarter une idée malgré une
           bonne note.</p>
       </div>
+      {donnees.synthese && (
+        <>
+          <ParCategorie donnees={donnees.synthese.par_categorie} />
+          <ParDevise donnees={donnees.synthese.par_devise} />
+        </>
+      )}
       {comp?.sens && (
         <div className="carte" style={{ borderLeft: `4px solid ${
             comp.sens === "négatif" ? "var(--critical)"

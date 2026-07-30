@@ -39,7 +39,7 @@ from marketlab import (alerts, broker_tools, config, correlations, cot,
                        coulisses, decision, drivers, eco_calendar, events,
                        forecast,
                        fundamentals, glossaire, indicators, intraday, levels, macro,
-                       news, paper, position, screener, seasonality,
+                       news, paper, position, screener, seasonality, synthese,
                        sentiment_marche, serie, signals)
 from marketlab.data import get_ohlcv
 
@@ -253,7 +253,20 @@ def bloc_verdicts() -> dict:
         d["nom"] = config.NOMS_ACTIFS.get(d["symbole"], d["symbole"])
     decision.journaliser(courts)
 
+    # Décomposition de la note en apports de chaque composante : la somme
+    # redonne exactement la note publiée, donc l'explication est vérifiable et
+    # non illustrative. Attachée au dossier pour que la fiche n'ait rien à
+    # recalculer.
+    for d in dossiers:
+        try:
+            d["contributions"] = synthese.contributions(d)
+        except Exception as exc:
+            d["contributions"] = {"lignes": [], "erreur": str(exc)[:80]}
+
     return {"dossiers": dossiers, "bilan": decision.bilan(HORIZON_OFFICIEL),
+            # Lecture d'ensemble : où est le vent par classe d'actif, et quel
+            # est le VRAI pari derrière les paires de devises.
+            "synthese": synthese.bloc(dossiers),
             "horizon_officiel": HORIZON_OFFICIEL,
             "horizon_court": HORIZON_COURT,
             "dossiers_court": courts,
