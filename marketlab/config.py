@@ -21,9 +21,25 @@ DATA_DIR.mkdir(exist_ok=True)
 # requêtes chez des fournisseurs gratuits qu'il ne faut pas épuiser.
 CACHE_TTL_HOURS = {
     "1d": float(os.environ.get("MARKETLAB_TTL_1D_H", 12)),
+    # Barres intrajournalières : le délai doit rester SOUS l'intervalle de
+    # balayage de la veille (10 min), sinon chaque passage relit le même
+    # instantané et la capture n'avance jamais. 0,08 h = ~5 min.
+    "5m": float(os.environ.get("MARKETLAB_TTL_5M_H", 0.08)),
+    "15m": float(os.environ.get("MARKETLAB_TTL_15M_H", 0.25)),
     "1h": float(os.environ.get("MARKETLAB_TTL_1H_H", 2)),
     "1wk": 48,
 }
+
+# Magasin de barres intrajournalières. Sous .cache/ VOLONTAIREMENT : ces
+# fichiers sont volumineux et régénérables, ils ne doivent pas entrer dans le
+# dépôt (public). Le cache d'Actions les porte d'une veille à l'autre.
+INTRADAY_DIR = CACHE_DIR / "intraday"
+
+# Volatilité réalisée : UNE ligne par titre et par jour, dérivée des barres
+# intrajournalières. Minuscule, donc versionnée — c'est le seul moyen de
+# constituer un historique plus profond que la fenêtre de 60 jours que Yahoo
+# sert en 5 minutes.
+RV_PATH = DATA_DIR / "volatilite_realisee.csv"
 
 # ---------------------------------------------------------------------------
 # Univers suivis (watchlists). Modifier librement : ce sont les listes que le

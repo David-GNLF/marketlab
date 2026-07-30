@@ -34,7 +34,25 @@ INTERVALLE_DEFAUT_MIN = 8
 
 
 def un_passage(universes=None, dry_run=False) -> dict:
-    """Un balayage complet : règles, envoi, puis publication du fil."""
+    """Un balayage complet : capture, règles, envoi, puis publication du fil."""
+    # Capture intrajournalière AVANT les règles. C'est le seul moment où la
+    # plateforme voit le marché à une résolution utile : la veille tient un
+    # processus pendant trois heures et repasse toutes les 10 minutes, alors
+    # qu'un cron court ne serait honoré qu'une fois sur six.
+    # Elle tourne aussi en --dry-run, contrairement au fil du site : archiver
+    # des barres dans .cache/ est sans effet visible, publier ne l'est pas.
+    try:
+        from marketlab import intraday
+        capture = intraday.capturer_pour_veille()
+        print(f"Barres {intraday.INTERVALLE_DEFAUT} archivées : "
+              f"{capture['barres']} sur {capture['titres']} titre(s)"
+              + (f" ; {len(capture['echecs'])} indisponible(s)"
+                 if capture["echecs"] else ""))
+    except Exception as exc:
+        # Une barre manquée coûte moins cher qu'une alerte manquée : la
+        # capture ne doit jamais empêcher le balayage de tourner.
+        print(f"Capture intrajournalière indisponible (non bloquant) : {str(exc)[:80]}")
+
     bilan = alerts.run(universes=universes, dry_run=dry_run)
     print(f"Alertes générées : {bilan['alertes']} | envoyées : {bilan['envoyees']} | "
           f"canaux : {', '.join(bilan['canaux']) or 'aucun'} | dry-run : {bilan['dry_run']}")

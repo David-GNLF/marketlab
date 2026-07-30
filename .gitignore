@@ -19,6 +19,11 @@ data_local/*
 # par le workflow pour persister d'un runner à l'autre.
 !data_local/poids_appris.json
 !data_local/calibration.json
+# La volatilité réalisée est versionnée : une ligne par titre et par jour, sans
+# secret. Yahoo ne sert les barres 5 min que sur 60 jours glissants, donc
+# l'historique ne peut se constituer QUE par un relevé quotidien conservé.
+# Les barres brutes, elles, restent dans .cache/ (volumineuses, régénérables).
+!data_local/volatilite_realisee.csv
 
 # --- Environnement et caches ---
 .venv/

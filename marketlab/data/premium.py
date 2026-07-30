@@ -24,7 +24,12 @@ from marketlab.data import base
 
 API = "https://api.twelvedata.com/time_series"
 CONFIG_PATH = config.DATA_DIR / "providers.json"
-INTERVAL_MAP = {"1d": "1day", "1h": "1h", "1wk": "1week"}
+# Même correction que chez Binance : un intervalle inconnu levait naguère un
+# repli silencieux sur « 1day ».
+INTERVAL_MAP = {
+    "5m": "5min", "15m": "15min", "30m": "30min", "1h": "1h",
+    "1d": "1day", "1wk": "1week",
+}
 
 
 def api_key() -> str | None:
@@ -57,6 +62,10 @@ def get_ohlcv(symbol: str, interval: str = "1d", lookback_days: int = 730) -> pd
     key = api_key()
     if key is None:
         raise RuntimeError("Twelve Data non configuré (data_local/providers.json)")
+    if interval not in INTERVAL_MAP:
+        raise ValueError(
+            f"Intervalle non pris en charge par Twelve Data : {interval} "
+            f"(connus : {', '.join(INTERVAL_MAP)})")
     cached = base.load_cached("twelvedata", symbol, interval, lookback_days)
     if cached is not None:
         return cached
@@ -64,7 +73,7 @@ def get_ohlcv(symbol: str, interval: str = "1d", lookback_days: int = 730) -> pd
     start = (dt.date.today() - dt.timedelta(days=lookback_days)).isoformat()
     resp = requests.get(API, params={
         "symbol": _td_symbol(symbol),
-        "interval": INTERVAL_MAP.get(interval, "1day"),
+        "interval": INTERVAL_MAP[interval],
         "start_date": start,
         "outputsize": 5000,
         "apikey": key,

@@ -17,7 +17,15 @@ BASES = [
     "https://api.binance.com/api/v3/klines",
     "https://data-api.binance.vision/api/v3/klines",
 ]
-INTERVAL_MAP = {"1d": "1d", "1h": "1h", "1wk": "1w"}
+# PIÈGE CORRIGÉ : la table était lue avec `.get(interval, "1d")`. Demander des
+# barres 5 min ne provoquait donc pas une erreur mais renvoyait SILENCIEUSEMENT
+# des barres quotidiennes — le pire des deux mondes, puisque le calcul en aval
+# paraissait fonctionner sur une granularité qu'il n'avait pas. Un intervalle
+# inconnu lève désormais.
+INTERVAL_MAP = {
+    "5m": "5m", "15m": "15m", "30m": "30m", "1h": "1h",
+    "1d": "1d", "1wk": "1w",
+}
 _KLINE_COLS = [
     "open_time", "open", "high", "low", "close", "volume",
     "close_time", "quote_volume", "trades", "taker_base", "taker_quote", "ignore",
@@ -45,18 +53,29 @@ def _requete(params: dict) -> list:
 
 
 def get_ohlcv(symbol: str, interval: str = "1d", lookback_days: int = 730) -> pd.DataFrame:
+    if interval not in INTERVAL_MAP:
+        raise ValueError(
+            f"Intervalle non pris en charge par Binance : {interval} "
+            f"(connus : {', '.join(INTERVAL_MAP)})")
     cached = base.load_cached("binance", symbol, interval, lookback_days)
     if cached is not None:
         return cached
 
-    start_ms = int(
-        (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=lookback_days)).timestamp() * 1000
-    )
+    debut = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=lookback_days)
+    if interval not in ("1d", "1wk"):
+        # Aligné sur MINUIT UTC en intrajournalier. Sinon la première journée
+        # de la fenêtre commence en milieu de séance : mesuré sur BTCUSDT, 230
+        # barres de 5 min au lieu de 287, et une volatilité réalisée
+        # mécaniquement sous-estimée de ~20 % sur ce jour-là. Comme
+        # l'historique de volatilité est immuable, cette valeur fausse serait
+        # restée. Yahoo n'a pas le problème : son `start` est une DATE.
+        debut = debut.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_ms = int(debut.timestamp() * 1000)
     rows: list[list] = []
     while True:
         batch = _requete({
             "symbol": symbol,
-            "interval": INTERVAL_MAP.get(interval, "1d"),
+            "interval": INTERVAL_MAP[interval],
             "startTime": start_ms,
             "limit": 1000,
         })

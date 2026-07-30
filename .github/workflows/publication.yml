@@ -64,6 +64,18 @@ jobs:
           key: cours-${{ github.run_id }}
           restore-keys: cours-
 
+      # Volatilité réalisée des séances TERMINÉES, mesurée sur les barres
+      # 5 min. Yahoo ne les sert que sur 60 jours glissants : sans ce relevé
+      # quotidien conservé dans data_local, l'historique de volatilité ne
+      # dépassera jamais deux mois. Une journée déjà relevée n'est pas
+      # réécrite, donc le fichier ne bouge que quand une vraie séance
+      # s'ajoute — pas de commit à chaque passage.
+      # continue-on-error : c'est une mesure d'appoint, elle ne doit pas
+      # empêcher la publication du site.
+      - name: Relevé de volatilité réalisée
+        continue-on-error: true
+        run: python scripts/capturer_intraday.py --releve
+
       - name: Générer l'instantané
         run: python scripts/publier.py --generer-seul
 
