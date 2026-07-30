@@ -130,6 +130,94 @@ footer.ml-pied a:hover, footer.ml-pied a:focus-visible {
   color: var(--text-primary); background: var(--surface);
 }
 
+/* ------------------------------------------------------- Terminal de titre
+   Liste de suivi à gauche, poste de travail à droite. La colonne fixe de
+   232 px est ce qui distingue un terminal d'une page : le contexte reste
+   visible pendant qu'on lit un titre, et changer d'actif est un clic, pas
+   un aller-retour par un menu déroulant. */
+.ml-terminal { display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 16px; }
+.ml-terminal-corps { min-width: 0; }
+
+.ml-rail {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; overflow: hidden; align-self: start;
+  position: sticky; top: 12px; max-height: calc(100vh - 24px);
+  display: flex; flex-direction: column;
+}
+.ml-rail-recherche {
+  border: none; border-bottom: 1px solid var(--border); border-radius: 0;
+  background: transparent; padding: 9px 10px; font-size: 13px; width: 100%;
+}
+.ml-rail-recherche:focus { outline: none; border-bottom-color: var(--series-1); }
+.ml-rail-liste { overflow-y: auto; }
+.ml-rail-ligne {
+  display: grid; grid-template-columns: 1fr auto; gap: 0 8px; width: 100%;
+  background: none; border: none; border-left: 2px solid transparent;
+  padding: 6px 10px; cursor: pointer; text-align: left;
+  color: var(--text-primary); font-size: 13px;
+  border-bottom: 1px solid var(--grid);
+}
+.ml-rail-ligne:hover { background: var(--page); }
+.ml-rail-ligne.actif { border-left-color: var(--series-1); background: var(--page); }
+.ml-rail-sym { font-weight: 600; font-variant-numeric: tabular-nums; }
+.ml-rail-prix {
+  text-align: right; font-variant-numeric: tabular-nums; font-size: 12px;
+  grid-row: span 2; align-self: center;
+}
+.ml-rail-nom {
+  color: var(--muted); font-size: 11px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+
+.ml-entete-titre {
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  padding: 12px 16px;
+}
+.ml-titre-nom { font-size: 18px; font-weight: 650; letter-spacing: -0.01em; }
+.ml-titre-prix { font-size: 25px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ml-titre-prix .note, .ml-titre-prix .delta { font-size: 13px; font-weight: 400; }
+.ml-titre-avis { display: flex; flex-direction: column; gap: 3px; margin-left: auto; text-align: right; }
+
+/* Barreau d'outils : des puces, pas des menus déroulants. Changer d'échelle
+   de temps est le geste le plus fréquent d'une lecture de graphique — il doit
+   coûter un clic, jamais deux. */
+.ml-outils { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 10px; }
+.ml-groupe { display: flex; gap: 2px; flex-wrap: wrap; }
+.ml-chip {
+  background: transparent; border: 1px solid transparent; border-radius: 5px;
+  color: var(--text-secondary); padding: 4px 9px; cursor: pointer;
+  font-size: 12.5px; line-height: 1.35;
+}
+.ml-chip:hover:not(:disabled) { background: var(--page); color: var(--text-primary); }
+.ml-chip.actif {
+  background: var(--series-1); border-color: var(--series-1); color: #fff;
+}
+.ml-chip:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.ml-ohlc {
+  display: flex; flex-wrap: wrap; gap: 14px; align-items: baseline;
+  font-size: 12.5px; color: var(--text-secondary);
+  font-variant-numeric: tabular-nums; padding: 2px 0 6px;
+  border-top: 1px solid var(--grid); margin-top: 2px;
+}
+.ml-ohlc b { color: var(--text-primary); font-weight: 600; }
+
+/* Sous 900 px la colonne de suivi passe en bandeau horizontal : sur un
+   téléphone, une colonne de 232 px ne laisserait plus rien au graphique. */
+@media (max-width: 900px) {
+  .ml-terminal { grid-template-columns: 1fr; }
+  .ml-rail { position: static; max-height: none; }
+  .ml-rail-liste { display: flex; overflow-x: auto; max-height: none; }
+  .ml-rail-ligne {
+    border-bottom: none; border-left: none; border-right: 1px solid var(--grid);
+    border-top: 2px solid transparent; min-width: 132px;
+  }
+  .ml-rail-ligne.actif { border-left-color: transparent; border-top-color: var(--series-1); }
+  .ml-titre-avis { margin-left: 0; text-align: left; }
+}
+
 .badge { padding: 2px 8px; border-radius: 10px; font-size: 12px; border: 1px solid var(--border); }
 .erreur { color: var(--critical); }
 .note { color: var(--muted); font-size: 12px; }
+
+.ml-rail-avis { display: block; font-size: 10.5px; margin-top: 1px; }

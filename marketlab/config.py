@@ -88,7 +88,28 @@ MATIERES = ["GC=F", "SI=F", "CL=F", "BZ=F", "NG=F", "HG=F",
             "CC=F", "CT=F", "KC=F", "ZW=F"]
 
 # Libellés lisibles (affichage site + requêtes d'actualités)
+# Nom lisible de chaque actif suivi. Ce n'est pas de l'ornement : la fiche
+# d'un titre affichait « AAPL » en gros là où elle devait afficher « Apple »,
+# et la liste de suivi n'avait qu'une colonne de tickers. Un opérateur
+# reconnaît « Airbus » d'un coup d'œil, pas « AIR.PA ». La table couvre
+# désormais TOUT config.SUIVIS — un test le vérifie, pour qu'un actif ajouté
+# demain ne réintroduise pas le trou en silence.
 NOMS_ACTIFS = {
+    "AAPL": "Apple", "MSFT": "Microsoft", "GOOGL": "Alphabet (Google)",
+    "AMZN": "Amazon", "NVDA": "Nvidia", "META": "Meta (Facebook)",
+    "TSLA": "Tesla", "JPM": "JPMorgan Chase", "V": "Visa",
+    "UNH": "UnitedHealth", "XOM": "ExxonMobil", "KO": "Coca-Cola",
+    "PG": "Procter & Gamble", "COST": "Costco",
+    "MC.PA": "LVMH", "TTE.PA": "TotalEnergies", "SAN.PA": "Sanofi",
+    "AIR.PA": "Airbus", "BNP.PA": "BNP Paribas", "ASML.AS": "ASML",
+    "SAP.DE": "SAP", "SIE.DE": "Siemens",
+    "^GSPC": "S&P 500", "^NDX": "Nasdaq 100", "^FCHI": "CAC 40",
+    "^GDAXI": "DAX 40", "^STOXX50E": "Euro Stoxx 50",
+    "BTCUSDT": "Bitcoin", "ETHUSDT": "Ethereum", "BNBUSDT": "BNB",
+    "SOLUSDT": "Solana", "XRPUSDT": "XRP",
+    "SNTS": "Sonatel (BRVM)", "SGBC": "Société Générale CI (BRVM)",
+    "BOAB": "Bank of Africa Bénin (BRVM)", "ETIT": "Ecobank ETI (BRVM)",
+    "ONTBF": "ONATEL Burkina (BRVM)", "PALC": "Palmci (BRVM)",
     "GC=F": "Or", "SI=F": "Argent", "CL=F": "Pétrole WTI", "BZ=F": "Brent",
     "NG=F": "Gaz naturel", "HG=F": "Cuivre", "CC=F": "Cacao", "CT=F": "Coton",
     "KC=F": "Café", "ZW=F": "Blé",

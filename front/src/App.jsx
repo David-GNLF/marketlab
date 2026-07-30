@@ -1,6 +1,10 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import * as api from "./api";
-import { GraphiqueCone, GraphiquePrix } from "./charts";
+import { GraphiqueCone } from "./charts";
+import {
+  ECHELLES, GraphiqueTerminal, TYPES, dernieresSeances, enBougies,
+  fusionner, precision,
+} from "./graphique";
 
 const pct = (v, signe = false) =>
   v == null ? "—" : `${signe && v > 0 ? "+" : ""}${Number(v).toFixed(2)} %`;
@@ -273,186 +277,437 @@ function PageMarches({ onTitre }) {
 }
 
 // ---------------------------------------------------------------- Fiche titre
+//
+// La fiche est le poste de travail du site : c'est là qu'on décide. Elle est
+// donc bâtie comme un terminal de marché et non comme un article — liste de
+// suivi à gauche, graphique et son barreau d'outils au centre, analyse en
+// dessous. Ce qui manquait à la version précédente n'était pas cosmétique :
+// une seule échelle de temps, un seul type de tracé, aucun volume, aucune
+// bougie, et le plan de trade (entrée, stop, objectif) écrit en toutes lettres
+// à côté d'une courbe où il n'apparaissait pas.
+
+/**
+ * Série de bougies d'un titre : socle publié + tête fraîche du relais.
+ *
+ * Deux origines, deux rôles. Le fichier publié porte cinq ans de quotidien et
+ * cinq séances de barres 5 min — la structure. Le relais `serie.php` porte la
+ * séance en cours — l'exécution. Les recoller ici, une fois, évite que chaque
+ * composant se demande laquelle des deux il regarde.
+ *
+ * Le rafraîchissement ne tourne QUE sur les échelles fines et onglet visible :
+ * sur une vue à cinq ans, une barre de plus ne change rien à l'écran et
+ * n'aurait pour effet que de consommer le quota de la source.
+ */
+function useSerie(symbole, fine) {
+  const { donnees, erreur } = useDonnees(() => api.getSerie(symbole), [symbole]);
+  const [fraiche, setFraiche] = useState(null);
+
+  useEffect(() => {
+    setFraiche(null);
+    if (!symbole || !fine) return undefined;
+    let actif = true;
+    const tirer = async (premier = false) => {
+      if (document.hidden && !premier) return;
+      const s = await api.getSerieFraiche(symbole, "5m");
+      if (actif && s) setFraiche(s);
+    };
+    tirer(true);
+    const t = setInterval(tirer, 60000);
+    const reveil = () => { if (!document.hidden) tirer(); };
+    document.addEventListener("visibilitychange", reveil);
+    return () => { actif = false; clearInterval(t);
+                   document.removeEventListener("visibilitychange", reveil); };
+  }, [symbole, fine]);
+
+  const intraday = useMemo(
+    () => fusionner(donnees?.intraday, fraiche),
+    [donnees, fraiche]);
+  return { quotidien: donnees?.quotidien, intraday, erreur,
+           fraiche: Boolean(fraiche) };
+}
+
+/** Liste de suivi : le sélecteur de titre d'un terminal, pas un menu déroulant.
+ *  Symbole, nom, prix vivant et variation — de quoi choisir où regarder sans
+ *  ouvrir six fiches. */
+function ListeSuivi({ titres, actif, onChoisir }) {
+  const { donnees: screener } = useDonnees(api.getScreener);
+  const [filtre, setFiltre] = useState("");
+  const par_symbole = useMemo(() => {
+    const m = new Map();
+    for (const l of screener ?? []) m.set(l.symbole, l);
+    return m;
+  }, [screener]);
+
+  const q = filtre.trim().toLowerCase();
+  const lignes = titres
+    .map((s) => ({ symbole: s, ...(par_symbole.get(s) ?? {}) }))
+    .filter((l) => !q || l.symbole.toLowerCase().includes(q)
+                || String(l.nom ?? "").toLowerCase().includes(q));
+
+  return (
+    <aside className="ml-rail">
+      <input type="text" className="ml-rail-recherche" value={filtre}
+             placeholder="Filtrer la liste…"
+             onChange={(e) => setFiltre(e.target.value)} />
+      <div className="ml-rail-liste">
+        {lignes.map((l) => (
+          <button key={l.symbole} type="button"
+                  className={"ml-rail-ligne" + (l.symbole === actif ? " actif" : "")}
+                  onClick={() => onChoisir(l.symbole)}>
+            <span className="ml-rail-sym">{l.symbole}</span>
+            <span className="ml-rail-nom">{l.nom ?? ""}</span>
+            <span className="ml-rail-prix">
+              <PrixVivant symbole={l.symbole} secours={l.cours} avecAge={false} />
+              {l.avis && <span className="ml-rail-avis"
+                               style={{ color: COULEUR_SCORE(l.score) }}>
+                {l.avis}</span>}
+            </span>
+          </button>
+        ))}
+        {!lignes.length && <p className="note" style={{ padding: "8px 10px" }}>
+          Aucun titre ne correspond.</p>}
+      </div>
+    </aside>
+  );
+}
+
+/** Barreau d'outils du graphique : échelle de temps, type de tracé, surcouches. */
+function BarreOutils({ echelle, setEchelle, type, setType,
+                       surcouches, setSurcouches, log, setLog, intradayDispo }) {
+  const bascule = (cle) => setSurcouches((s) => ({ ...s, [cle]: !s[cle] }));
+  const surcouche = (cle, libelle, titre) => (
+    <button type="button" title={titre}
+            className={"ml-chip" + (surcouches[cle] ? " actif" : "")}
+            onClick={() => bascule(cle)}>{libelle}</button>
+  );
+  return (
+    <div className="ml-outils">
+      <div className="ml-groupe" role="group" aria-label="Échelle de temps">
+        {ECHELLES.map((e) => {
+          // Sans barres fines publiées (BRVM, titre récent, source en panne),
+          // les échelles intrajournalières n'ont rien à montrer : mieux vaut
+          // un bouton désactivé et explicite qu'un graphique vide.
+          const off = e.source === "intraday" && !intradayDispo;
+          return (
+            <button key={e.cle} type="button" disabled={off}
+                    title={off ? "aucune barre 5 min disponible pour ce titre"
+                               : `${e.libelle} d'historique`}
+                    className={"ml-chip" + (echelle === e.cle ? " actif" : "")}
+                    onClick={() => setEchelle(e.cle)}>{e.libelle}</button>
+          );
+        })}
+      </div>
+      <div className="ml-groupe" role="group" aria-label="Type de tracé">
+        {TYPES.map((t) => (
+          <button key={t.cle} type="button"
+                  className={"ml-chip" + (type === t.cle ? " actif" : "")}
+                  onClick={() => setType(t.cle)}>{t.libelle}</button>
+        ))}
+      </div>
+      <div className="ml-groupe" role="group" aria-label="Surcouches">
+        {surcouche("sma50", "MM 50", "moyenne mobile 50 séances")}
+        {surcouche("sma200", "MM 200", "moyenne mobile 200 séances")}
+        {surcouche("bollinger", "Bollinger", "bandes de Bollinger (2 écarts-types)")}
+        {surcouche("volume", "Volume", "volume échangé, en sous-panneau")}
+        {surcouche("plan", "Plan", "entrée, stop et objectif tracés sur le prix")}
+        {surcouche("niveaux", "Niveaux", "supports et résistances repérés")}
+        <button type="button" title="axe des prix logarithmique — à préférer sur les longues périodes"
+                className={"ml-chip" + (log ? " actif" : "")}
+                onClick={() => setLog((v) => !v)}>Log</button>
+      </div>
+    </div>
+  );
+}
+
+/** Lecture OHLC sous le réticule. Un graphique de trading sans cette ligne
+ *  oblige à deviner les valeurs à l'œil sur l'axe. */
+function LectureOHLC({ point, derniere, dec }) {
+  const b = point ?? derniere;
+  if (!b) return null;
+  const f = (v) => v == null ? "—"
+    : Number(v).toLocaleString("fr-FR", { minimumFractionDigits: dec,
+                                          maximumFractionDigits: dec });
+  const hausse = b.close >= b.open;
+  const ampleur = b.open ? ((b.close / b.open - 1) * 100) : null;
+  return (
+    <div className="ml-ohlc">
+      <span>O <b>{f(b.open)}</b></span>
+      <span>H <b>{f(b.high)}</b></span>
+      <span>B <b>{f(b.low)}</b></span>
+      <span>C <b className={hausse ? "delta positif" : "delta negatif"}>
+        {f(b.close)}</b></span>
+      {ampleur != null && (
+        <span className={"delta " + (hausse ? "positif" : "negatif")}>
+          {ampleur >= 0 ? "+" : ""}{ampleur.toFixed(2)} %</span>
+      )}
+      {b.volume ? <span className="note">vol {Number(b.volume)
+        .toLocaleString("fr-FR")}</span> : null}
+      {!point && <span className="note">dernière bougie — survolez le
+        graphique pour lire une autre séance</span>}
+    </div>
+  );
+}
+
 function PageTitre({ meta, symbole, setSymbole }) {
   const dispo = meta?.titres ?? [];
   const actif = symbole && dispo.includes(symbole) ? symbole : dispo[0];
   const { donnees: f, erreur } = useDonnees(() => api.getTitre(actif), [actif]);
 
-  return (
-    <>
-      <div className="carte">
-        <label className="champ">Titre
-          <select value={actif ?? ""} onChange={(e) => setSymbole(e.target.value)}>
-            {dispo.map((s) => <option key={s}>{s}</option>)}
-          </select>
-        </label>
-        <p className="note">Seuls les titres ci-dessus disposent d'une fiche
-          détaillée (choix fait à la génération).</p>
-      </div>
+  const [echelle, setEchelle] = useState("6M");
+  const [type, setType] = useState("bougies");
+  const [log, setLog] = useState(false);
+  const [surcouches, setSurcouches] = useState({
+    sma50: true, sma200: true, bollinger: false, volume: true,
+    plan: true, niveaux: false,
+  });
+  const [survol, setSurvol] = useState(null);
 
-      {!f ? <Chargement erreur={erreur} /> : (
-        <>
-          {f.strategie && !f.strategie.erreur && (
-            <div className="carte" style={{ borderLeft: "3px solid var(--series-1)" }}>
-              <h3 style={{ marginTop: 0 }}>{f.strategie.nom} — stratégie de
-                position</h3>
-              <div className="rangee">
-                <div className="tuile" style={{ minWidth: 220 }}>
-                  <div className="libelle">QUEL SENS ?</div>
-                  <div className="valeur" style={{ fontSize: 17 }}>
-                    {f.strategie.sens.reponse}</div>
-                  <div className="note">{f.strategie.sens.raison}</div>
-                </div>
-                <div className="tuile" style={{ minWidth: 220 }}>
-                  <div className="libelle">QUAND ?</div>
-                  <div className="valeur" style={{ fontSize: 17 }}>
-                    {f.strategie.quand.reponse}</div>
-                  <div className="note">{f.strategie.quand.raison}</div>
-                </div>
-                {f.strategie.marge && (
+  const conf = ECHELLES.find((e) => e.cle === echelle) ?? ECHELLES[4];
+  const fine = conf.source === "intraday";
+  const { quotidien, intraday, fraiche } = useSerie(actif, fine);
+
+  // Le bloc réellement tracé : découpé à l'échelle demandée, et rien de plus.
+  const bloc = useMemo(() => {
+    if (fine) return dernieresSeances(intraday, conf.seances);
+    if (!quotidien?.t?.length) return null;
+    const n = Math.min(conf.barres, quotidien.t.length);
+    if (n >= quotidien.t.length) return quotidien;
+    const debut = quotidien.t.length - n;
+    const coupe = (c) => (Array.isArray(c) ? c.slice(debut) : c);
+    return {
+      ...quotidien, t: coupe(quotidien.t), o: coupe(quotidien.o),
+      h: coupe(quotidien.h), l: coupe(quotidien.l), c: coupe(quotidien.c),
+      v: coupe(quotidien.v), sma50: coupe(quotidien.sma50),
+      sma200: coupe(quotidien.sma200), bb_upper: coupe(quotidien.bb_upper),
+      bb_lower: coupe(quotidien.bb_lower), n,
+    };
+  }, [fine, intraday, quotidien, conf]);
+
+  // Sur une vue intrajournalière, les moyennes 50/200 séances n'existent pas :
+  // les demander tracerait une ligne plate absurde. On les retire de la
+  // demande sans toucher aux préférences de l'utilisateur, qui les retrouve
+  // intactes en repassant au quotidien.
+  const surcouchesActives = useMemo(() => ({
+    ...surcouches,
+    sma50: surcouches.sma50 && !fine,
+    sma200: surcouches.sma200 && !fine,
+    bollinger: surcouches.bollinger && !fine,
+  }), [surcouches, fine]);
+
+  const derniere = useMemo(() => {
+    const b = enBougies(bloc);
+    const d = b.at(-1);
+    return d ? { ...d, volume: bloc?.v?.at(-1) } : null;
+  }, [bloc]);
+  const dec = precision(derniere?.close ?? f?.signaux?.close);
+
+  return (
+    <div className="ml-terminal">
+      <ListeSuivi titres={dispo} actif={actif} onChoisir={setSymbole} />
+
+      <div className="ml-terminal-corps">
+        {!f ? <Chargement erreur={erreur} /> : (
+          <>
+            <div className="carte ml-entete-titre">
+              <div>
+                <div className="ml-titre-nom">{f.nom}</div>
+                <div className="note">{f.symbole}</div>
+              </div>
+              <div className="ml-titre-prix">
+                <PrixVivant symbole={f.symbole} secours={f.signaux?.close} />
+              </div>
+              <div className="ml-titre-avis">
+                <span className="badge" style={{ color: COULEUR_SCORE(f.signaux?.score) }}>
+                  {f.signaux?.avis}</span>
+                <span className="note">score {f.signaux?.score ?? "—"} ·
+                  RSI {f.signaux?.rsi14 ?? "—"} ·
+                  20 j {pct(f.signaux?.ret_20d, true)}
+                  {f.regime && !f.regime.erreur &&
+                    <> · {f.regime.tendance}, volatilité {f.regime.volatilite}</>}
+                </span>
+              </div>
+            </div>
+
+            <div className="carte">
+              <BarreOutils echelle={echelle} setEchelle={setEchelle}
+                           type={type} setType={setType}
+                           surcouches={surcouches} setSurcouches={setSurcouches}
+                           log={log} setLog={setLog}
+                           intradayDispo={Boolean(intraday?.t?.length)} />
+              <LectureOHLC point={survol} derniere={derniere} dec={dec} />
+              {bloc?.t?.length ? (
+                <GraphiqueTerminal
+                  bloc={bloc} type={type} surcouches={surcouchesActives}
+                  logarithmique={log} hauteur={430} onSurvol={setSurvol}
+                  plan={surcouches.plan ? f.strategie?.plan : null}
+                  niveaux={surcouches.niveaux ? f.niveaux?.zones : null} />
+              ) : (
+                <p className="note" style={{ padding: "40px 0", textAlign: "center" }}>
+                  Série de bougies indisponible pour ce titre. La prochaine
+                  publication la produira.</p>
+              )}
+              <p className="note">
+                {fine
+                  ? (fraiche
+                     ? "Barres de 5 minutes rafraîchies toutes les minutes depuis la source."
+                     : "Barres de 5 minutes de la dernière publication : le relais direct n'a rien renvoyé (marché fermé ou source indisponible).")
+                  : "Bougies quotidiennes de clôture à clôture."}
+                {surcouches.plan && f.strategie?.plan &&
+                  " Le plan du verdict est tracé sur le prix : entrée pleine, stop en rouge, objectif en vert."}
+                {" "}Molette pour zoomer, glisser pour se déplacer.
+              </p>
+            </div>
+
+            {f.strategie && !f.strategie.erreur && (
+              <div className="carte" style={{ borderLeft: "3px solid var(--series-1)" }}>
+                <h3 style={{ marginTop: 0 }}>{f.strategie.nom} — stratégie de
+                  position</h3>
+                <div className="rangee">
                   <div className="tuile" style={{ minWidth: 220 }}>
-                    <div className="libelle">QUELLE MARGE ?</div>
+                    <div className="libelle">QUEL SENS ?</div>
                     <div className="valeur" style={{ fontSize: 17 }}>
-                      +{f.strategie.marge["objectif_%"]} % visés</div>
-                    <div className="note">{f.strategie.marge.lecture} Scénario
-                      porteur : {f.strategie.marge["scenario_porteur_%"] > 0 ? "+" : ""}
-                      {f.strategie.marge["scenario_porteur_%"]} %.</div>
+                      {f.strategie.sens.reponse}</div>
+                    <div className="note">{f.strategie.sens.raison}</div>
                   </div>
+                  <div className="tuile" style={{ minWidth: 220 }}>
+                    <div className="libelle">QUAND ?</div>
+                    <div className="valeur" style={{ fontSize: 17 }}>
+                      {f.strategie.quand.reponse}</div>
+                    <div className="note">{f.strategie.quand.raison}</div>
+                  </div>
+                  {f.strategie.marge && (
+                    <div className="tuile" style={{ minWidth: 220 }}>
+                      <div className="libelle">QUELLE MARGE ?</div>
+                      <div className="valeur" style={{ fontSize: 17 }}>
+                        +{f.strategie.marge["objectif_%"]} % visés</div>
+                      <div className="note">{f.strategie.marge.lecture} Scénario
+                        porteur : {f.strategie.marge["scenario_porteur_%"] > 0 ? "+" : ""}
+                        {f.strategie.marge["scenario_porteur_%"]} %.</div>
+                    </div>
+                  )}
+                </div>
+                {f.strategie.verdict?.conclusion?.texte && (
+                  <p style={{ marginTop: 10 }}><strong>Conclusion</strong> —{" "}
+                    {f.strategie.verdict.conclusion.texte}</p>
+                )}
+                {f.strategie.plan && (
+                  <p style={{ marginTop: 10 }}>Entrée {nb(f.strategie.plan.entree)} ·
+                    stop {nb(f.strategie.plan.stop)} · objectif{" "}
+                    {nb(f.strategie.plan.objectif)} · ratio{" "}
+                    {f.strategie.plan.ratio_gain_risque}
+                    {f.strategie.taille && <> · taille {f.strategie.taille.montant} $
+                      (perte max {f.strategie.taille.perte_max} $
+                      {f.strategie.taille.plafond_kelly != null &&
+                        ", plafond Kelly appliqué"})</>}
+                  </p>
+                )}
+                {f.strategie.plan?.stop_suiveur && (
+                  <p className="note">Stop suiveur (Chandelier) :{" "}
+                    {nb(f.strategie.plan.stop_suiveur.niveau)} —{" "}
+                    {f.strategie.plan.stop_suiveur.raison}</p>
+                )}
+                {f.strategie.renforts && (
+                  <p className="note">Renforts ({f.strategie.renforts.feux_verts}
+                    {" "}feux verts) —{" "}
+                    {f.strategie.renforts.confluence?.raison}
+                    {f.strategie.renforts.force_relative?.raison &&
+                      <> · {f.strategie.renforts.force_relative.raison}</>}
+                    {f.strategie.renforts.cot?.raison &&
+                      <> · COT : {f.strategie.renforts.cot.raison}</>}
+                    {f.strategie.renforts.kelly?.raison &&
+                      <> · {f.strategie.renforts.kelly.raison}</>}</p>
+                )}
+                {f.strategie.verdict?.vetos?.map((v, i) => (
+                  <p key={i} className="erreur">{v}</p>
+                ))}
+              </div>
+            )}
+
+            {f.regime?.lecture && (
+              <p className="note" style={{ marginTop: -6 }}>{f.regime.lecture}</p>
+            )}
+
+            {f.projection && !f.projection.erreur && (
+              <div className="carte">
+                <h3>Prévision à {f.projection.horizon} séances</h3>
+                <div className="rangee">
+                  <Tuile libelle="Médiane projetée" valeur={nb(f.projection.prix_median)}
+                         delta={f.projection["rendement_median_%"]} />
+                  <Tuile libelle="Intervalle 80 %"
+                         valeur={f.projection.intervalle_80?.map(nb).join(" – ")} />
+                  <Tuile libelle="P(hausse)"
+                         valeur={`${f.projection["proba_hausse_%"]} %`} />
+                  <Tuile libelle="VaR 95 %" valeur={`${f.projection["var_95_%"]} %`} />
+                </div>
+                <GraphiqueCone projection={f.projection}
+                               historique={f.historique} />
+                <p className="note">Cône de probabilités, pas un prix cible. La
+                  direction reste peu prévisible ; ce sont les intervalles et le
+                  risque qui sont exploitables.</p>
+              </div>
+            )}
+
+            {f.brokers?.outils && (
+              <div className="carte">
+                <h3>Les outils des brokers</h3>
+                <p className="note">Les six indicateurs les plus utilisés sur les
+                  plateformes professionnelles. Ils décrivent — le verdict et ses
+                  garde-fous restent seuls décideurs.</p>
+                {f.brokers.outils.map((o) => (
+                  <p key={o.outil} style={{ margin: "5px 0" }}>
+                    <strong style={{ display: "inline-block", minWidth: 110 }}>
+                      {o.outil}</strong>
+                    <span className="badge" style={{ marginRight: 8,
+                      color: o.signal === "haussier" ? "var(--good)"
+                        : o.signal === "baissier" ? "var(--critical)"
+                        : "var(--muted)" }}>{o.signal}</span>
+                    <span className="note">{o.lecture}</span>
+                  </p>
+                ))}
+                <p style={{ fontWeight: 600 }}>Consensus :{" "}
+                  {f.brokers.consensus?.texte}</p>
+                {f.brokers.avertissement_regime && (
+                  <p className="erreur">{f.brokers.avertissement_regime}</p>
                 )}
               </div>
-              {f.strategie.verdict?.conclusion?.texte && (
-                <p style={{ marginTop: 10 }}><strong>Conclusion</strong> —{" "}
-                  {f.strategie.verdict.conclusion.texte}</p>
-              )}
-              {f.strategie.plan && (
-                <p style={{ marginTop: 10 }}>Entrée {nb(f.strategie.plan.entree)} ·
-                  stop {nb(f.strategie.plan.stop)} · objectif{" "}
-                  {nb(f.strategie.plan.objectif)} · ratio{" "}
-                  {f.strategie.plan.ratio_gain_risque}
-                  {f.strategie.taille && <> · taille {f.strategie.taille.montant} $
-                    (perte max {f.strategie.taille.perte_max} $
-                    {f.strategie.taille.plafond_kelly != null &&
-                      ", plafond Kelly appliqué"})</>}
-                </p>
-              )}
-              {f.strategie.plan?.stop_suiveur && (
-                <p className="note">Stop suiveur (Chandelier) :{" "}
-                  {nb(f.strategie.plan.stop_suiveur.niveau)} —{" "}
-                  {f.strategie.plan.stop_suiveur.raison}</p>
-              )}
-              {f.strategie.renforts && (
-                <p className="note">Renforts ({f.strategie.renforts.feux_verts}
-                  {" "}feux verts) —{" "}
-                  {f.strategie.renforts.confluence?.raison}
-                  {f.strategie.renforts.force_relative?.raison &&
-                    <> · {f.strategie.renforts.force_relative.raison}</>}
-                  {f.strategie.renforts.cot?.raison &&
-                    <> · COT : {f.strategie.renforts.cot.raison}</>}
-                  {f.strategie.renforts.kelly?.raison &&
-                    <> · {f.strategie.renforts.kelly.raison}</>}</p>
-              )}
-              {f.strategie.verdict?.vetos?.map((v, i) => (
-                <p key={i} className="erreur">{v}</p>
-              ))}
-            </div>
-          )}
-          <div className="carte">
-            <div className="rangee">
-              <Tuile libelle="Cours" valeur={nb(f.signaux?.close)} />
-              <Tuile libelle="Score composite" valeur={f.signaux?.score ?? "—"}
-                     note={f.signaux?.avis} />
-              <Tuile libelle="RSI 14" valeur={f.signaux?.rsi14 ?? "—"} />
-              <Tuile libelle="Perf 20 j" valeur={pct(f.signaux?.ret_20d, true)}
-                     delta={f.signaux?.ret_20d} />
-              {f.regime && !f.regime.erreur && (
-                <Tuile libelle="Régime"
-                       valeur={f.regime.tendance}
-                       note={`volatilité ${f.regime.volatilite}`} />
-              )}
-            </div>
-            {f.regime?.lecture && <p className="note">{f.regime.lecture}</p>}
-            {f.historique && <GraphiquePrix donnees={f.historique} />}
-          </div>
-
-          {f.projection && !f.projection.erreur && (
+            )}
             <div className="carte">
-              <h3>Prévision à {f.projection.horizon} séances</h3>
-              <div className="rangee">
-                <Tuile libelle="Médiane projetée" valeur={nb(f.projection.prix_median)}
-                       delta={f.projection["rendement_median_%"]} />
-                <Tuile libelle="Intervalle 80 %"
-                       valeur={f.projection.intervalle_80?.map(nb).join(" – ")} />
-                <Tuile libelle="P(hausse)"
-                       valeur={`${f.projection["proba_hausse_%"]} %`} />
-                <Tuile libelle="VaR 95 %" valeur={`${f.projection["var_95_%"]} %`} />
-              </div>
-              <GraphiqueCone projection={f.projection}
-                             historique={f.historique} />
-              <p className="note">Cône de probabilités, pas un prix cible. La
-                direction reste peu prévisible ; ce sont les intervalles et le
-                risque qui sont exploitables.</p>
-            </div>
-          )}
-
-          {f.brokers?.outils && (
-            <div className="carte">
-              <h3>Les outils des brokers</h3>
-              <p className="note">Les six indicateurs les plus utilisés sur les
-                plateformes professionnelles. Ils décrivent — le verdict et ses
-                garde-fous restent seuls décideurs.</p>
-              {f.brokers.outils.map((o) => (
-                <p key={o.outil} style={{ margin: "5px 0" }}>
-                  <strong style={{ display: "inline-block", minWidth: 110 }}>
-                    {o.outil}</strong>
-                  <span className="badge" style={{ marginRight: 8,
-                    color: o.signal === "haussier" ? "var(--good)"
-                      : o.signal === "baissier" ? "var(--critical)"
-                      : "var(--muted)" }}>{o.signal}</span>
-                  <span className="note">{o.lecture}</span>
-                </p>
+              <h3>Contexte</h3>
+              {f.analogues && !f.analogues.erreur && (
+                <p><strong>Analogues historiques</strong> — sur les {f.analogues.k}
+                  {" "}configurations passées les plus proches : hausse dans{" "}
+                  <strong>{f.analogues["proba_hausse_%"]} %</strong> des cas,
+                  rendement médian {pct(f.analogues["rendement_median_%"], true)}
+                  {" "}(extrêmes {pct(f.analogues["pire_%"])} /{" "}
+                  {pct(f.analogues["meilleur_%"])}).</p>
+              )}
+              {f.niveaux?.zones && (
+                <p><strong>Niveaux</strong> — supports :{" "}
+                  {f.niveaux.zones.supports?.map((z) => nb(z.niveau)).join(", ") || "aucun"}
+                  {" "}· résistances :{" "}
+                  {f.niveaux.zones.resistances?.map((z) => nb(z.niveau)).join(", ") || "aucune"}
+                  {" "}<span className="note">(bouton « Niveaux » pour les tracer)</span></p>
+              )}
+              {f.resultats && !f.resultats.erreur && f.resultats.message && (
+                <p className={f.resultats.dans_horizon ? "erreur" : ""}>
+                  <strong>Résultats</strong> — {f.resultats.message}</p>
+              )}
+              {f.moteurs?.length > 0 && f.moteurs.map((m, i) => (
+                <p key={i}><strong>{m.outil}</strong> — {m.lecture}</p>
               ))}
-              <p style={{ fontWeight: 600 }}>Consensus :{" "}
-                {f.brokers.consensus?.texte}</p>
-              {f.brokers.avertissement_regime && (
-                <p className="erreur">{f.brokers.avertissement_regime}</p>
+              {f.saisonnalite && !f.saisonnalite.erreur && (
+                <p><strong>Saisonnalité</strong> — {f.saisonnalite.conclusion}</p>
+              )}
+              {f.sentiment && !f.sentiment.erreur && f.sentiment.n_titres > 0 && (
+                <p><strong>Actualités</strong> — sentiment {f.sentiment.lecture}
+                  {" "}({f.sentiment.positifs} positifs / {f.sentiment.negatifs} négatifs sur{" "}
+                  {f.sentiment.n_titres} titres, mesure lexicale indicative).</p>
               )}
             </div>
-          )}
-          <div className="carte">
-            <h3>Contexte</h3>
-            {f.analogues && !f.analogues.erreur && (
-              <p><strong>Analogues historiques</strong> — sur les {f.analogues.k}
-                {" "}configurations passées les plus proches : hausse dans{" "}
-                <strong>{f.analogues["proba_hausse_%"]} %</strong> des cas,
-                rendement médian {pct(f.analogues["rendement_median_%"], true)}
-                {" "}(extrêmes {pct(f.analogues["pire_%"])} /{" "}
-                {pct(f.analogues["meilleur_%"])}).</p>
-            )}
-            {f.niveaux?.zones && (
-              <p><strong>Niveaux</strong> — supports :{" "}
-                {f.niveaux.zones.supports?.map((z) => nb(z.niveau)).join(", ") || "aucun"}
-                {" "}· résistances :{" "}
-                {f.niveaux.zones.resistances?.map((z) => nb(z.niveau)).join(", ") || "aucune"}</p>
-            )}
-            {f.resultats && !f.resultats.erreur && f.resultats.message && (
-              <p className={f.resultats.dans_horizon ? "erreur" : ""}>
-                <strong>Résultats</strong> — {f.resultats.message}</p>
-            )}
-            {f.moteurs?.length > 0 && f.moteurs.map((m, i) => (
-              <p key={i}><strong>{m.outil}</strong> — {m.lecture}</p>
-            ))}
-            {f.saisonnalite && !f.saisonnalite.erreur && (
-              <p><strong>Saisonnalité</strong> — {f.saisonnalite.conclusion}</p>
-            )}
-            {f.sentiment && !f.sentiment.erreur && f.sentiment.n_titres > 0 && (
-              <p><strong>Actualités</strong> — sentiment {f.sentiment.lecture}
-                {" "}({f.sentiment.positifs} positifs / {f.sentiment.negatifs} négatifs sur{" "}
-                {f.sentiment.n_titres} titres, mesure lexicale indicative).</p>
-            )}
-          </div>
-        </>
-      )}
-    </>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 

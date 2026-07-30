@@ -1,10 +1,15 @@
-// Graphiques (Recharts) conformes au guide dataviz : lignes de 2 px, une seule
+// Cône de prévision (Recharts), conforme au guide dataviz : lignes de 2 px, une seule
 // ordonnée, légende dès deux séries, grille discrète, infobulle au survol,
 // couleur attachée à l'entité et jamais recyclée.
+//
+// La courbe de prix, elle, a migré vers `graphique.jsx` : un graphique de
+// trading demande bougies, réticule OHLC, échelle log et lignes de prix,
+// que Recharts ne sait pas rendre. Le cône reste ici — c'est une bande
+// d'incertitude, pas un chandelier.
 
 import { useEffect, useState } from "react";
 import {
-  Area, CartesianGrid, ComposedChart, Legend, Line, LineChart,
+  Area, CartesianGrid, ComposedChart, Legend, Line,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 
@@ -38,30 +43,6 @@ const infobulle = (t) => ({
 
 const fmt = (v) =>
   v == null ? "—" : Number(v).toLocaleString("fr-FR", { maximumFractionDigits: 2 });
-
-export function GraphiquePrix({ donnees }) {
-  const t = useTokens();
-  return (
-    <ResponsiveContainer width="100%" height={320}>
-      <LineChart data={donnees} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-        <CartesianGrid stroke={t.grid} vertical={false} />
-        <XAxis dataKey="date" tick={{ fill: t.muted, fontSize: 11 }}
-               tickLine={false} axisLine={{ stroke: t.grid }} minTickGap={56} />
-        <YAxis tick={{ fill: t.muted, fontSize: 11 }} tickLine={false}
-               axisLine={false} domain={["auto", "auto"]} width={72}
-               tickFormatter={fmt} />
-        <Tooltip {...infobulle(t)} formatter={fmt} />
-        <Legend wrapperStyle={{ fontSize: 12 }} />
-        <Line type="monotone" dataKey="close" name="Cours" stroke={t.s1}
-              strokeWidth={2} dot={false} isAnimationActive={false} />
-        <Line type="monotone" dataKey="sma50" name="SMA 50" stroke={t.s2}
-              strokeWidth={2} dot={false} isAnimationActive={false} />
-        <Line type="monotone" dataKey="sma200" name="SMA 200" stroke={t.s3}
-              strokeWidth={2} dot={false} isAnimationActive={false} />
-      </LineChart>
-    </ResponsiveContainer>
-  );
-}
 
 // Cône de projection : bande d'incertitude à 80 % + médiane, raccordées aux
 // dernières séances observées.

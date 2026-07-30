@@ -49,6 +49,8 @@ def main() -> int:
             print(f"  {len(meta['erreurs'])} erreur(s) :")
             for cle, message in meta["erreurs"].items():
                 print(f"    - {cle} : {message[:100]}")
+        relais = publish.copier_php()
+        print(f"  relais PHP : {', '.join(relais) or 'aucun'}")
         if publish.copier_front():
             print("  front React copié")
         else:

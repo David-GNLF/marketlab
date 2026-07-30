@@ -20,6 +20,7 @@ Sortie (dossier `site/`) :
     donnees/correlations.json   matrice et risque du portefeuille
     donnees/fondamentaux.json   notation des actions
     donnees/titres/<SYM>.json   fiche complète par titre
+    donnees/series/<SYM>.json   bougies quotidiennes + 5 min
 
 Chaque bloc est calculé indépendamment : l'échec de l'un n'empêche pas la
 publication des autres, et l'erreur est consignée dans meta.json.
@@ -34,9 +35,9 @@ import pandas as pd
 
 from marketlab import (alerts, broker_tools, config, correlations, cot,
                        decision, drivers, eco_calendar, events, forecast,
-                       fundamentals, indicators, levels, macro, news, paper,
-                       position, screener, seasonality, sentiment_marche,
-                       signals)
+                       fundamentals, indicators, intraday, levels, macro,
+                       news, paper, position, screener, seasonality,
+                       sentiment_marche, serie, signals)
 from marketlab.data import get_ohlcv
 
 RACINE_SITE = config.ROOT / "site"
@@ -143,9 +144,21 @@ def bloc_paper() -> dict | None:
     return etat
 
 
-def fiche_titre(symbole: str) -> dict:
+def donnees_titre(symbole: str) -> pd.DataFrame:
+    """Le tableau OHLCV enrichi d'un titre, cinq ans de profondeur.
+
+    Sorti de `fiche_titre` pour être calculé UNE fois par titre et servir
+    aussi bien la fiche que la série de bougies. Les deux en avaient besoin ;
+    l'enrichissement (moyennes mobiles, bandes, RSI sur 1 250 lignes) n'a
+    aucune raison de tourner deux fois.
+    """
+    return indicators.enrich(get_ohlcv(symbole,
+                                       lookback_days=serie.JOURS_QUOTIDIEN))
+
+
+def fiche_titre(symbole: str, df: pd.DataFrame | None = None) -> dict:
     """Fiche complète d'un titre : cours, signaux, prévision, niveaux, contexte."""
-    df = indicators.enrich(get_ohlcv(symbole, lookback_days=1825))
+    df = donnees_titre(symbole) if df is None else df
     fiche = {"symbole": symbole,
              "nom": config.NOMS_ACTIFS.get(symbole, symbole)}
 
@@ -291,18 +304,50 @@ def generer(titres: list[str] | None = None, blocs: list[str] | None = None,
             if verbeux:
                 print(f"    ECHEC : {str(exc)[:120]}", flush=True)
 
+    # Barres 5 min de TOUT le périmètre en un seul appel groupé, AVANT les
+    # fiches. Les faire titre par titre dans la boucle, ce serait 36 requêtes
+    # là où une suffit — et c'est exactement le motif de limitation de débit
+    # qui produit des trous silencieux chez les fournisseurs gratuits.
+    # Non bloquant : sans barres fines, le graphique perd l'échelle « 1 jour »,
+    # il ne perd pas l'échelle quotidienne.
+    if titres:
+        try:
+            bilan_intra = intraday.capturer(
+                list(titres), jours=serie.SEANCES_INTRADAY + 1)
+            if verbeux:
+                print(f"  barres 5 min : {bilan_intra['barres']} sur "
+                      f"{bilan_intra['titres']} titre(s)", flush=True)
+        except Exception as exc:
+            erreurs["intraday"] = f"{type(exc).__name__}: {exc}"
+            if verbeux:
+                print(f"  barres 5 min indisponibles : {str(exc)[:100]}",
+                      flush=True)
+
     fiches = []
     for symbole in titres:
         if verbeux:
             print(f"  fiche {symbole}…", flush=True)
         try:
+            df_titre = donnees_titre(symbole)
             _ecrire(DOSSIER_DONNEES / "titres" / f"{symbole}.json",
-                    fiche_titre(symbole))
+                    fiche_titre(symbole, df_titre))
             fiches.append(symbole)
         except Exception as exc:
             erreurs[f"titre:{symbole}"] = f"{type(exc).__name__}: {exc}"
             if verbeux:
                 print(f"    ECHEC : {str(exc)[:120]}", flush=True)
+            continue
+        # La série de bougies est un fichier SÉPARÉ de la fiche : elle pèse
+        # à elle seule plus que tout le reste, et la page l'appelle après le
+        # premier rendu. Son échec ne doit pas emporter la fiche, qui contient
+        # le verdict — c'est-à-dire l'essentiel.
+        try:
+            _ecrire(DOSSIER_DONNEES / "series" / f"{symbole}.json",
+                    serie.payload(symbole, df_titre))
+        except Exception as exc:
+            erreurs[f"serie:{symbole}"] = f"{type(exc).__name__}: {exc}"
+            if verbeux:
+                print(f"    série ECHEC : {str(exc)[:120]}", flush=True)
 
     meta = {
         # heure du Bénin calculée depuis UTC : la machine qui génère (poste
@@ -320,6 +365,33 @@ def generer(titres: list[str] | None = None, blocs: list[str] | None = None,
     }
     _ecrire(DOSSIER_DONNEES / "meta.json", meta)
     return meta
+
+
+# Relais PHP embarqués dans la publication. Liste EXPLICITE, et volontairement
+# courte : ce sont des fichiers de code pur, sans état, dont le dépôt est la
+# seule source. Tout le reste de `deploy/` en est exclu — les espaces trading,
+# admin et accès gardent des dossiers d'état sur l'hébergement (comptes,
+# sessions) et leur mise en ligne reste un geste délibéré, pas un effet de bord
+# de la publication nocturne. Quant à `installer.sh`, aux unités systemd et à
+# la configuration nginx, ils n'ont RIEN à faire dans une racine web publique.
+#
+# POURQUOI LES AJOUTER. Jusqu'ici un correctif sur cours.php n'atteignait
+# l'hébergement que par un envoi manuel : le dépôt et le site pouvaient donc
+# diverger sans que rien ne le signale. C'est le genre d'écart qui fait
+# chercher un bug dans du code déjà corrigé.
+RELAIS_PHP = ["cours.php", "cours_lib.php", "serie.php"]
+
+
+def copier_php() -> list[str]:
+    """Copie les relais PHP versionnés dans le site. Renvoie les noms copiés."""
+    copies = []
+    for nom in RELAIS_PHP:
+        source = config.ROOT / "deploy" / nom
+        if source.is_file():
+            RACINE_SITE.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, RACINE_SITE / nom)
+            copies.append(nom)
+    return copies
 
 
 def copier_front() -> bool:
