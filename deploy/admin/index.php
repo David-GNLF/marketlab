@@ -17,6 +17,7 @@
 
 declare(strict_types=1);
 require __DIR__ . '/commun.php';
+require __DIR__ . '/comptes_lib.php';
 
 const FICHIER_ADMINS_LEGACY = __DIR__ . '/admin_comptes.json';
 const FICHIER_ESSAIS = __DIR__ . '/tentatives.json';
@@ -449,17 +450,28 @@ $audit = ($connecte && is_file(ML_AUDIT))
   <div class="carte">
     <h2>Comptes de trading virtuel (<?= count($comptes_trading) ?>)</h2>
     <p class="note">Équité = cash + marges engagées + P&amp;L latent (la mesure
-      du concours). Solde dispo = cash utilisable pour de nouveaux ordres.</p>
+      du concours). Solde dispo = cash utilisable pour de nouveaux ordres.
+      Le nom de chaque compte ouvre son historique détaillé —
+      <a href="./comparer.php">comparer tous les comptes</a>.</p>
     <table>
       <tr><th>Compte</th><th>Équité</th><th>Solde dispo</th><th>Positions</th>
-          <th>Trades</th><th>Actions</th></tr>
-      <?php foreach ($comptes_trading as $n => $c): ?>
+          <th>Trades</th><th>Perf. 7 j</th><th>Actions</th></tr>
+      <?php foreach ($comptes_trading as $n => $c):
+        $serie7 = ml_serie_equite($c);
+        $p7 = ml_perf_fenetre($serie7, 7); ?>
       <tr>
-        <td><?= $n === 'claude' ? 'robot ' : '' ?><strong><?= h($n) ?></strong></td>
+        <td><?= $n === 'claude' ? 'robot ' : '' ?>
+          <a href="./compte.php?nom=<?= urlencode($n) ?>"
+             title="Historique, statistiques et courbe d'équité">
+            <strong><?= h($n) ?></strong></a></td>
         <td><strong><?= ml_montant(ml_equite_trading($c)) ?> $</strong></td>
         <td class="note"><?= ml_montant((float)($c['solde'] ?? 0)) ?> $</td>
         <td><?= count($c['positions'] ?? []) ?></td>
         <td><?= count($c['historique'] ?? []) ?></td>
+        <td class="<?= $p7 === null ? 'note' : '' ?>"
+            title="<?= $p7 === null ? 'Série trop courte pour une fenêtre de 7 jours' : '' ?>">
+          <?= $p7 === null ? '—'
+              : number_format($p7, 2, ',', "\u{202F}") . ' %' ?></td>
         <td>
           <form class="enligne" method="post"
                 onsubmit="return confirm('Remettre <?= h($n) ?> à <?= ML_CAPITAL_TRADING ?> $ ? Positions et historique seront effacés.')">
