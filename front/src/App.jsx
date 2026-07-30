@@ -1661,6 +1661,108 @@ const CRON_LISIBLE = (c) => {
   return `à ${heure.padStart(2, "0")} h ${min.padStart(2, "0")} UTC`;
 };
 
+// Santé des briques d'ANALYSE, par opposition à celle de la chaîne de
+// publication. Ces briques décident SEULES de s'activer : le modèle de
+// volatilité ne pèse que s'il bat l'EWMA, une correspondance FRED ne sert que
+// si elle concorde. Leur verdict se prononçait jusqu'ici dans les journaux de
+// GitHub Actions, que personne ne lit — et une brique qui s'est désactivée en
+// silence est indiscernable d'une brique qui n'a jamais marché.
+// Quatre tons pris dans la palette existante — pas de couleur inventée pour
+// l'occasion : « attention » emprunte la teinte de série plutôt que d'ajouter
+// un orange qui ne serait accordé ni au clair ni au sombre.
+const TON_ALERTE = {
+  erreur: "var(--critical)", attention: "var(--series-2)",
+  info: "var(--muted)", ok: "var(--good)",
+};
+
+function SectionAnalyse({ analyse: a }) {
+  if (!a) return null;
+  const fred = a.correspondances_fred ?? {};
+  const modele = a.modele_volatilite ?? {};
+  const vol = a.volatilite_realisee ?? {};
+  const surp = a.surprises ?? {};
+
+  return (
+    <div className="carte">
+      <h3>Santé des briques d'analyse</h3>
+      <p className="note">Ce que les briques ont décidé toutes seules. Une
+        brique écartée est dite écartée : c'est la seule façon de distinguer
+        « elle s'est désactivée » de « elle n'a jamais marché ».</p>
+
+      {(a.alertes ?? []).map((al, i) => (
+        <p key={i} style={{ margin: "5px 0" }}>
+          <span className="badge" style={{ marginRight: 8,
+            color: TON_ALERTE[al.niveau] ?? "var(--muted)" }}>
+            {al.niveau}</span>
+          <span className="note">{al.texte}</span>
+        </p>
+      ))}
+
+      <h3 style={{ marginTop: 14 }}>Correspondances FRED</h3>
+      {fred.avertissement ? (
+        <p className="note">{fred.avertissement}</p>
+      ) : (
+        <>
+          <p className="note">{fred.valides} retenue(s) sur {fred.testees}{" "}
+            testée(s), table de {fred.table} indicateurs. Chaque correspondance
+            est confrontée au chiffre que le calendrier imprime déjà ; celle qui
+            ne retombe pas dessus est écartée du calcul plutôt qu'utilisée à
+            tort.</p>
+          <Table lignes={(fred.details ?? []).map((x) => ({
+            Indicateur: x.evenement, Série: x.serie,
+            Recalculé: x.recalcule, Imprimé: x.imprime,
+            "Écart %": x["ecart_%"],
+            État: x.concorde ? "retenue" : "écartée",
+          }))} />
+        </>
+      )}
+
+      <h3 style={{ marginTop: 14 }}>Modèle de volatilité</h3>
+      <p style={{ margin: "4px 0" }}>
+        <span className="badge" style={{ marginRight: 8,
+          color: modele.retenu ? "var(--good)" : "var(--muted)" }}>
+          {modele.retenu ? "en service" : "écarté"}</span>
+        <span className="note">{modele.lecture ?? modele.avertissement ?? "—"}</span>
+      </p>
+      {Object.entries(modele.horizons ?? {}).map(([h, e]) => (
+        <p key={h} className="note" style={{ margin: "3px 0" }}>
+          Horizon {h} : {e.raison
+            ? e.raison
+            : `gagnant QLIKE ${e.gagnant_qlike}, gagnant RMSE ${e.gagnant_rmse}`
+              + ` (${e.n_test} observations de test)`}
+        </p>
+      ))}
+      <p className="note">Un avantage sur un seul des deux critères ne suffit
+        pas : tant qu'ils se contredisent, rien n'est mis en service et le cône
+        de prévision garde son comportement actuel.</p>
+
+      <h3 style={{ marginTop: 14 }}>Matière première</h3>
+      <div className="rangee">
+        <Tuile libelle="Volatilité relevée" valeur={vol.lignes ?? "—"}
+               note={`${vol.titres ?? 0} / ${vol.attendus ?? 0} titres`} />
+        <Tuile libelle="Séances par titre" valeur={vol.seances_par_titre_median ?? "—"}
+               note={(vol.periode ?? []).join(" → ")} />
+        <Tuile libelle="Calendrier accumulé"
+               valeur={surp.calendrier_accumule ?? "—"}
+               note="publications observées" />
+        <Tuile libelle="Surprises mesurées" valeur={surp.surprises ?? "—"}
+               note={surp.par_source
+                 ? Object.entries(surp.par_source)
+                     .map(([s, n]) => `${s} ${n}`).join(" · ")
+                 : "aucune source"} />
+      </div>
+      {vol.manquants?.length > 0 && (
+        <p className="note" style={{ marginTop: 8 }}>
+          Sans relevé de volatilité : {vol.manquants.join(", ")} — leur
+          fournisseur n'a pas servi de barres intrajournalières.</p>
+      )}
+      {surp.avertissement && (
+        <p className="note" style={{ marginTop: 8 }}>{surp.avertissement}</p>
+      )}
+    </div>
+  );
+}
+
 function PageDevApp() {
   const { donnees: d, erreur } = useDonnees(api.getDevApp);
   const [tout, setTout] = useState(false);
@@ -1776,6 +1878,8 @@ function PageDevApp() {
           </p>
         ))}
       </div>
+
+      <SectionAnalyse analyse={d.analyse} />
 
       <div className="carte">
         <h3>Automatisation</h3>
