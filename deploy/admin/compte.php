@@ -307,10 +307,10 @@ function mt(?float $x): string {
       <p style="margin:.4rem 0"><?= h((string)$c) ?></p>
     <?php endforeach; ?>
 
-    <?php foreach (['classe' => 'Par classe d'actif',
+    <?php foreach (['classe' => "Par classe d'actif",
                     'duree' => 'Par durée de détention',
                     'sens' => 'Par sens',
-                    'jour' => 'Par jour d'ouverture'] as $axe => $titre): ?>
+                    'jour' => "Par jour d'ouverture"] as $axe => $titre): ?>
       <?php if (empty($biais[$axe])) continue; ?>
       <h3 style="margin:1rem 0 .3rem; font-size:.95rem"><?= $titre ?></h3>
       <table>

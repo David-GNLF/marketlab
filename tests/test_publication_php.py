@@ -85,3 +85,44 @@ def test_copier_php_leve_si_une_dependance_manque(tmp_path, monkeypatch):
     monkeypatch.setattr(publish, "PAGES_ESPACES", ["admin/index.php"])
     with pytest.raises(RuntimeError, match="PAGES_ESPACES"):
         publish.copier_php()
+
+
+# ---------------------------------------------------------------------------
+# Toute page publiée doit au moins être du PHP VALIDE
+# ---------------------------------------------------------------------------
+
+import shutil
+import subprocess
+
+PHP = shutil.which("php")
+
+
+@pytest.mark.skipif(PHP is None, reason="PHP absent de ce poste")
+@pytest.mark.parametrize(
+    "nom", publish.RELAIS_PHP + publish.PAGES_ESPACES)
+def test_chaque_fichier_publie_est_du_php_valide(nom):
+    """INCIDENT DU 2026-07-31. `compte.php` a été mis en ligne avec une
+    apostrophe non échappée — `'Par classe d'actif'` ferme la chaîne au milieu.
+    Erreur de parse, page injoignable, et RIEN ne l'a vu : la seule liste de
+    pages contrôlées était écrite à la main dans un autre fichier de tests, et
+    elle ne contenait ni `compte.php` ni `comparer.php`. Une liste manuelle
+    oublie forcément les nouvelles pages.
+
+    D'où la liste dérivée de `publish` : ce qui est PUBLIÉ est ce qui est
+    contrôlé, sans qu'on ait à y penser. Ajouter une page au site suffit à la
+    faire vérifier.
+    """
+    chemin = publish.config.ROOT / "deploy" / nom
+    if not chemin.is_file():
+        pytest.skip(f"{nom} absent du dépôt")
+    res = subprocess.run([PHP, "-l", str(chemin)],
+                         capture_output=True, text=True, timeout=30)
+    assert res.returncode == 0, f"{nom} : {res.stdout.strip()[:300]}"
+
+
+def test_la_liste_lintee_couvre_bien_les_pages_recentes():
+    """Garde-fou du garde-fou : si quelqu'un remplaçait la liste dérivée par
+    une liste figée, ce test tomberait."""
+    couverts = set(publish.RELAIS_PHP + publish.PAGES_ESPACES)
+    for page in ("admin/compte.php", "admin/comparer.php", "lexique.php"):
+        assert page in couverts, f"{page} echapperait au controle de syntaxe"
