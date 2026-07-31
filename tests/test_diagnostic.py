@@ -8,6 +8,30 @@ import pytest
 from marketlab import diagnostic
 
 
+@pytest.fixture(autouse=True)
+def _sans_reseau(monkeypatch):
+    """Rend la batterie HERMÉTIQUE.
+
+    `diagnostic.etat()` interroge FRED à travers `realises.verifier()` et
+    `surprise.surprises()`. En local le cache disque est chaud et personne ne
+    le remarque ; en CI la batterie tourne AVANT l'étape qui restaure le
+    cache, donc chaque appel télécharge pour de bon.
+
+    Mesuré : un seul test à 29 s cache froid, et la batterie complète passée
+    de 20 s à 565 s en CI — neuf minutes ajoutées à chaque déploiement, pour
+    des tests qui ne vérifient rien du réseau. Ce que ces tests contrôlent,
+    c'est la LOGIQUE du rapport : l'isolement des sondes, la hiérarchisation
+    des alertes, l'absence de fuite de clé. Aucun n'a besoin d'une vraie série
+    macroéconomique.
+    """
+    from marketlab import realises, surprise
+    monkeypatch.setattr(realises, "verifier", lambda *a, **k: pd.DataFrame())
+    monkeypatch.setattr(realises, "correspondances_valides", lambda *a, **k: set())
+    monkeypatch.setattr(surprise, "surprises",
+                        lambda *a, **k: pd.DataFrame(columns=surprise.COLONNES))
+    monkeypatch.setattr(surprise, "score_par_devise", lambda *a, **k: {})
+
+
 # ---------------------------------------------------------------------------
 # Robustesse : une console de diagnostic ne doit jamais tomber
 # ---------------------------------------------------------------------------

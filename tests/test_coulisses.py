@@ -15,7 +15,31 @@ modification qu'on oublie d'y reporter, sans que rien ne le signale.
 import json
 import re
 
+import pytest
+
 from marketlab import config, coulisses
+
+
+@pytest.fixture(autouse=True)
+def _sans_reseau(monkeypatch):
+    """Batterie HERMÉTIQUE — ajouté après coup, et voici pourquoi.
+
+    `coulisses.etat()` a reçu une rubrique « analyse » qui interroge FRED. Ces
+    tests n'ont pas changé, mais ils sont passés de 0,5 s à 11,7 s parce que
+    la fonction qu'ils appellent, elle, s'est mise à sortir sur le réseau. En
+    CI la batterie tourne AVANT la restauration du cache : rien n'était donc
+    réutilisé d'un passage à l'autre.
+
+    Ce que ces tests vérifient — l'absence de fuite de secret, la lecture des
+    horaires dans les workflows — ne dépend d'aucune série macroéconomique.
+    """
+    from marketlab import realises, surprise
+    monkeypatch.setattr(realises, "verifier", lambda *a, **k: __import__(
+        "pandas").DataFrame())
+    monkeypatch.setattr(realises, "correspondances_valides", lambda *a, **k: set())
+    monkeypatch.setattr(surprise, "surprises", lambda *a, **k: __import__(
+        "pandas").DataFrame(columns=surprise.COLONNES))
+    monkeypatch.setattr(surprise, "score_par_devise", lambda *a, **k: {})
 
 # Noms de champ qui trahiraient une valeur transportée par erreur.
 CHAMPS_INTERDITS = [
