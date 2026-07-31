@@ -1,31 +1,29 @@
 {
   "horizon": 20,
-  "suspendus": [
-    "tendu"
-  ],
+  "suspendus": [],
   "detail": {
     "calme": {
       "confirme": false,
       "inverse": false,
-      "ic_purge": -0.0184,
-      "part_concluante_%": 0.0,
-      "obs_independantes": 8
+      "ic_purge": null,
+      "part_concluante_%": null,
+      "obs_independantes": null
     },
     "normal": {
       "confirme": false,
       "inverse": false,
-      "ic_purge": 0.0046,
+      "ic_purge": -0.0413,
       "part_concluante_%": 0.0,
-      "obs_independantes": 21
+      "obs_independantes": 18
     },
     "tendu": {
-      "confirme": true,
-      "inverse": true,
-      "ic_purge": -0.2542,
-      "part_concluante_%": 82.6,
-      "obs_independantes": 13
+      "confirme": false,
+      "inverse": false,
+      "ic_purge": -0.1157,
+      "part_concluante_%": 0.0,
+      "obs_independantes": 11
     }
   },
   "mesurable": true,
-  "lecture": "Dans marché tendu, le classement a été mesuré INVERSÉ sans recouvrement : l'avis directionnel y est suspendu. Il n'est pas retourné — l'effet repose sur trop peu d'épisodes distincts pour qu'on parie dessus."
+  "lecture": "Aucun régime ne justifie de suspendre l'avis directionnel."
 }
