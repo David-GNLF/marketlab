@@ -154,15 +154,41 @@ def test_lecture_quand_rien_nest_prouve():
     assert "Aucun régime" in lecture and "absence de signal" in lecture
 
 
-def test_la_lecture_annonce_les_episodes_independants():
-    """Le nombre d'épisodes est le seul chiffre qui dise si l'on peut y croire.
-    122 dates à horizon 20 ne font que 6 épisodes distincts."""
+def test_la_lecture_sappuie_sur_la_mesure_stricte():
+    """Deux mesures cohabitent ; quand la purge est disponible, c'est ELLE qui
+    fait foi. Publier la conclusion la plus généreuse alors qu'on dispose de la
+    plus exigeante reviendrait à choisir le chiffre qui arrange."""
     par_regime = {
-        "tendu": {"n_dates": 122,
-                  "note": {"sens": "négatif", "episodes_independants": 6}},
-        "calme": {"n_dates": 63, "note": {"statut": "pas mesurable"}},
+        "tendu": {"n_dates": 122, "note": {"sens": "négatif"},
+                  "purge": {"mesurable": True, "verdict": "effet inversé confirmé",
+                            "ic_moyen": -0.254, "part_concluante_%": 82.6,
+                            "obs_par_echantillonnage": 13}},
+        "calme": {"n_dates": 63, "note": {"statut": "pas mesurable"},
+                  "purge": {"mesurable": True, "verdict": "rien de démontré",
+                            "ic_moyen": -0.018, "part_concluante_%": 0.0,
+                            "obs_par_echantillonnage": 8}},
     }
     lecture = regimes._lecture(par_regime)
-    assert "6 épisode" in lecture
-    assert "prudence" in lecture
-    assert "moyenne unique efface" in lecture
+    assert "INVERSÉ" in lecture
+    assert "83 % des découpages" in lecture
+    assert "13 observations" in lecture
+    assert "marché calme" not in lecture      # la purge ne le confirme pas
+    assert "prudence" in lecture              # 13 observations, c'est peu
+
+
+def test_une_purge_qui_ne_confirme_pas_prime_sur_le_t_corrige():
+    """Cas RÉEL : sur l'ensemble des verdicts, le t corrigé annonçait
+    « négatif » alors que seuls 21,7 % des découpages concluent."""
+    par_regime = {"normal": {
+        "n_dates": 258, "note": {"sens": "négatif"},
+        "purge": {"mesurable": True, "verdict": "fragile", "ic_moyen": -0.03,
+                  "part_concluante_%": 21.7, "obs_par_echantillonnage": 21}}}
+    assert "Aucun régime" in regimes._lecture(par_regime)
+
+
+def test_sans_purge_on_se_rabat_sur_la_mesure_corrigee():
+    par_regime = {"tendu": {"n_dates": 122,
+                            "note": {"sens": "négatif",
+                                     "episodes_independants": 6}}}
+    lecture = regimes._lecture(par_regime)
+    assert "mesure corrigée seulement" in lecture

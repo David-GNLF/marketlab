@@ -33,7 +33,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from marketlab import decision
+from marketlab import decision, validation
 
 # Référence de nervosité du marché. Le VIX d'abord : c'est la mesure que les
 # salles regardent. À défaut, la volatilité réalisée de l'indice large — moins
@@ -159,6 +159,11 @@ def analyser(horizon: int | None = None) -> dict:
             "rendement_moyen_%": round(
                 float(groupe["rendement_reel_%"].mean()), 2),
             "note": _ic(groupe, "note", horizon),
+            # Seconde mesure, par un chemin opposé : au lieu de corriger
+            # l'écart-type pour le recouvrement, on l'ÉLIMINE en n'échantillonnant
+            # que des dates disjointes. Quand les deux divergent, c'est presque
+            # toujours que la correction a été trop généreuse.
+            "purge": validation.ic_purge(groupe, horizon=horizon),
             "composantes": {c[2:]: _ic(groupe, c, horizon) for c in composantes},
         }
         par_regime[nom] = entree
@@ -176,9 +181,22 @@ def analyser(horizon: int | None = None) -> dict:
 
 def _lecture(par_regime: dict) -> str:
     """Ce qu'il faut retenir, en une phrase — y compris quand il n'y a rien."""
+    # DEUX MESURES COHABITENT et l'on retient la plus STRICTE. L'écart-type
+    # corrigé (Newey-West) et l'échantillonnage sans recouvrement répondent à
+    # la même question par des chemins opposés ; mesuré sur ce projet, le
+    # second contredit le premier sur l'ensemble des verdicts — 21,7 % des
+    # découpages concluent là où le t corrigé annonçait « négatif ». Publier
+    # la conclusion la plus généreuse quand on dispose de la plus exigeante
+    # reviendrait à choisir le chiffre qui arrange.
+    def _conclut(e: dict) -> bool:
+        purge = e.get("purge") or {}
+        if purge.get("mesurable"):
+            return str(purge.get("verdict", "")).endswith("confirmé")
+        return (isinstance(e.get("note"), dict)
+                and e["note"].get("sens") in {"positif", "negatif", "négatif"})
+
     prouves = {nom: e for nom, e in par_regime.items()
-               if isinstance(e.get("note"), dict)
-               and e["note"].get("sens") in {"positif", "negatif", "négatif"}}
+               if _conclut(e)}
     if not prouves:
         return ("Aucun régime ne montre de capacité démontrée à classer les "
                 "actifs, ni dans un sens ni dans l'autre. La moyenne nulle du "
@@ -186,13 +204,23 @@ def _lecture(par_regime: dict) -> str:
                 "décrit bien l'absence de signal partout.")
     morceaux = []
     for nom, e in prouves.items():
-        sens = e["note"]["sens"]
-        episodes = e["note"].get("episodes_independants")
-        morceaux.append(
-            f"{ETIQUETTES.get(nom, nom)} : classement "
-            f"{'correct' if sens == 'positif' else 'INVERSÉ'} "
-            f"({e['n_dates']} dates, soit environ {episodes} épisode(s) de "
-            f"marché réellement indépendant(s))")
+        purge = e.get("purge") or {}
+        if purge.get("mesurable"):
+            inverse = purge["ic_moyen"] < 0
+            morceaux.append(
+                f"{ETIQUETTES.get(nom, nom)} : classement "
+                f"{'INVERSÉ' if inverse else 'correct'}, confirmé par "
+                f"{purge['part_concluante_%']:.0f} % des découpages sans "
+                f"recouvrement (IC {purge['ic_moyen']:+.3f}, "
+                f"{purge['obs_par_echantillonnage']} observations "
+                f"indépendantes par découpage)")
+        else:
+            sens = e["note"]["sens"]
+            morceaux.append(
+                f"{ETIQUETTES.get(nom, nom)} : classement "
+                f"{'correct' if sens == 'positif' else 'INVERSÉ'} "
+                f"({e['n_dates']} dates — mesure corrigée seulement, "
+                f"non reconfirmée sans recouvrement)")
 
     fin = ""
     if len(prouves) < len(par_regime):
@@ -202,7 +230,9 @@ def _lecture(par_regime: dict) -> str:
     # peut y croire. Une dizaine, c'est peu : le t affiché repose sur des
     # fenêtres qui se recouvrent largement, et une seule période agitée peut
     # porter tout le résultat.
-    maigres = [e["note"].get("episodes_independants", 0) for e in prouves.values()]
+    maigres = [(e.get("purge") or {}).get("obs_par_echantillonnage")
+               or e["note"].get("episodes_independants", 0)
+               for e in prouves.values()]
     if maigres and min(maigres) < 15:
         fin += (" À manier avec prudence : le résultat ne repose que sur une "
                 "poignée d'épisodes de marché distincts, et une seule période "
