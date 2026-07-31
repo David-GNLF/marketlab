@@ -394,11 +394,20 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
         "ponderation": poids_meta,
         "vetos": vetos,
         "regime": regime,
+        # « couts » et « esperance_nette_% » sont calculés par levels.py et
+        # attendus par le front (App.jsx lit plan.couts). Les omettre ici
+        # revenait à calculer le coût du trade, à l'afficher nulle part, et
+        # à laisser l'utilisateur lire une espérance BRUTE en croyant
+        # qu'elle était nette — l'écart exact que couts.py existe pour
+        # combler.
         "plan": ({k: plan[k] for k in ("entree", "stop", "objectif",
                                        "ratio_gain_risque",
                                        "proba_toucher_stop_%",
                                        "proba_toucher_objectif_%",
-                                       "esperance_%", "taille")}
+                                       "esperance_%", "taille")
+                  if k in plan}
+                 | {k: plan[k] for k in ("couts", "esperance_nette_%")
+                    if k in plan}
                  if plan else None),
         "avertissement": "Aide à la décision, pas un conseil en investissement.",
     }

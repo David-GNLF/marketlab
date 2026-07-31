@@ -56,13 +56,29 @@ def dates_espacees(dates: list, ecart: int, depart: int = 0) -> list:
     fenêtre de la précédente : c'est la purge, appliquée aux observations
     plutôt qu'à un jeu d'entraînement — ici il n'y a pas de modèle à ajuster,
     seulement une corrélation à estimer.
+
+    L'écart est compté en SÉANCES, pas en jours calendaires. La nuance
+    décide de la validité de toute la mesure : avec un horizon de 20 et un
+    embargo de 3, l'ancienne comparaison en jours calendaires laissait
+    passer deux observations distantes de 23 jours, soit environ 16
+    séances — donc encore quatre séances de recouvrement, exactement ce que
+    cette fonction existe pour éliminer. Le veto de régime, seul mécanisme
+    qui modifie aujourd'hui les avis, reposait sur cette ligne.
+
+    `busday_count` compte les jours ouvrés et ignore les jours fériés : il
+    surestime donc légèrement le nombre de séances autour d'un férié. Le
+    biais résiduel est de l'ordre d'une séance sur vingt, contre quatre
+    avant correction, et il va dans le sens prudent une fois l'embargo
+    ajouté.
     """
     ordonnees = sorted(dates)
     if not ordonnees or ecart < 1 or depart >= len(ordonnees):
         return []
     gardees = [ordonnees[depart]]
     for d in ordonnees[depart + 1:]:
-        if (pd.Timestamp(d) - pd.Timestamp(gardees[-1])).days >= ecart:
+        seances = int(np.busday_count(
+            pd.Timestamp(gardees[-1]).date(), pd.Timestamp(d).date()))
+        if seances >= ecart:
             gardees.append(d)
     return gardees
 

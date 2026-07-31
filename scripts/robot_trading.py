@@ -34,7 +34,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pandas as pd
 
-from marketlab import config, ftps, notify, risque_portefeuille
+from marketlab import (config, ftps, notify, rapport_seance,
+                       risque_portefeuille)
 from marketlab.data import get_ohlcv
 
 CAPITAL_DEPART = 1000.0
@@ -62,6 +63,7 @@ PART_EQUITE = 0.05
 TAUX_PORTAGE_ANNUEL = 0.06   # coût annuel de la part empruntée (levier)
 LEVIERS = {"Forex": 5, "Matières": 3, "Actions": 2, "Crypto": 2, "Indices": 2}
 VERDICTS_LOCAL = config.ROOT / "site" / "donnees" / "verdicts.json"
+RAPPORT_LOCAL = config.ROOT / "site" / "donnees" / "rapport_seance.json"
 CONCOURS_LOCAL = config.ROOT / "site" / "donnees" / "concours.json"
 
 
@@ -509,7 +511,14 @@ def main() -> int:
             for c in bloc.get("constats", []):
                 print(f"    - {c}")
     except Exception as exc:
-        print(f"rapport de séance non produit (non bloquant) : {str(exc)[:90]}")
+        # Le TYPE de l'erreur est imprimé, pas seulement son message : ce
+        # bloc a avalé un NameError pendant des semaines (« rapport_seance »
+        # n'était pas importé, « RAPPORT_LOCAL » n'existait pas), et un
+        # NameError a un message si court qu'il passait pour une donnée
+        # manquante. Un garde-fou qui masque la nature de la panne ne
+        # protège que la panne.
+        print(f"rapport de séance non produit (non bloquant) : "
+              f"{type(exc).__name__}: {str(exc)[:90]}")
 
     notifier_mouvements(mouvements)
     return 0

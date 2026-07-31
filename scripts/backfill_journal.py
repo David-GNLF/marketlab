@@ -39,8 +39,12 @@ import pandas as pd
 from marketlab import config, decision, forecast, indicators, score_history
 from marketlab.data import fred, get_ohlcv
 
-ACTIFS = (config.ACTIONS_US[:8] + config.ACTIONS_EU[:4] + config.CRYPTO[:3]
-          + config.FOREX + config.MATIERES)
+# Le périmètre vient de config.FICHES et de nulle part ailleurs. Recopié à
+# la main, il avait déjà divergé : les quatre titres asiatiques (Toyota,
+# Tencent, TSMC, Samsung) ont une salle de marché et un verdict quotidien,
+# mais AUCUN verdict rétro-journalisé — ils ne pesaient donc rien dans
+# l'apprentissage des pondérations.
+ACTIFS = list(config.FICHES)
 HORIZON = 20
 MIN_HISTORIQUE = 320          # séances nécessaires avant le premier verdict
 METAUX_PRECIEUX = {"GC=F", "SI=F"}
@@ -181,7 +185,13 @@ def main() -> int:
         journal = pd.concat([retro, existant], ignore_index=True)
     else:
         journal = retro
-    journal = journal.drop_duplicates(subset=["date", "symbole"], keep="last")
+    # La clé inclut l'HORIZON, comme dans decision.journaliser : le même
+    # titre, le même jour, produit un verdict par horizon suivi, et ce sont
+    # deux paris différents. Sans l'horizon, un passage de ce script
+    # supprimait une des deux traces — donc tout le bilan à 5 séances, et
+    # la matière du robot « claude5 ».
+    journal = journal.drop_duplicates(subset=["date", "symbole", "horizon"],
+                                      keep="last")
     journal = journal.sort_values(["date", "symbole"]).reset_index(drop=True)
     journal.to_csv(decision.JOURNAL, index=False)
     print(f"\nJournal : {len(journal)} lignes "

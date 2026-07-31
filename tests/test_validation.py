@@ -32,17 +32,36 @@ def _journal(n_dates, n_actifs=12, ic_vrai=0.0, graine=0, depart="2024-01-01"):
 # La purge elle-même
 # ---------------------------------------------------------------------------
 
-def test_les_dates_retenues_sont_bien_espacees():
-    dates = pd.date_range("2024-01-01", periods=100, freq="D").tolist()
+def test_les_dates_retenues_sont_espacees_en_SEANCES():
+    """Le contrat porte sur des SÉANCES, pas sur des jours calendaires.
+
+    L'ancienne version comparait des jours calendaires à un écart exprimé en
+    séances : 23 jours valent environ 16 séances, donc deux observations
+    « disjointes » se recouvraient encore de quatre séances sur un horizon de
+    20. C'est ce à quoi tenait la validité du veto de régime.
+    """
+    dates = pd.date_range("2024-01-01", periods=250, freq="B").tolist()
     gardees = validation.dates_espacees(dates, ecart=23)
-    ecarts = [(gardees[i + 1] - gardees[i]).days for i in range(len(gardees) - 1)]
-    assert min(ecarts) >= 23
+    seances = [int(np.busday_count(gardees[i].date(), gardees[i + 1].date()))
+               for i in range(len(gardees) - 1)]
+    assert min(seances) >= 23, f"recouvrement residuel : {min(seances)} seances"
+
+
+def test_un_ecart_en_jours_ne_suffit_pas():
+    """Le defaut exact, rejoue : sur des seances, 23 jours calendaires
+    laisseraient passer des dates trop rapprochees."""
+    dates = pd.date_range("2024-01-01", periods=250, freq="B").tolist()
+    gardees = validation.dates_espacees(dates, ecart=23)
+    jours = [(gardees[i + 1] - gardees[i]).days for i in range(len(gardees) - 1)]
+    # 23 seances font environ 31 jours calendaires : si la fonction comptait
+    # encore en jours, ce minimum serait de 23.
+    assert min(jours) > 25
 
 
 def test_chaque_depart_donne_un_echantillonnage_different():
     """Le point de départ est arbitraire : c'est ce qui permet de parcourir
     plusieurs découpages tous propres, au lieu d'en privilégier un."""
-    dates = pd.date_range("2024-01-01", periods=100, freq="D").tolist()
+    dates = pd.date_range("2024-01-01", periods=250, freq="B").tolist()
     a = validation.dates_espacees(dates, 23, depart=0)
     b = validation.dates_espacees(dates, 23, depart=5)
     assert a != b and len(a) > 3 and len(b) > 3
