@@ -5,38 +5,46 @@
       "horizon": 1,
       "scores": {
         "har": {
-          "qlike": 0.22875,
-          "rmse_log": 0.5497
+          "qlike": 0.27724,
+          "rmse_log": 0.55942
         },
         "hasard": {
-          "qlike": 0.24215,
-          "rmse_log": 0.59129
+          "qlike": 0.27975,
+          "rmse_log": 0.60871
         },
         "ewma": {
-          "qlike": 0.21362,
-          "rmse_log": 0.58764
+          "qlike": 0.29344,
+          "rmse_log": 0.70168
         }
       },
-      "gagnant": "ewma",
+      "gagnant": "har",
       "gagnant_rmse": "har",
-      "har_retenu": false,
-      "n_entrainement": 527,
+      "har_retenu": true,
+      "n_entrainement": 585,
       "n_test": 710,
       "n_titres": 58,
-      "coupe": "2026-07-13",
+      "coupe": "2026-07-14",
       "periode": [
         "2026-06-21",
-        "2026-07-28"
+        "2026-07-29"
       ],
-      "modele": null
+      "modele": {
+        "b0": -0.045538288548760346,
+        "b_jour": 0.3973387990634809,
+        "b_semaine": 0.15380596981871436,
+        "b_mois": 0.44287002042822454,
+        "somme_pentes": 0.9940147893104199,
+        "n_obs": 1295,
+        "r2": 0.8725426373097422
+      }
     },
     "20": {
       "suffisant": false,
-      "raison": "échantillon d'entraînement trop mince (95 obs, 200 requises)",
-      "n_entrainement": 95,
+      "raison": "échantillon d'entraînement trop mince (153 obs, 200 requises)",
+      "n_entrainement": 153,
       "n_test": 40,
       "modele": null
     }
   },
-  "retenu": false
+  "retenu": true
 }
