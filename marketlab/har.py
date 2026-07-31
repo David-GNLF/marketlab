@@ -328,6 +328,26 @@ def charger_modele() -> dict | None:
         return None
 
 
+def vol_cible(symbole: str) -> float | None:
+    """Volatilité QUOTIDIENNE à passer à `forecast.projeter(vol_cible=…)`.
+
+    LE CHAÎNON QUI MANQUAIT. Le modèle était calibré chaque nuit, arbitré hors
+    échantillon contre la marche au hasard et l'EWMA, retenu — et appelé nulle
+    part. `forecast.projeter` avait le paramètre et la documentation ; aucun
+    appelant ne le passait. La console annonçait « HAR pilote la largeur du
+    cône » à propos d'un branchement inexistant.
+
+    Renvoie None si le modèle n'a pas été retenu ou si ce titre n'a pas assez
+    de volatilité relevée — auquel cas l'appelant garde son comportement
+    inconditionnel, surtout pas une valeur inventée.
+
+    L'horizon est 1 : `vol_cible` attend un écart-type QUOTIDIEN, que le
+    simulateur étale ensuite lui-même sur la durée du pari.
+    """
+    p = prevoir(symbole, horizon=1)
+    return float(p["vol_jour"]) if p else None
+
+
 def prevoir(symbole: str, horizon: int = 1,
             interval: str = intraday.INTERVALLE_DEFAUT) -> dict | None:
     """Volatilité prévue pour `symbole`, ou None si rien n'est utilisable.

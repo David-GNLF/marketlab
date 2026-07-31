@@ -11,7 +11,7 @@ Le plan produit est une PROPOSITION à examiner, jamais un ordre.
 import numpy as np
 import pandas as pd
 
-from marketlab import couts, events, forecast, indicators
+from marketlab import couts, events, forecast, har, indicators
 from marketlab.data import get_ohlcv
 
 
@@ -102,7 +102,8 @@ def plan(symbole: str, sens: str = "achat", horizon: int = 20,
     prix = float(df["close"].iloc[-1])
     atr = float(df["atr14"].iloc[-1])
     zp = zones_proches(df)
-    proj = forecast.projeter(df, horizon=horizon)
+    proj = forecast.projeter(df, horizon=horizon,
+                             vol_cible=har.vol_cible(symbole))
 
     # Le stop doit être à la mesure de la DURÉE de détention : la volatilité
     # croît comme la racine du temps. Un stop de 2×ATR convient à 20 séances ;

@@ -184,7 +184,9 @@ def fiche_titre(symbole: str, df: pd.DataFrame | None = None) -> dict:
         ("moteurs", lambda: drivers.moteurs(symbole)),
         ("regime", lambda: forecast.regime(df)),
         ("projection", lambda: {k: v for k, v in
-                                forecast.projeter(df, horizon=20).items()
+                                forecast.projeter(
+                                    df, horizon=20,
+                                    vol_cible=har.vol_cible(symbole)).items()
                                 if not k.startswith("_")}),
         ("analogues", lambda: forecast.analogues(df, horizon=20)),
         ("niveaux", lambda: {"zones": levels.zones_proches(df),

@@ -32,7 +32,11 @@ def marche_synthetique(monkeypatch):
     monkeypatch.setattr(levels, "get_ohlcv", lambda s, lookback_days=1825: df)
     monkeypatch.setattr(levels, "zones_proches",
                         lambda d: {"supports": [], "resistances": []})
-    monkeypatch.setattr(levels.forecast, "projeter", lambda d, horizon=20: {
+    # **_ : le simulateur reçoit désormais `vol_cible` (volatilité prévue par
+    # HAR). Un stub trop étroit fait tomber le test sur un TypeError qui
+    # n'a rien à voir avec ce qu'il vérifie — la géométrie du stop.
+    monkeypatch.setattr(levels.forecast, "projeter",
+                        lambda d, horizon=20, **_: {
         "intervalle_80": [100 - horizon, 100 + horizon]})
     monkeypatch.setattr(levels.forecast, "proba_atteindre", lambda p, n: 30.0)
     monkeypatch.setattr(levels.forecast, "regime", lambda d: {"nom": "test"})

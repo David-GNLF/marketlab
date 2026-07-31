@@ -22,7 +22,8 @@ acceptée. Aide à la décision — jamais un conseil en investissement.
 
 import pandas as pd
 
-from marketlab import config, decision, edge, forecast, indicators, levels
+from marketlab import (config, decision, edge, forecast, har, indicators,
+                       levels)
 from marketlab.data import get_ohlcv
 
 
@@ -96,7 +97,8 @@ def strategie(symbole: str, horizon: int = 20, capital: float = 10_000.0,
     df = indicators.enrich(get_ohlcv(symbole, lookback_days=1825))
     prix = float(df["close"].iloc[-1])
     zones = levels.zones_proches(df)
-    proj = forecast.projeter(df, horizon=horizon)
+    proj = forecast.projeter(df, horizon=horizon,
+                             vol_cible=har.vol_cible(symbole))
     verdict = decision.dossier(symbole, horizon=horizon, capital=capital)
 
     # --- 1. quel sens ? ---

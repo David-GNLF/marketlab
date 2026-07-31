@@ -23,6 +23,7 @@ import numpy as np
 import pandas as pd
 
 from marketlab import (broker_tools, calibration, config, contexte, drivers,
+                       har,
                        events, forecast, fundamentals, indicators, levels,
                        news, score_history, seasonality, signals, surprise)
 from marketlab.data import get_ohlcv
@@ -193,7 +194,8 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
     df = indicators.enrich(get_ohlcv(symbole, lookback_days=lookback_days))
     prix = float(df["close"].iloc[-1])
     regime = forecast.regime(df)
-    proj = forecast.projeter(df, horizon=horizon)
+    proj = forecast.projeter(df, horizon=horizon,
+                             vol_cible=har.vol_cible(symbole))
 
     composantes = {"technique": _composante_technique(df),
                    "prevision": _composante_prevision(proj)}

@@ -92,6 +92,9 @@ def _modele_volatilite() -> dict:
     return {
         "retenu": bool(enregistre.get("retenu")),
         "horizons": horizons,
+        # Cette phrase a longtemps été fausse : le modèle etait retenu et
+        # branche nulle part. Elle est vraie depuis que decision, levels,
+        # position et publish passent har.vol_cible() au simulateur.
         "lecture": ("HAR pilote la largeur du cône" if enregistre.get("retenu")
                     else "HAR écarté : le cône garde son comportement actuel"),
     }
