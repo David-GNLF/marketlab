@@ -147,16 +147,3 @@ def walk_forward(df: pd.DataFrame, horizon: int = 5, min_train: int = 250,
         },
     }
 
-
-def importance_features(df: pd.DataFrame, horizon: int = 5) -> pd.DataFrame:
-    """Importance par permutation sur le dernier quart (indicatif)."""
-    from sklearn.inspection import permutation_importance
-    X, y = make_dataset(df, horizon)
-    cut = int(len(X) * 0.75)
-    model = HistGradientBoostingClassifier(max_iter=200, max_depth=3,
-                                           learning_rate=0.05, random_state=42)
-    model.fit(X.iloc[:cut], y.iloc[:cut])
-    imp = permutation_importance(model, X.iloc[cut:], y.iloc[cut:],
-                                 n_repeats=5, random_state=42)
-    return pd.DataFrame({"feature": X.columns, "importance": imp.importances_mean}) \
-        .sort_values("importance", ascending=False).reset_index(drop=True)

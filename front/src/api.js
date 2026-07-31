@@ -1,6 +1,6 @@
 // Chargement des données publiées.
 //
-// Le site est statique : plus aucun appel à une API, uniquement des fichiers
+// Le site est statique : aucune API applicative, uniquement des fichiers
 // JSON produits en amont par scripts/publier.py. C'est ce qui permet
 // l'hébergement sur un mutualisé cPanel — et ce qui rend l'affichage
 // instantané.

@@ -23,7 +23,7 @@ SERIES = (config.ROOT / "front" / "src" / "series.js").as_uri()
 
 def _node(corps: str):
     """Exécute un fragment ESM qui importe series.js et imprime du JSON."""
-    script = f'import {{ enBougies, fusionner, dernieresSeances, precision }} ' \
+    script = f'import {{ enBougies, fusionner, precision }} ' \
              f'from "{SERIES}";\n{corps}'
     r = subprocess.run([node, "--input-type=module", "-e", script],
                        capture_output=True, text=True, timeout=60)
@@ -84,26 +84,6 @@ def test_fusion_tolere_une_source_absente():
     assert out["sans_fraiche"] == [1]
     assert out["sans_publiee"] == [1]
     assert out["les_deux_absentes"] is None
-
-
-def test_decoupe_par_seance_et_pas_par_nombre_de_barres():
-    """« 1 jour » doit donner UNE séance, pas les 78 dernières barres : une
-    séance écourtée ou un marché 24 h n'ont pas le même nombre de bougies."""
-    out = _node('''
-      const jour = 86400;
-      // deux séances : 3 barres le jour 10, 2 barres le jour 11
-      const t = [10 * jour, 10 * jour + 300, 10 * jour + 600,
-                 11 * jour, 11 * jour + 300];
-      const bloc = { t, o: t.map(() => 1), h: t.map(() => 1),
-                     l: t.map(() => 1), c: t.map(() => 1) };
-      console.log(JSON.stringify({
-        une: dernieresSeances(bloc, 1).t,
-        deux: dernieresSeances(bloc, 2).t.length,
-      }));
-    ''')
-    assert out["une"] == [11 * 86400, 11 * 86400 + 300]
-    assert out["deux"] == 5
-
 
 def test_precision_suit_l_ordre_de_grandeur():
     """Une paire de change se lit à 5 décimales, une action à 2. Une valeur

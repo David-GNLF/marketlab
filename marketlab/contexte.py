@@ -25,7 +25,6 @@ Aucune de ces trois n'est une nouveauté : elles sont banales, et c'est
 justement ce qui permet de les tester honnêtement contre le journal.
 """
 
-import numpy as np
 import pandas as pd
 
 from marketlab.data import get_ohlcv

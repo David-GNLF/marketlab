@@ -11,7 +11,6 @@ dormir pour de vrai.
 import sys
 from pathlib import Path
 
-import pytest
 
 RACINE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RACINE))

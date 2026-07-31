@@ -73,22 +73,6 @@ export function fusionner(publiee, fraiche) {
   return bloc;
 }
 
-/** Ne garde que les `seances` dernières journées d'une série fine. */
-export function dernieresSeances(bloc, seances) {
-  if (!bloc?.t?.length || !seances) return bloc;
-  const jour = (sec) => Math.floor(sec / 86400);
-  const jours = [...new Set(bloc.t.map(jour))].sort((a, b) => a - b);
-  const depuis = jours.slice(-seances)[0];
-  const debut = bloc.t.findIndex((s) => jour(s) >= depuis);
-  if (debut <= 0) return bloc;
-  const coupe = (col) => (col ? col.slice(debut) : col);
-  return {
-    ...bloc, t: coupe(bloc.t), o: coupe(bloc.o), h: coupe(bloc.h),
-    l: coupe(bloc.l), c: coupe(bloc.c), v: coupe(bloc.v),
-    n: bloc.t.length - debut,
-  };
-}
-
 /** Nombre de décimales à afficher, déduit du prix lui-même.
  *  Une paire de change se lit à 5 décimales, une action à 2 : figer une
  *  valeur unique rendrait l'un illisible et l'autre faussement précis. */
@@ -97,7 +81,8 @@ export function precision(prix) {
   if (p === 0) return 2;
   if (p < 1) return 6;
   if (p < 20) return 4;
-  if (p < 1000) return 2;
+  // Au-delà de 20, deux décimales suffisent : la branche « < 1000 » renvoyait
+  // exactement la même valeur que la suivante, donc elle ne décidait rien.
   return 2;
 }
 

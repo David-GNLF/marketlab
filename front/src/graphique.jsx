@@ -28,7 +28,7 @@ import { creerGraphique } from "./terminal-chart";
 
 // Réexportées pour que la page n'ait qu'une porte d'entrée.
 export {
-  PAS, agreger, dernieresSeances, enBougies, fusionner, precision, socle,
+  PAS, agreger, enBougies, fusionner, precision, socle,
 } from "./series";
 
 export const TYPES = [

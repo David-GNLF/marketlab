@@ -1,6 +1,5 @@
 """Pont FRED → surprise sans retard — aucun accès réseau."""
 
-import numpy as np
 import pandas as pd
 import pytest
 

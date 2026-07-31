@@ -58,7 +58,6 @@ jour où son IC l'aura prouvée sur le journal. Une brique gagne sa place.
 from __future__ import annotations
 
 import datetime as dt
-import re
 
 import numpy as np
 import pandas as pd

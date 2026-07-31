@@ -11,7 +11,6 @@ fait autorité, jamais le poste de travail. Elle est trop importante pour
 tenir dans un commentaire.
 """
 
-from pathlib import Path
 
 from marketlab import config, ftps, publish
 

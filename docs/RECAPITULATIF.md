@@ -61,7 +61,7 @@ resume.yml       06h UTC      ──► résumé quotidien ntfy
 
 ---
 
-## 3. Les outils d'analyse (31 modules)
+## 3. Les outils d'analyse (47 modules)
 
 | Domaine | Modules | Ce qu'ils apportent |
 |---|---|---|
@@ -95,7 +95,9 @@ pas fait ses preuves.
 
 **Vetos** (ils priment sur la note) : espérance négative du plan,
 publication de résultats dans l'horizon, régime « agitation sans direction »,
-ratio gain/risque trop faible.
+ratio gain/risque trop faible, et **veto de régime** — l'avis directionnel est
+suspendu là où le classement a été mesuré inversé. C'est le plus conséquent :
+il force la taille à zéro, donc l'avis « S'abstenir ».
 
 **Sortie par actif** : avis (Favorable / Neutre / Défavorable / S'abstenir),
 note, concordance entre composantes, probabilité de hausse, scénario porteur
@@ -121,7 +123,7 @@ stop hors de portée de la fenêtre.
 C'est la partie la plus importante, et la plus inconfortable.
 
 **Journal** : `data_local/journal_decisions.csv`, clé (date + symbole +
-horizon), avec la note de chaque composante. 3 372 lignes, dont un backfill
+horizon), avec la note de chaque composante. 3 589 lignes, dont un backfill
 point-in-time de 2 ans (3 232 verdicts rétro, calculés uniquement sur des
 données antérieures à leur date).
 
@@ -202,7 +204,7 @@ Crypto en temps réel, forex à la minute, actions et matières au différé de
   réservée + marges engagées + P&L latent. Page, admin et robot affichent le
   même montant.
 
-### Les deux robots
+### Les trois robots
 
 | Robot | Horizon | Règles |
 |---|---|---|
@@ -238,9 +240,10 @@ chemin exempté, pour permettre à un invité de définir son mot de passe.
 
 ## 9. Alertes
 
-Sept règles : bascule d'avis, RSI extrême, événements macro imminents,
+Huit règles : bascule d'avis, RSI extrême, événements macro imminents,
 résultats à moins de 7 jours, sentiment extrême, mouvement de séance ≥ 3σ
-(urgent), VIX en backwardation (urgent).
+(urgent), VIX en backwardation (urgent), secousse intra-séance sur barre
+de 5 min ≥ 8σ (urgent).
 
 Livrées par **ntfy** (aucun compte requis), avec état anti-doublon persistant.
 Chaque passage horaire alimente aussi le fil du site — et l'horodate même sans
@@ -257,7 +260,7 @@ invariants vérifiés de la configuration au site publié, avant toute
 publication. Il empêche une dérive de périmètre silencieuse (un univers absent
 du screener, une fiche manquante, un horizon incohérent).
 
-**64 tests automatisés** exécutés en CI **avant** tout le reste :
+**351 tests automatisés** (30 fichiers) exécutés en CI **avant** tout le reste — le compte exact est tenu automatiquement sur la page Coulisses, qui les recompte à chaque publication :
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -307,8 +310,8 @@ Les seuls secrets sont les accès FTP et le topic ntfy.
 > **Piège associé** : les barres quotidiennes sont mises en cache 12 h. Sans
 > réglage, la veille aurait relu le même instantané à chaque balayage et
 > n'aurait jamais rien détecté — le changement aurait été purement cosmétique.
-> La veille abaisse donc ce délai à ~14 min via `MARKETLAB_TTL_1D_H`, juste
-> sous son intervalle. Vérifié en conditions réelles : trois relevés espacés
+> La veille abaisse donc ce délai à 9 min via `MARKETLAB_TTL_1D_H` (`0.15` h),
+> juste sous son intervalle de balayage de 10 min. Vérifié en conditions réelles : trois relevés espacés
 > de 25 s donnent trois prix différents.
 >
 > Rebalayer est sans danger : l'état anti-doublon empêche de renvoyer deux

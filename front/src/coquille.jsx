@@ -1,9 +1,9 @@
 // La coquille de l'application : marque, rail de navigation, barre d'état.
 //
-// POURQUOI UN RAIL PLUTÔT QU'UNE RANGÉE D'ONGLETS. Neuf onglets alignés en
+// POURQUOI UN RAIL PLUTÔT QU'UNE RANGÉE D'ONGLETS. Onze onglets alignés en
 // haut d'une page finissent par passer à la ligne, et la ligne du bas devient
 // une seconde classe de navigation qu'on ne voit plus. Un rail vertical tient
-// les neuf destinations à la même distance de l'œil, garde le nom de la page
+// les onze destinations à la même distance de l'œil, garde le nom de la page
 // courante lisible pendant qu'on travaille, et libère toute la largeur pour
 // le contenu — c'est la disposition de tous les terminaux de marché, et ce
 // n'est pas un hasard : leur contenu est large, jamais haut.

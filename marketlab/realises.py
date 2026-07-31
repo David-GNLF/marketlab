@@ -33,12 +33,10 @@ le dollar est d'un côté de presque toutes les paires suivies.
 
 from __future__ import annotations
 
-import datetime as dt
 
 import numpy as np
 import pandas as pd
 
-from marketlab import eco_calendar
 from marketlab.data import fred
 
 # Tolérance relative de la vérification : écart accepté entre la valeur
@@ -344,7 +342,7 @@ def correspondances_valides(rapport: pd.DataFrame | None = None) -> set:
     Une correspondance non vérifiée n'est pas utilisée : mieux vaut une
     surprise absente qu'une surprise fausse, qui aurait l'air d'un signal.
 
-    Mémorisé pour la durée du processus : la publication calcule 32 salles de
+    Mémorisé pour la durée du processus : la publication calcule 36 salles de
     marché, et refaire la vérification à chaque fois relirait toute la table
     FRED à chaque symbole. Le cache disque de `fred.get_series` (24 h) fait le
     reste entre deux exécutions.

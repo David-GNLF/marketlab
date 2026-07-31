@@ -20,7 +20,7 @@ Sortie (dossier `site/`) :
     donnees/correlations.json   matrice et risque du portefeuille
     donnees/fondamentaux.json   notation des actions
     donnees/titres/<SYM>.json   fiche complète par titre
-    donnees/series/<SYM>.json   bougies quotidiennes + 5 min
+    donnees/series/<SYM>.json   bougies quotidiennes, horaires et 5 min
 
 Chaque bloc est calculé indépendamment : l'échec de l'un n'empêche pas la
 publication des autres, et l'erreur est consignée dans meta.json.
@@ -30,7 +30,6 @@ import json
 import posixpath
 import re
 import shutil
-import traceback
 from pathlib import Path
 
 import pandas as pd
@@ -317,10 +316,6 @@ BLOCS = {
     # React et les pages PHP le lisent au même endroit. Trois définitions du
     # même mot dans trois fichiers, c'est deux définitions fausses à terme.
     "glossaire": glossaire.bloc,
-    # État de santé des briques, pour la console DevApp de l'admin. En DERNIER
-    # volontairement : il rend compte de ce que les blocs précédents viennent
-    # de produire (pondérations apprises, arbitrage du modèle de volatilité,
-    # correspondances FRED), donc il doit passer après eux.
 }
 
 

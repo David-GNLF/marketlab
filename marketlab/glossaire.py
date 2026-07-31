@@ -298,9 +298,10 @@ TERMES: dict[str, dict] = {
         "court": "Mesure si une note annonce vraiment ce qui va suivre. 0 = rien.",
         "long": "Corrélation entre la note donnée et le rendement advenu. "
                 "Zéro signifie « aucun lien », négatif signifie « lien "
-                "inversé ». Mesuré sur ce projet : les verdicts ont un IC "
-                "légèrement NÉGATIF, ce qui est publié en tête de la page "
-                "Décisions plutôt que caché.",
+                "inversé ». Mesuré sur ce projet : aucune compétence n'est "
+                "démontrée, dans aucun sens — la mesure et son incertitude "
+                "sont publiées en tête de la page Décisions plutôt que "
+                "cachées.",
         "categorie": "Méthode",
     },
     "calibration": {

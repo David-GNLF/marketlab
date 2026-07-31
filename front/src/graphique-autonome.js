@@ -153,4 +153,7 @@ export function monter(conteneur, options = {}) {
   return api;
 }
 
-export { PAS, TYPES_TRACE, precision };
+// `precision` n'est PAS réexporté : la page de trading n'utilise que
+// `monter`, `PAS` et `TYPES_TRACE`. Une surface publique se garde
+// étroite, sinon on ne sait plus ce qu'on a le droit de changer.
+export { PAS, TYPES_TRACE };
