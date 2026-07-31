@@ -267,48 +267,126 @@ def regime_courant() -> str:
     return valeur
 
 
+# REPLI SUR LA MESURE GLOBALE — désarmé, et voici l'arbitrage.
+#
+# Un régime trop peu peuplé ne peut pas être mesuré séparément. Deux lectures
+# s'affrontent :
+#
+#   ARMÉ   — la mesure tous régimes confondus porte aussi sur ces séances, et
+#            elle est défavorable ; conseiller là où l'on ne mesure rien tout
+#            en s'abstenant là où l'on mesure mal reviendrait à ne parler que
+#            là où l'on est le plus ignorant. Cohérent, mais mesuré au
+#            2026-07-31 : l'avis serait suspendu 100 % des séances, c'est-à-dire
+#            que la plateforme cesserait d'émettre le moindre avis directionnel.
+#
+#   DÉSARMÉ — on ne s'abstient que là où la mesure PENCHE défavorablement.
+#            Mesuré au 2026-07-31 : 88 % des séances (« ordinaire » et
+#            « tendu »), l'avis ne subsistant qu'en marché calme.
+#
+# Ce n'est pas un réglage technique : c'est le choix entre un outil qui se
+# tait presque toujours et un outil qui se tait toujours. Il revient au
+# lecteur, pas au code — d'où une constante nommée plutôt qu'un choix enfoui.
+REPLI_SUR_MESURE_GLOBALE = False
+
+
 def calibrer(horizon: int = 20, ecrire: bool = True) -> dict:
     """Décide, régime par régime, si le verdict directionnel doit être suspendu.
 
-    LA RÈGLE, ET POURQUOI ELLE EST CELLE-LÀ. Quand la mesure purgée établit que
-    le classement est INVERSÉ dans un régime, deux réactions sont possibles :
-    suspendre l'avis, ou le retourner. On suspend.
+    DEUX MOTIFS DE SUSPENDRE, ET ILS NE SE VALENT PAS.
 
-    Retourner reviendrait à parier que l'effet persiste — or il repose sur une
-    dizaine d'observations réellement indépendantes, et une seule période
-    agitée peut le porter. Suspendre ne coûte qu'une occasion manquée ;
-    retourner à tort coûte de l'argent, et sur la foi d'un résultat que ce
-    projet lui-même juge à confirmer.
+    1. DÉMONTRÉ — la mesure purgée établit que le classement est inversé dans
+       ce régime. C'est une preuve, au sens statistique du terme.
+
+    2. PRUDENTIEL — l'IC mesuré est négatif mais la preuve n'est pas faite.
+       On suspend quand même, et c'est un choix de POSTURE, pas une conclusion
+       de mesure. Il repose sur une asymétrie simple : s'abstenir ne coûte
+       qu'une occasion manquée, tandis que suivre un avis dont rien n'établit
+       la valeur coûte le spread, le portage et le risque. Quand la mesure
+       penche du mauvais côté sans trancher, l'abstention est le pari le moins
+       cher.
+
+    Les deux motifs sont écrits dans la sortie et distingués à l'affichage :
+    présenter une prudence comme une démonstration serait exactement le genre
+    d'affirmation non vérifiée que ce projet s'interdit.
+
+    ON NE RETOURNE JAMAIS L'AVIS. Retourner reviendrait à parier que l'effet
+    persiste — or il repose sur une dizaine d'observations réellement
+    indépendantes, et une seule période agitée peut le porter. Suspendre ne
+    coûte qu'une occasion manquée ; retourner à tort coûte de l'argent, et sur
+    la foi d'un résultat que ce projet lui-même juge à confirmer.
 
     L'inversion n'est pas abandonnée pour autant : la note retournée est
     journalisée comme CANDIDATE. Si elle fait ses preuves sur des données
     fraîches, elle gagnera sa place — comme toute brique ici.
+
+    UN RÉGIME NON MESURABLE : voir `REPLI_SUR_MESURE_GLOBALE` ci-dessus. Le
+    réglage est désarmé par défaut, et ce n'est pas une hésitation technique
+    mais une décision de produit qui appartient au lecteur.
     """
     analyse = analyser(horizon=horizon)
     verdict = {"horizon": horizon, "suspendus": [], "detail": {},
                "mesurable": bool(analyse.get("mesurable"))}
 
+    # Ce que dit la mesure TOUS RÉGIMES CONFONDUS, obtenue par la MÊME purge
+    # que les mesures par régime : elle sert de repli pour les régimes trop peu
+    # peuplés pour être jugés séparément.
+    ic_global = None
+    try:
+        globale = validation.ic_purge(decision._evaluer_journal(horizon=horizon),
+                                      horizon=horizon)
+        ic_global = globale.get("ic_moyen")
+    except Exception:
+        ic_global = None
+    globale_defavorable = ic_global is not None and float(ic_global) < 0
+    verdict["ic_global"] = ic_global
+
     for nom, entree in (analyse.get("par_regime") or {}).items():
         purge = entree.get("purge") or {}
+        ic = purge.get("ic_moyen")
+        mesurable = ic is not None
         confirme = str(purge.get("verdict", "")).endswith("confirmé")
-        inverse = confirme and float(purge.get("ic_moyen", 0)) < 0
+        demontre = confirme and mesurable and float(ic) < 0
+        # Prudence : la mesure penche du mauvais côté sans trancher. On
+        # s'abstient, mais on ne prétend pas avoir démontré quoi que ce soit.
+        prudentiel = mesurable and not demontre and float(ic) < 0
+        if REPLI_SUR_MESURE_GLOBALE and not mesurable and globale_defavorable:
+            prudentiel = True
         verdict["detail"][nom] = {
             "confirme": confirme,
-            "inverse": inverse,
-            "ic_purge": purge.get("ic_moyen"),
+            "mesurable": mesurable,
+            "inverse": demontre,
+            "motif": ("démontré" if demontre
+                      else "prudentiel" if prudentiel else None),
+            "ic_purge": ic,
             "part_concluante_%": purge.get("part_concluante_%"),
             "obs_independantes": purge.get("obs_par_echantillonnage"),
         }
-        if inverse:
+        if demontre or prudentiel:
             verdict["suspendus"].append(nom)
 
-    verdict["lecture"] = (
-        "Dans " + ", ".join(ETIQUETTES.get(r, r) for r in verdict["suspendus"])
-        + ", le classement a été mesuré INVERSÉ sans recouvrement : l'avis "
-          "directionnel y est suspendu. Il n'est pas retourné — l'effet repose "
-          "sur trop peu d'épisodes distincts pour qu'on parie dessus."
-        if verdict["suspendus"] else
-        "Aucun régime ne justifie de suspendre l'avis directionnel.")
+    demontres = [r for r, d in verdict["detail"].items()
+                 if d["motif"] == "démontré"]
+    prudents = [r for r, d in verdict["detail"].items()
+                if d["motif"] == "prudentiel"]
+    morceaux = []
+    if demontres:
+        morceaux.append(
+            "Dans " + ", ".join(ETIQUETTES.get(r, r) for r in demontres)
+            + ", le classement a été mesuré INVERSÉ sans recouvrement : l'avis "
+              "directionnel y est suspendu. Il n'est pas retourné — l'effet "
+              "repose sur trop peu d'épisodes distincts pour qu'on parie "
+              "dessus.")
+    if prudents:
+        morceaux.append(
+            "Dans " + ", ".join(ETIQUETTES.get(r, r) for r in prudents)
+            + ", la mesure penche du mauvais côté sans le démontrer. L'avis y "
+              "est suspendu par PRUDENCE, pas par démonstration : s'abstenir "
+              "ne coûte qu'une occasion manquée, tandis que suivre un avis "
+              "dont rien n'établit la valeur coûte le spread, le portage et "
+              "le risque.")
+    verdict["lecture"] = (" ".join(morceaux) if morceaux else
+                          "Aucun régime ne justifie de suspendre l'avis "
+                          "directionnel.")
 
     if ecrire:
         VERDICT_PATH.parent.mkdir(parents=True, exist_ok=True)

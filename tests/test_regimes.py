@@ -228,8 +228,15 @@ def test_un_effet_CORRECT_nest_pas_suspendu(monkeypatch, tmp_path):
     assert regimes.calibrer()["suspendus"] == []
 
 
-def test_un_effet_FRAGILE_ne_suspend_rien(monkeypatch, tmp_path):
-    """« Fragile » n'est pas « démontré » : on ne bloque pas sur un doute."""
+def test_un_effet_FRAGILE_suspend_PAR_PRUDENCE(monkeypatch, tmp_path):
+    """« Fragile » n'est pas « démontré » — mais on s'abstient quand même.
+
+    C'est un choix de POSTURE, arrêté le 2026-07-31 : s'abstenir ne coûte
+    qu'une occasion manquée, tandis que suivre un avis dont rien n'établit la
+    valeur coûte le spread, le portage et le risque. Le motif doit rester
+    distinct de « démontré » — présenter une prudence comme une démonstration
+    serait exactement l'affirmation non vérifiée que ce projet s'interdit.
+    """
     monkeypatch.setattr(regimes, "VERDICT_PATH", tmp_path / "v.json")
     monkeypatch.setattr(regimes, "_MEMO", {})
     monkeypatch.setattr(regimes, "analyser", lambda **k: {
@@ -238,6 +245,29 @@ def test_un_effet_FRAGILE_ne_suspend_rien(monkeypatch, tmp_path):
                                             "verdict": "fragile",
                                             "ic_moyen": -0.03,
                                             "part_concluante_%": 21.7,
+                                            "obs_par_echantillonnage": 21}}}})
+    v = regimes.calibrer()
+    assert v["suspendus"] == ["normal"]
+    assert v["detail"]["normal"]["motif"] == "prudentiel"
+    assert v["detail"]["normal"]["inverse"] is False, (
+        "une prudence ne doit jamais etre presentee comme une inversion "
+        "demontree")
+
+
+def test_un_ic_POSITIF_mais_fragile_ne_suspend_rien(monkeypatch, tmp_path):
+    """La prudence s'applique a une mesure DEFAVORABLE, pas a un doute.
+
+    Sans cette borne, « prudentiel » deviendrait « on suspend des que ce n'est
+    pas prouve », c'est-a-dire partout et pour toujours.
+    """
+    monkeypatch.setattr(regimes, "VERDICT_PATH", tmp_path / "v.json")
+    monkeypatch.setattr(regimes, "_MEMO", {})
+    monkeypatch.setattr(regimes, "analyser", lambda **k: {
+        "mesurable": True,
+        "par_regime": {"normal": {"purge": {"mesurable": True,
+                                            "verdict": "fragile",
+                                            "ic_moyen": +0.04,
+                                            "part_concluante_%": 30.0,
                                             "obs_par_echantillonnage": 21}}}})
     assert regimes.calibrer()["suspendus"] == []
 
