@@ -10,10 +10,21 @@
  * - la page trading, le panneau admin et le site lisent ainsi TOUS le même
  *   prix — c'est la règle qui a réglé la divergence de montants.
  *
- * Fraîcheur réelle, sans promesse mensongère : crypto en temps réel
- * (Binance), forex à la minute et actions/matières avec le différé de ~15
- * minutes imposé par les bourses aux sources gratuites. Chaque prix est donc
- * renvoyé AVEC son horodatage et son âge, et l'interface les affiche.
+ * Fraîcheur réelle, sans promesse mensongère. MESURÉE le 2026-07-31 à
+ * 16 h 48 UTC, marchés américains ouverts, sur deux relevés espacés de 90 s
+ * (une cotation vivante doit voir son horodatage AVANCER et son prix bouger) :
+ *
+ *   actions américaines   temps réel   (horodatage +93 s en 90 s)
+ *   indices               temps réel
+ *   crypto (Binance)      temps réel
+ *   forex                 < 2 min
+ *   matières (futures)    10 min       (différé du CME)
+ *   actions européennes   non mesurable ce jour-là — Euronext était fermée
+ *
+ * La mention précédente annonçait « ~15 min pour actions et matières » : elle
+ * était fausse dans les deux sens, jamais vérifiée, et écrite de mémoire.
+ * Chaque prix est renvoyé AVEC son horodatage et son âge, et l'interface les
+ * affiche — c'est cela qui fait foi, pas une phrase générale.
  *
  * Repli : si une source ne répond pas, on sert le dernier cours publié par
  * le site (source « publié ») — jamais d'écran vide, jamais de prix inventé.

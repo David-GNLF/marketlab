@@ -29,7 +29,9 @@ echo json_encode([
     'genere_le' => date('Y-m-d H:i:s'),
     'ttl_s' => ML_COURS_TTL,
     'note' => 'crypto en temps réel (Binance) ; forex à la minute ; actions '
-            . 'et matières avec le différé de ~15 min imposé par les bourses '
+            . 'actions américaines et indices en temps réel, forex sous '
+            . '2 min, matières premières différées de 10 min (mesuré le '
+            . '31/07/2026, marchés ouverts). ' 
             . 'aux sources gratuites. « age_s » donne l\'âge réel de chaque '
             . 'cotation ; source « publié » = repli sur l\'instantané du site.',
 ], JSON_UNESCAPED_UNICODE);

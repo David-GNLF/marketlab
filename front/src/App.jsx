@@ -2088,8 +2088,9 @@ function BandeauFlux() {
   return (
     <p className="note">Cours actualisés à{" "}
       {actualise.toLocaleTimeString("fr-FR")} — {direct}/{total} en direct.
-      Crypto en temps réel, forex à la minute, actions et matières au différé
-      de ~15 min des sources gratuites ; l'âge de chaque cotation est affiché.
+      Mesuré le 31/07/2026, marchés ouverts : actions américaines et indices
+      en temps réel, crypto en temps réel, forex sous 2 min, matières
+      premières différées de 10 min. L'âge de chaque cotation est affiché.
     </p>
   );
 }

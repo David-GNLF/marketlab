@@ -8,8 +8,9 @@
  * espace « Mon compte » (levier par défaut, mot de passe, remise à zéro).
  *
  * Exécution au COURS FRAIS servi par le relais (cours_lib.php) : crypto en
- * temps réel, forex à la minute, actions et matières au différé de ~15 min
- * des sources gratuites. Chaque prix est affiché avec son âge, et le repli
+ * temps réel comme les actions américaines et les indices, forex sous 2 min,
+ * matières premières différées de 10 min (mesuré le 2026-07-31, marchés
+ * ouverts). Chaque prix est affiché avec son âge, et le repli
  * sur le dernier cours publié est signalé comme tel. Les ordres en attente,
  * stops, objectifs et liquidations sont appliqués par le robot quotidien sur
  * les extrêmes de séance officiels.
@@ -577,9 +578,10 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
 <h1>MarketLab — trading virtuel</h1>
 <p class="note">Argent 100 % virtuel — 1 000 $ de départ, levier jusqu'à
   ×<?= LEVIER_MAX ?>, spread simulé de <?= SPREAD_PCT ?> %.
-  <strong>Cotations rafraîchies en continu</strong> : crypto en temps réel,
-  forex à la minute, actions et matières au différé de ~15 min imposé par les
-  bourses aux sources gratuites. L'âge de chaque cotation est affiché — rien
+  <strong>Cotations rafraîchies en continu</strong> — mesuré le 31/07/2026,
+  marchés ouverts : actions américaines, indices et crypto en temps réel,
+  forex sous 2 min, matières premières différées de 10 min.
+  L'âge de chaque cotation est affiché — rien
   n'est présenté comme « direct » sans l'être. L'analyse (avis, verdicts),
   elle, date de l'instantané du <?= h(date_donnees()) ?>.
   Ordres en attente, stops, objectifs et liquidations sont vérifiés chaque
