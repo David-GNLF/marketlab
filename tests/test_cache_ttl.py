@@ -13,7 +13,11 @@ import time
 from pathlib import Path
 
 import pandas as pd
+import re
+
 import pytest
+
+from marketlab import config as config_module
 
 RACINE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RACINE))
@@ -38,9 +42,26 @@ def test_valeurs_par_defaut(monkeypatch):
 def test_la_veille_peut_abaisser_le_delai(monkeypatch):
     config = _recharger_config(monkeypatch, MARKETLAB_TTL_1D_H="0.23")
     assert config.CACHE_TTL_HOURS["1d"] == pytest.approx(0.23)
-    assert config.CACHE_TTL_HOURS["1d"] * 60 < 15, (
-        "le délai doit rester sous l'intervalle de balayage de 15 min, "
-        "sinon la veille relit le même instantané")
+
+
+def test_le_delai_reel_de_la_veille_reste_sous_son_intervalle():
+    """Les DEUX valeurs sont lues dans le workflow, aucune n'est fournie ici.
+
+    La version precedente posait elle-meme le `0.23` qu'elle verifiait ensuite,
+    et le comparait a un intervalle de 15 min qui n'existe plus (il est de 10).
+    Elle etait donc vraie par construction : remonter le delai a 30 min dans le
+    workflow — ce qui ferait relire le meme instantane pendant trois heures de
+    veille — l'aurait laissee verte.
+    """
+    texte = (config_module.ROOT / ".github" / "workflows" / "alertes.yml")         .read_text(encoding="utf-8")
+    ttl = re.search(r'MARKETLAB_TTL_1D_H:\s*"([0-9.]+)"', texte)
+    intervalle = re.search(r"--intervalle-minutes\s+(\d+)", texte)
+    assert ttl and intervalle, "workflow illisible : le garde-fou ne garde rien"
+    ttl_min = float(ttl.group(1)) * 60
+    intervalle_min = int(intervalle.group(1))
+    assert ttl_min < intervalle_min, (
+        f"delai de cache {ttl_min:.0f} min >= intervalle de balayage "
+        f"{intervalle_min} min : la veille relirait le meme instantane")
 
 
 def test_un_cache_perime_est_ignore(monkeypatch, tmp_path):

@@ -95,7 +95,15 @@ ECHELLE_NOTE = 40.0
 # pour la devise. Repérage par mot-clé sur l'intitulé anglais du flux ; c'est
 # une heuristique, assumée comme telle, et c'est pourquoi la brique reste
 # candidate jusqu'à preuve statistique.
+# « claims » suffit et couvre toutes les variantes : le calendrier écrit
+# tantôt « Jobless Claims », tantôt « Unemployment Claims », tantôt
+# « Continuing Claims ». Les énumérer une par une avait déjà laissé passer
+# « Unemployment Claims » — précisément le libellé que realises.py associe
+# à la série FRED ICSA, c'est-à-dire la statistique hebdomadaire
+# américaine la plus suivie. Une hausse des inscriptions est une MAUVAISE
+# nouvelle : elle entrait dans le score de la devise à l'endroit.
 MOTS_INVERSES = (
+    "claims",
     "unemployment rate", "jobless claims", "unemployment change",
     "claimant count", "continuing claims", "inventories",
     "trade deficit", "budget deficit", "delinquenc",

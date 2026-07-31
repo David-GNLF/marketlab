@@ -18,6 +18,12 @@ data_local/*
 # Les pondérations apprises du bilan réel : dérivées du journal, committées
 # par le workflow pour persister d'un runner à l'autre.
 !data_local/poids_appris.json
+# Le journal des alertes est le TRIBUNAL des règles d'alerte : il dit
+# lesquelles ont crié pour rien. Écrit sur un runner éphémère et jamais
+# conservé, il repartait de zéro à chaque passage — « aucune alerte
+# journalisée » devenait indiscernable de « le scanner n'a rien envoyé »,
+# et une règle bruyante ne pouvait jamais être démasquée.
+!data_local/journal_alertes.csv
 !data_local/calibration.json
 # La volatilité réalisée est versionnée : une ligne par titre et par jour, sans
 # secret. Yahoo ne sert les barres 5 min que sur 60 jours glissants, donc

@@ -199,6 +199,25 @@ def _ewma_sur_rv(rv: np.ndarray, lam: float = LAMBDA_EWMA) -> np.ndarray:
     return out
 
 
+def retenir(gagnant_qlike: str, gagnant_rmse: str) -> bool:
+    """Le RMSE doit CONFIRMER le QLIKE : un désaccord ne retient rien.
+
+    POURQUOI UNE FONCTION NOMMÉE. Cette règle tenait en une expression au
+    milieu du dictionnaire de sortie, et son test la recopiait mot pour mot
+    pour la réappliquer à sa propre sortie — une assertion vraie quelle que
+    soit l'implémentation. Le passage de `and` à `or`, c'est-à-dire retenir un
+    modèle sur un seul critère, ne l'aurait pas fait broncher. Isolée, la
+    règle s'exerce sur ses quatre combinaisons possibles, sans avoir à
+    fabriquer un jeu de données qui produise un désaccord.
+
+    Un désaccord entre les deux critères signale un avantage fragile : le
+    QLIKE punit surtout la sous-estimation de la variance, le RMSE traite les
+    deux sens pareillement. Gagner l'un en perdant l'autre, c'est gagner sur
+    une asymétrie, pas sur la prévision.
+    """
+    return gagnant_qlike == "har" and gagnant_rmse == "har"
+
+
 def comparer(horizon: int = 1, part_test: float = 0.4,
              releve: pd.DataFrame | None = None,
              interval: str = intraday.INTERVALLE_DEFAUT) -> dict:
@@ -252,8 +271,6 @@ def comparer(horizon: int = 1, part_test: float = 0.4,
         for nom, p in prev.items()
     }
     gagnant = min(scores, key=lambda n: scores[n]["qlike"])
-    # Le RMSE doit CONFIRMER le QLIKE. Un désaccord entre les deux critères
-    # signale un avantage fragile : dans ce cas on ne retient rien.
     gagnant_rmse = min(scores, key=lambda n: scores[n]["rmse_log"])
 
     return {
@@ -263,7 +280,7 @@ def comparer(horizon: int = 1, part_test: float = 0.4,
         "scores": scores,
         "gagnant": gagnant,
         "gagnant_rmse": gagnant_rmse,
-        "har_retenu": gagnant == "har" and gagnant_rmse == "har",
+        "har_retenu": retenir(gagnant, gagnant_rmse),
         "n_entrainement": int(len(entrainement)),
         "n_test": int(len(test)),
         "n_titres": int(pan["symbole"].nunique()),

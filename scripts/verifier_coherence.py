@@ -94,6 +94,17 @@ def audit_site() -> None:
     symboles_verdicts = {d["symbole"] for d in verdicts["dossiers"]}
     verifier("verdicts == FICHES", symboles_verdicts == set(config.FICHES),
              f"écart : ±{sorted(symboles_verdicts ^ set(config.FICHES))[:6]}")
+    # Les contrôles qui suivent excluent les dossiers en erreur — sans quoi
+    # ils signaleraient deux fois le même incident. Mais ils ne peuvent pas
+    # être les SEULS : `decision.verdicts()` remplace un dossier en échec
+    # par {"symbole", "erreur"}, si bien que le périmètre reste complet et
+    # que 36 verdicts ratés passaient l'audit sans un mot. C'est la seule
+    # étape bloquante avant l'envoi : elle doit voir les échecs.
+    en_erreur = [d["symbole"] for d in verdicts["dossiers"] if "erreur" in d]
+    part = len(en_erreur) / max(len(verdicts["dossiers"]), 1)
+    verifier(f"verdicts calculés ({len(verdicts['dossiers']) - len(en_erreur)}"
+             f"/{len(verdicts['dossiers'])})", part <= 0.10,
+             f"{len(en_erreur)} en échec : {sorted(en_erreur)[:6]}")
     sans_conclusion = [d["symbole"] for d in verdicts["dossiers"]
                        if "erreur" not in d and not d.get("conclusion")]
     verifier("chaque verdict porte une conclusion", not sans_conclusion,

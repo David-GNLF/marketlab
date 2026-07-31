@@ -134,22 +134,28 @@ def test_arbitrage_sans_releve_ne_retient_rien():
     assert not a.get("har_retenu")
 
 
-def test_har_non_retenu_si_les_deux_criteres_sont_en_desaccord(monkeypatch):
-    """Un avantage sur un seul critère est trop fragile pour passer en
-    production : c'est le cas RÉEL mesuré au 30/07/2026 (EWMA gagne le QLIKE,
-    HAR gagne le RMSE) et le modèle ne doit PAS être retenu."""
-    pan = pd.DataFrame({
-        "date": ["2026-01-%02d" % (i + 1) for i in range(400)],
-        "symbole": ["AAA"] * 400,
-        "rv_j": np.linspace(-9, -8, 400),
-        "rv_s": np.linspace(-9, -8, 400),
-        "rv_m": np.linspace(-9, -8, 400),
-        "cible": np.linspace(-9, -8, 400),
-    })
-    monkeypatch.setattr(har, "panel", lambda *a, **k: pan)
-    a = har.comparer()
-    assert a["suffisant"] is True
-    assert a["har_retenu"] == (a["gagnant"] == "har" and a["gagnant_rmse"] == "har")
+def test_la_regle_exige_les_deux_criteres():
+    """Les quatre combinaisons, exercées une par une.
+
+    L'ancien test recopiait la formule de har.py et la réappliquait à sa
+    propre sortie : il était vrai quelle que soit l'implémentation. Et son jeu
+    d'essai — trois colonnes identiques à la cible — faisait gagner HAR sur
+    les DEUX critères, si bien que le désaccord annoncé dans son nom n'était
+    jamais exercé.
+    """
+    assert har.retenir("har", "har") is True
+    assert har.retenir("har", "ewma") is False, (
+        "un avantage QLIKE non confirme par le RMSE ne doit rien retenir")
+    assert har.retenir("hasard", "har") is False
+    assert har.retenir("ewma", "ewma") is False
+
+
+def test_la_regle_ne_se_contente_pas_dun_seul_critere():
+    """Le defaut exact que l'ancien test laissait passer : si `and` devenait
+    `or`, un modele gagnant un seul critere partirait en production."""
+    desaccords = [("har", "ewma"), ("har", "hasard"),
+                  ("ewma", "har"), ("hasard", "har")]
+    assert not any(har.retenir(q, r) for q, r in desaccords)
 
 
 def test_prevoir_sans_modele_retenu_renvoie_none(tmp_path, monkeypatch):

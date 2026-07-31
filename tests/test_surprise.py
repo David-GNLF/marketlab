@@ -37,7 +37,11 @@ def test_le_chomage_a_le_sens_inverse():
     """Un chômage PLUS ÉLEVÉ que prévu est une mauvaise surprise, alors que
     l'écart arithmétique est positif."""
     assert surprise.sens("Unemployment Rate") == -1
-    assert surprise.sens("Unemployment Claims") == 1  # non listé : sens direct
+    # Une hausse des inscriptions au chômage est une mauvaise nouvelle : le
+    # sens est INVERSE. Ce test affirmait le contraire et entérinait le
+    # défaut par écrit — le seul endroit où quelqu'un aurait pu s'en
+    # apercevoir le certifiait.
+    assert surprise.sens("Unemployment Claims") == -1
     assert surprise.sens("Jobless Claims") == -1
     assert surprise.sens("Crude Oil Inventories") == -1
 

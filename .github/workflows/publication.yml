@@ -112,8 +112,14 @@ jobs:
       # repose sur trop peu d'épisodes distincts pour qu'on parie dessus.
       # Tourne AVANT la génération : les verdicts du jour doivent en tenir
       # compte immédiatement.
+      # PAS de continue-on-error ici, contrairement aux étapes d'appoint.
+      # Deux raisons : c'est le seul mécanisme qui modifie les avis, et une
+      # étape en continue-on-error ne met pas le job en échec — donc
+      # « if: failure() » ne se déclenche pas et l'échec ne produit NI
+      # notification, NI run rouge. Il ne resterait qu'une ligne dans un
+      # journal que personne ne lit, pendant que le verdict de régime reste
+      # figé sur la mesure d'un jour précédent.
       - name: Verdict par régime de marché
-        continue-on-error: true
         run: python -c "from marketlab import regimes; v = regimes.calibrer(); print('avis suspendu dans :', v['suspendus'] or 'aucun régime')"
 
       - name: Arbitrage du modèle de volatilité
