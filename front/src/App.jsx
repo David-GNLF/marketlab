@@ -1181,6 +1181,40 @@ function Verdict({ d, rang, onTitre, court, horizonCourt }) {
               soit {d.plan.couts["seuil_mise_%"]} % de la mise à effet{" "}
               {d.plan.couts.levier}. {d.plan.couts.lecture}</p>
           )}
+          {/* COMBIEN METTRE — l'aboutissement de la chaîne. La taille ne suit
+              pas la note (elle n'a pas démontré de pouvoir de classement),
+              elle suit le RISQUE : ce qu'on perd si le stop est touché. */}
+          {d.dimensionnement && (
+            <div className="carte" style={{ marginTop: 8, padding: "8px 10px" }}>
+              <strong>
+                {d.dimensionnement.retenue
+                  ? <>Mise recommandée : {d.dimensionnement.mise} ${" "}
+                      <span className="note">
+                        ({d.dimensionnement["mise_%_equite"]} % de l'équité)
+                      </span></>
+                  : <span style={{ color: "var(--critical)" }}>
+                      Aucune mise recommandée</span>}
+              </strong>
+              <p className="note" style={{ margin: "3px 0 0" }}>
+                {d.dimensionnement.lecture}</p>
+              {d.dimensionnement.comparaison?.lecture && (
+                <p className="note" style={{ margin: "3px 0 0" }}>
+                  {d.dimensionnement.comparaison.lecture}</p>
+              )}
+              {d.dimensionnement.etapes?.length > 0 && (
+                <details style={{ marginTop: 4 }}>
+                  <summary className="note" style={{ cursor: "pointer" }}>
+                    Comment cette taille a été obtenue
+                  </summary>
+                  <ol className="note" style={{ margin: "4px 0 0 1rem" }}>
+                    {d.dimensionnement.etapes.map((e, i) => (
+                      <li key={i} style={{ margin: "2px 0" }}>{e}</li>
+                    ))}
+                  </ol>
+                </details>
+              )}
+            </div>
+          )}
           <button className="action secondaire" style={{ marginTop: 8 }}
                   onClick={(e) => { e.stopPropagation(); onTitre(d.symbole); }}>
             Ouvrir la fiche complète

@@ -320,6 +320,21 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
         taille = 0.0
         candidats["note_retournee"] = round(-float(note_globale), 1)
 
+    # DIMENSIONNEMENT PAR LE RISQUE. Recommandation seulement : le robot garde
+    # sa taille fixe de 5 %, parce que ses trois variantes forment une
+    # expérience contrôlée et que changer leur dimensionnement rendrait
+    # ininterprétable tout l'historique déjà accumulé. Ce chiffre est là pour
+    # être lu et comparé, pas pour agir dans le dos de l'expérience.
+    try:
+        from marketlab import dimensionnement
+        taille_risque = dimensionnement.dimensionner(
+            symbole, plan or {}, capital, horizon=horizon,
+            avis_suspendu=suspension)
+        taille_risque["comparaison"] = dimensionnement.comparer_a_taille_fixe(
+            taille_risque, capital)
+    except Exception as exc:
+        taille_risque = {"retenue": False, "erreur": str(exc)[:80]}
+
     # --- avis final ---
     if taille == 0.0:
         avis = "S'abstenir"
@@ -387,6 +402,7 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
         "conclusion": conclusion,
         "concordance_%": round(concordance, 0),
         "taille_multiplicateur": taille,
+        "dimensionnement": taille_risque,
         "composantes": [
             {"nom": nom, "poids": round(poids[nom], 3),
              "note": round(c["note"], 1), "raisons": c["raisons"]}
