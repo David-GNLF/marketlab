@@ -192,3 +192,77 @@ def test_sans_purge_on_se_rabat_sur_la_mesure_corrigee():
                                      "episodes_independants": 6}}}
     lecture = regimes._lecture(par_regime)
     assert "mesure corrigée seulement" in lecture
+
+
+# ---------------------------------------------------------------------------
+# Le verdict persisté : suspendre, jamais retourner
+# ---------------------------------------------------------------------------
+
+def test_un_regime_inverse_est_suspendu(monkeypatch, tmp_path):
+    monkeypatch.setattr(regimes, "VERDICT_PATH", tmp_path / "v.json")
+    monkeypatch.setattr(regimes, "_MEMO", {})
+    monkeypatch.setattr(regimes, "analyser", lambda **k: {
+        "mesurable": True,
+        "par_regime": {"tendu": {"purge": {"mesurable": True,
+                                           "verdict": "effet inversé confirmé",
+                                           "ic_moyen": -0.254,
+                                           "part_concluante_%": 82.6,
+                                           "obs_par_echantillonnage": 13}}}})
+    v = regimes.calibrer()
+    assert v["suspendus"] == ["tendu"]
+    assert v["detail"]["tendu"]["inverse"] is True
+    assert "suspendu" in v["lecture"] and "pas retourné" in v["lecture"]
+
+
+def test_un_effet_CORRECT_nest_pas_suspendu(monkeypatch, tmp_path):
+    """Suspendre s'applique à un classement INVERSÉ. Un classement qui marche
+    n'a aucune raison d'être bloqué."""
+    monkeypatch.setattr(regimes, "VERDICT_PATH", tmp_path / "v.json")
+    monkeypatch.setattr(regimes, "_MEMO", {})
+    monkeypatch.setattr(regimes, "analyser", lambda **k: {
+        "mesurable": True,
+        "par_regime": {"calme": {"purge": {"mesurable": True,
+                                           "verdict": "effet confirmé",
+                                           "ic_moyen": +0.20,
+                                           "part_concluante_%": 75.0,
+                                           "obs_par_echantillonnage": 20}}}})
+    assert regimes.calibrer()["suspendus"] == []
+
+
+def test_un_effet_FRAGILE_ne_suspend_rien(monkeypatch, tmp_path):
+    """« Fragile » n'est pas « démontré » : on ne bloque pas sur un doute."""
+    monkeypatch.setattr(regimes, "VERDICT_PATH", tmp_path / "v.json")
+    monkeypatch.setattr(regimes, "_MEMO", {})
+    monkeypatch.setattr(regimes, "analyser", lambda **k: {
+        "mesurable": True,
+        "par_regime": {"normal": {"purge": {"mesurable": True,
+                                            "verdict": "fragile",
+                                            "ic_moyen": -0.03,
+                                            "part_concluante_%": 21.7,
+                                            "obs_par_echantillonnage": 21}}}})
+    assert regimes.calibrer()["suspendus"] == []
+
+
+def test_la_suspension_ne_sapplique_quau_regime_COURANT(monkeypatch, tmp_path):
+    """Le veto est armé sur « tendu » mais le marché est « normal » : il doit
+    rester dormant. C'est l'état réel au 2026-07-31."""
+    chemin = tmp_path / "v.json"
+    chemin.write_text('{"suspendus": ["tendu"], "detail": {"tendu": {}}}',
+                      encoding="utf-8")
+    monkeypatch.setattr(regimes, "VERDICT_PATH", chemin)
+    monkeypatch.setattr(regimes, "_MEMO", {})
+    monkeypatch.setattr(regimes, "classer",
+                        lambda *a, **k: pd.Series(["normal"]))
+    assert regimes.avis_suspendu() is None
+    monkeypatch.setattr(regimes, "_MEMO", {})
+    monkeypatch.setattr(regimes, "classer",
+                        lambda *a, **k: pd.Series(["tendu"]))
+    assert regimes.avis_suspendu()["regime"] == "tendu"
+
+
+def test_sans_fichier_de_verdict_rien_nest_suspendu(monkeypatch, tmp_path):
+    """Un garde-fou absent doit laisser passer, pas tout bloquer."""
+    monkeypatch.setattr(regimes, "VERDICT_PATH", tmp_path / "absent.json")
+    monkeypatch.setattr(regimes, "_MEMO", {})
+    assert regimes.charger_verdict() == {"suspendus": []}
+    assert regimes.avis_suspendu() is None

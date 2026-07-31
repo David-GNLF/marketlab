@@ -105,6 +105,17 @@ jobs:
           MARKETLAB_FRED_API_KEY: ${{ secrets.MARKETLAB_FRED_API_KEY }}
         run: python -c "from marketlab import surprise; print(surprise.mettre_a_jour_calendrier())"
 
+      # Le classement de l'outil est-il inversé dans certains régimes ? Mesuré
+      # sans recouvrement (dates espacées de l'horizon + embargo), donc sans
+      # l'approximation qui fragilisait le t corrigé. Là où l'inversion est
+      # confirmée, l'avis directionnel est SUSPENDU — jamais retourné : l'effet
+      # repose sur trop peu d'épisodes distincts pour qu'on parie dessus.
+      # Tourne AVANT la génération : les verdicts du jour doivent en tenir
+      # compte immédiatement.
+      - name: Verdict par régime de marché
+        continue-on-error: true
+        run: python -c "from marketlab import regimes; v = regimes.calibrer(); print('avis suspendu dans :', v['suspendus'] or 'aucun régime')"
+
       - name: Arbitrage du modèle de volatilité
         continue-on-error: true
         run: python -c "from marketlab import har; r = har.calibrer(); print('HAR retenu :', r['retenu'])"

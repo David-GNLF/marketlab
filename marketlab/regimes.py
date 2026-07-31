@@ -30,10 +30,12 @@ EXPANSIVE : à chaque date, uniquement sur ce qui précède.
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pandas as pd
 
-from marketlab import decision, validation
+from marketlab import config, decision, validation
 
 # Référence de nervosité du marché. Le VIX d'abord : c'est la mesure que les
 # salles regardent. À défaut, la volatilité réalisée de l'indice large — moins
@@ -239,3 +241,96 @@ def _lecture(par_regime: dict) -> str:
                 "agitée peut le porter à elle seule. À reconfirmer quand "
                 "l'historique aura grandi.")
     return " ; ".join(morceaux) + "." + fin
+
+
+# ---------------------------------------------------------------------------
+# Verdict persisté : ce que le moteur de décision doit en faire
+# ---------------------------------------------------------------------------
+
+VERDICT_PATH = config.DATA_DIR / "regimes_verdict.json"
+
+# Régime courant : la dernière séance classée. Relu souvent (une fois par
+# titre à la génération), donc mémorisé pour la durée du processus.
+_MEMO: dict = {}
+
+
+def regime_courant() -> str:
+    """Régime de la séance la plus récente, ou « indetermine »."""
+    if "courant" in _MEMO:
+        return _MEMO["courant"]
+    try:
+        serie = classer()
+        valeur = str(serie.iloc[-1]) if len(serie) else "indetermine"
+    except Exception:
+        valeur = "indetermine"
+    _MEMO["courant"] = valeur
+    return valeur
+
+
+def calibrer(horizon: int = 20, ecrire: bool = True) -> dict:
+    """Décide, régime par régime, si le verdict directionnel doit être suspendu.
+
+    LA RÈGLE, ET POURQUOI ELLE EST CELLE-LÀ. Quand la mesure purgée établit que
+    le classement est INVERSÉ dans un régime, deux réactions sont possibles :
+    suspendre l'avis, ou le retourner. On suspend.
+
+    Retourner reviendrait à parier que l'effet persiste — or il repose sur une
+    dizaine d'observations réellement indépendantes, et une seule période
+    agitée peut le porter. Suspendre ne coûte qu'une occasion manquée ;
+    retourner à tort coûte de l'argent, et sur la foi d'un résultat que ce
+    projet lui-même juge à confirmer.
+
+    L'inversion n'est pas abandonnée pour autant : la note retournée est
+    journalisée comme CANDIDATE. Si elle fait ses preuves sur des données
+    fraîches, elle gagnera sa place — comme toute brique ici.
+    """
+    analyse = analyser(horizon=horizon)
+    verdict = {"horizon": horizon, "suspendus": [], "detail": {},
+               "mesurable": bool(analyse.get("mesurable"))}
+
+    for nom, entree in (analyse.get("par_regime") or {}).items():
+        purge = entree.get("purge") or {}
+        confirme = str(purge.get("verdict", "")).endswith("confirmé")
+        inverse = confirme and float(purge.get("ic_moyen", 0)) < 0
+        verdict["detail"][nom] = {
+            "confirme": confirme,
+            "inverse": inverse,
+            "ic_purge": purge.get("ic_moyen"),
+            "part_concluante_%": purge.get("part_concluante_%"),
+            "obs_independantes": purge.get("obs_par_echantillonnage"),
+        }
+        if inverse:
+            verdict["suspendus"].append(nom)
+
+    verdict["lecture"] = (
+        "Dans " + ", ".join(ETIQUETTES.get(r, r) for r in verdict["suspendus"])
+        + ", le classement a été mesuré INVERSÉ sans recouvrement : l'avis "
+          "directionnel y est suspendu. Il n'est pas retourné — l'effet repose "
+          "sur trop peu d'épisodes distincts pour qu'on parie dessus."
+        if verdict["suspendus"] else
+        "Aucun régime ne justifie de suspendre l'avis directionnel.")
+
+    if ecrire:
+        VERDICT_PATH.parent.mkdir(parents=True, exist_ok=True)
+        VERDICT_PATH.write_text(
+            json.dumps(verdict, indent=2, ensure_ascii=False), encoding="utf-8")
+    return verdict
+
+
+def charger_verdict() -> dict:
+    if "verdict" in _MEMO:
+        return _MEMO["verdict"]
+    try:
+        _MEMO["verdict"] = json.loads(VERDICT_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        _MEMO["verdict"] = {"suspendus": []}
+    return _MEMO["verdict"]
+
+
+def avis_suspendu() -> dict | None:
+    """Le régime courant impose-t-il de suspendre l'avis ? None sinon."""
+    courant = regime_courant()
+    if courant in (charger_verdict().get("suspendus") or []):
+        detail = (charger_verdict().get("detail") or {}).get(courant, {})
+        return {"regime": courant, **detail}
+    return None

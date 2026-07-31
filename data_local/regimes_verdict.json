@@ -1,0 +1,31 @@
+{
+  "horizon": 20,
+  "suspendus": [
+    "tendu"
+  ],
+  "detail": {
+    "calme": {
+      "confirme": false,
+      "inverse": false,
+      "ic_purge": -0.0184,
+      "part_concluante_%": 0.0,
+      "obs_independantes": 8
+    },
+    "normal": {
+      "confirme": false,
+      "inverse": false,
+      "ic_purge": 0.0046,
+      "part_concluante_%": 0.0,
+      "obs_independantes": 21
+    },
+    "tendu": {
+      "confirme": true,
+      "inverse": true,
+      "ic_purge": -0.2542,
+      "part_concluante_%": 82.6,
+      "obs_independantes": 13
+    }
+  },
+  "mesurable": true,
+  "lecture": "Dans marché tendu, le classement a été mesuré INVERSÉ sans recouvrement : l'avis directionnel y est suspendu. Il n'est pas retourné — l'effet repose sur trop peu d'épisodes distincts pour qu'on parie dessus."
+}

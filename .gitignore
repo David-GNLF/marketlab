@@ -28,6 +28,10 @@ data_local/*
 # du modèle s'il a été retenu. Même logique que poids_appris.json : dérivé des
 # données, commité pour persister d'un runner à l'autre.
 !data_local/har_modele.json
+# Verdict par regime : dans quels marches l'avis directionnel est
+# suspendu. Derive du journal, commite pour persister d'un runner a
+# l'autre — sans lui, le veto serait desarme a chaque execution.
+!data_local/regimes_verdict.json
 # Historique du calendrier économique. ForexFactory ne sert QUE la semaine en
 # cours : sans accumulation conservée, on ne pourra jamais reconstituer les
 # résultats publiés (chaînage par la valeur « précédente » de la publication

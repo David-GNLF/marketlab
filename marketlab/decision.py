@@ -285,6 +285,39 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
                      "taille réduite.")
         taille = min(taille, 0.5)
 
+    # VETO DE RÉGIME. Mesuré sur 3 232 verdicts : en marché tendu, le
+    # classement est INVERSÉ — IC purgé −0,254, confirmé par 83 % des
+    # découpages sans recouvrement. Dans ce régime, l'avis directionnel ne vaut
+    # rien : il est donc suspendu.
+    #
+    # SUSPENDU, PAS RETOURNÉ. Retourner l'avis reviendrait à parier que l'effet
+    # persiste, alors qu'il repose sur une dizaine d'observations réellement
+    # indépendantes et qu'une seule période agitée peut le porter. Suspendre ne
+    # coûte qu'une occasion manquée ; retourner à tort coûte de l'argent.
+    # La note retournée est journalisée comme CANDIDATE : si elle fait ses
+    # preuves sur des données fraîches, elle gagnera sa place.
+    suspension = None
+    try:
+        # Import TARDIF, et c'est nécessaire : `regimes` importe `decision`
+        # pour réutiliser sa mesure de compétence. Un import croisé en tête de
+        # fichier fonctionnerait tant que l'ordre de chargement reste le bon,
+        # et casserait le jour où quelqu'un importe l'autre module en premier.
+        from marketlab import regimes
+        suspension = regimes.avis_suspendu()
+    except Exception:
+        suspension = None      # garde-fou muet plutôt que publication bloquée
+    if suspension:
+        vetos.append(
+            f"VETO DE RÉGIME : en "
+            f"{regimes.ETIQUETTES.get(suspension['regime'], suspension['regime'])}, "
+            f"le classement de cet outil a été mesuré INVERSÉ "
+            f"(IC {suspension.get('ic_purge')}, confirmé par "
+            f"{suspension.get('part_concluante_%')} % des découpages sans "
+            f"recouvrement). L'avis directionnel est suspendu — il n'est pas "
+            f"retourné, l'effet reposant sur trop peu d'épisodes distincts.")
+        taille = 0.0
+        candidats["note_retournee"] = round(-float(note_globale), 1)
+
     # --- avis final ---
     if taille == 0.0:
         avis = "S'abstenir"
