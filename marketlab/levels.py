@@ -11,7 +11,7 @@ Le plan produit est une PROPOSITION à examiner, jamais un ordre.
 import numpy as np
 import pandas as pd
 
-from marketlab import events, forecast, indicators
+from marketlab import couts, events, forecast, indicators
 from marketlab.data import get_ohlcv
 
 
@@ -171,7 +171,21 @@ def plan(symbole: str, sens: str = "achat", horizon: int = 20,
         plan_resultat["risque_evenement"] = {"concerne": None,
                                              "message": f"indisponible : {str(exc)[:60]}"}
 
+    # COÛT RÉEL. L'espérance ci-dessus est BRUTE : elle ignore le spread payé
+    # deux fois et le portage de la part empruntée. Sur un horizon de 20
+    # séances à effet 5, cela représente couramment plus d'un pour cent — soit
+    # davantage que l'espérance de bien des idées « favorables ». Publier le
+    # chiffre brut sans le net revient à annoncer un salaire avant charges.
+    try:
+        plan_resultat["couts"] = couts.net(
+            plan_resultat["esperance_%"], symbole, horizon=horizon)
+        plan_resultat["esperance_nette_%"] = plan_resultat["couts"]["esperance_nette_%"]
+    except Exception as exc:
+        plan_resultat["couts"] = {"erreur": str(exc)[:80]}
+
     plan_resultat["lecture"] = _lecture(ratio, esperance, p_stop)
+    if plan_resultat.get("couts", {}).get("lecture"):
+        plan_resultat["lecture"] += " " + plan_resultat["couts"]["lecture"]
     if plan_resultat["risque_evenement"].get("dans_horizon"):
         # le message porte déjà son propre pictogramme
         plan_resultat["lecture"] += " " + plan_resultat["risque_evenement"]["message"]

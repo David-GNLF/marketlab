@@ -292,6 +292,55 @@ function mt(?float $x): string {
 </div>
 <?php endif; ?>
 
+<?php $biais = ml_biais_trader($compte); ?>
+<div class="carte">
+  <h2 style="margin-top:0">Comment vous vous trompez</h2>
+  <p class="note">Le moteur de mesure, retourné sur VOS décisions. Un trader
+    perd rarement parce qu'il choisit mal : il perd parce qu'il garde ses
+    perdants, coupe ses gagnants, ou s'entête sur une catégorie. Ces écarts
+    sont dans le journal depuis le début.</p>
+
+  <?php if (!$biais['assez']): ?>
+    <p class="note"><?= h((string)$biais['message']) ?></p>
+  <?php else: ?>
+    <?php foreach ($biais['constats'] as $c): ?>
+      <p style="margin:.4rem 0"><?= h((string)$c) ?></p>
+    <?php endforeach; ?>
+
+    <?php foreach (['classe' => 'Par classe d'actif',
+                    'duree' => 'Par durée de détention',
+                    'sens' => 'Par sens',
+                    'jour' => 'Par jour d'ouverture'] as $axe => $titre): ?>
+      <?php if (empty($biais[$axe])) continue; ?>
+      <h3 style="margin:1rem 0 .3rem; font-size:.95rem"><?= $titre ?></h3>
+      <table>
+        <tr><th></th><th class="num">Trades</th>
+            <th class="num">Rendement moyen sur la mise</th>
+            <th class="num">Réussite</th><th class="num">P&amp;L</th></tr>
+        <?php foreach ($biais[$axe] as $l): ?>
+          <tr class="<?= $l['fiable'] ? '' : 'note' ?>">
+            <td><?= h((string)$l['valeur']) ?>
+              <?php if (!$l['fiable']): ?>
+                <span class="note" title="Moins de <?= ML_TRADES_MIN_GROUPE ?> trades : non concluant">·&nbsp;peu de cas</span>
+              <?php endif; ?></td>
+            <td class="num"><?= $l['n'] ?></td>
+            <td class="num <?= $l['rendement_moyen'] >= 0 ? 'gain' : 'perte' ?>">
+              <?= sprintf('%+.1f %%', $l['rendement_moyen']) ?></td>
+            <td class="num"><?= sprintf('%.0f %%', $l['reussite']) ?></td>
+            <td class="num <?= $l['pnl'] >= 0 ? 'gain' : 'perte' ?>">
+              <?= sprintf('%+.2f', $l['pnl']) ?></td>
+          </tr>
+        <?php endforeach; ?>
+      </table>
+    <?php endforeach; ?>
+    <p class="note">Rendement rapporté à la MISE, jamais en dollars : sinon un
+      gros trade écrase les autres et le classement ne mesurerait plus que la
+      taille des positions. Les lignes grisées comptent moins de
+      <?= ML_TRADES_MIN_GROUPE ?> trades — un écart n'y est que du bruit, et
+      seuls les écarts appuyés des deux côtés sont commentés.</p>
+  <?php endif; ?>
+</div>
+
 <?php if ($positions): ?>
 <div class="carte">
   <h2 style="margin-top:0">Positions ouvertes (<?= count($positions) ?>)</h2>

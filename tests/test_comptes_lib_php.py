@@ -326,3 +326,64 @@ def test_la_grille_est_chiffree():
                    None, serie)
     assert svg.count("<line") >= 5   # 5 graduations horizontales
     assert svg.count("<text") >= 7   # valeurs + dates
+
+
+# ---------------------------------------------------------------------------
+# Vos biais : le moteur de mesure retourné sur vos propres décisions
+# ---------------------------------------------------------------------------
+
+def test_sous_le_seuil_aucun_biais_nest_annonce():
+    """Conclure sur trois trades serait pire que ne rien dire."""
+    b = _appeler("ml_biais_trader($compte)",
+                 {"historique": [_trade(10), _trade(-5)]})
+    assert b["assez"] is False
+    assert "rien de mesurable" in b["message"]
+
+
+def test_les_groupes_trop_petits_sont_marques_non_fiables():
+    """Un écart sur deux trades est du bruit : la ligne existe, mais elle est
+    signalée comme telle plutôt que commentée."""
+    trades = [_trade(10, "AAPL") for _ in range(6)] + [_trade(-40, "GC=F")]
+    b = _appeler("ml_biais_trader($compte)", {"historique": trades})
+    par_classe = {l["valeur"]: l for l in b["classe"]}
+    assert par_classe["Actions"]["fiable"] is True
+    assert par_classe["Matières"]["fiable"] is False
+
+
+def test_un_ecart_net_entre_classes_est_constate():
+    """Le cas utile : une classe rapporte, l'autre coûte, et les deux ont assez
+    de trades pour qu'on puisse le dire."""
+    trades = ([_trade(30, "AAPL", marge=100.0) for _ in range(6)]
+              + [_trade(-40, "GC=F", marge=100.0) for _ in range(6)])
+    b = _appeler("ml_biais_trader($compte)", {"historique": trades})
+    assert b["assez"] is True
+    constats = " ".join(b["constats"])
+    assert "classes d'actif" in constats
+    assert "Actions" in constats and "Matières" in constats
+
+
+def test_sans_ecart_marque_on_le_dit_aussi():
+    """« Rien ne ressort » est une information, pas un échec de la mesure."""
+    trades = [_trade(10, "AAPL", marge=100.0) for _ in range(6)] + \
+             [_trade(11, "MSFT", marge=100.0) for _ in range(6)]
+    b = _appeler("ml_biais_trader($compte)", {"historique": trades})
+    assert any("Aucun écart marqué" in c for c in b["constats"])
+
+
+def test_le_rendement_est_rapporte_a_la_mise():
+    """Sans cela, un gros trade écrase les autres et le classement ne mesure
+    plus que la taille des positions."""
+    trades = ([_trade(50, "AAPL", marge=1000.0) for _ in range(5)]      # +5 %
+              + [_trade(20, "GC=F", marge=100.0) for _ in range(5)])    # +20 %
+    b = _appeler("ml_biais_trader($compte)", {"historique": trades})
+    par_classe = {l["valeur"]: l for l in b["classe"]}
+    # en dollars AAPL gagne (250 contre 100), en rendement sur mise c'est GC=F
+    assert par_classe["Actions"]["pnl"] > par_classe["Matières"]["pnl"]
+    assert par_classe["Matières"]["rendement_moyen"] > par_classe["Actions"]["rendement_moyen"]
+
+
+def test_les_quatre_axes_sont_produits():
+    trades = [_trade(10, "AAPL", marge=100.0) for _ in range(6)]
+    b = _appeler("ml_biais_trader($compte)", {"historique": trades})
+    for axe in ("classe", "duree", "sens", "jour"):
+        assert axe in b and b[axe], f"axe manquant : {axe}"

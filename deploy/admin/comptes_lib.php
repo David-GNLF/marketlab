@@ -383,3 +383,128 @@ function ml_filtrer_serie(array $serie, ?int $jours): array {
     $limite = date('Y-m-d H:i', strtotime("-$jours days"));
     return array_values(array_filter($serie, fn($p) => $p['t'] >= $limite));
 }
+
+/**
+ * VOS BIAIS — le moteur de mesure retourné sur vos propres décisions.
+ *
+ * L'outil mesure ses verdicts depuis toujours. Il ne mesurait pas les VÔTRES.
+ * Or un trader particulier perd rarement parce qu'il choisit mal : il perd
+ * parce qu'il garde ses perdants, coupe ses gagnants, s'entête sur une classe
+ * d'actif, ou multiplie les positions quand ça va mal.
+ *
+ * Ces quatre découpages répondent chacun à une question qu'on ne se pose pas
+ * spontanément — et dont la réponse est dans le journal depuis le début.
+ *
+ * PRUDENCE ASSUMÉE : sous quelques trades par groupe, un écart n'est que du
+ * bruit. Chaque ligne porte donc son effectif, et `fiable` dit si l'on peut en
+ * tirer quoi que ce soit. Un tableau qui laisse conclure sur trois trades est
+ * pire qu'un tableau absent.
+ */
+
+const ML_TRADES_MIN_GROUPE = 5;
+
+function ml_biais_trader(array $compte): array {
+    $h = $compte['historique'] ?? [];
+    if (count($h) < ML_TRADES_MIN_GROUPE) {
+        return ['assez' => false, 'n' => count($h),
+                'message' => 'Moins de ' . ML_TRADES_MIN_GROUPE . ' trades '
+                           . 'fermés : rien de mesurable pour l\'instant.'];
+    }
+
+    $par = ['classe' => [], 'duree' => [], 'sens' => [], 'jour' => []];
+    foreach ($h as $t) {
+        $pnl = (float)($t['pnl'] ?? 0);
+        $marge = (float)($t['marge'] ?? 0);
+        // Rendement rapporté à la MISE : sans cela, un gros trade écrase les
+        // autres et le classement ne mesure plus que la taille des positions.
+        $rendement = $marge > 0 ? $pnl / $marge * 100 : 0.0;
+
+        $o = strtotime((string)($t['ouvert_le'] ?? ''));
+        $f = strtotime((string)($t['ferme_le'] ?? ''));
+        $jours = ($o && $f && $f >= $o) ? ($f - $o) / 86400 : null;
+
+        $cles = [
+            'classe' => ml_classe_actif((string)($t['symbole'] ?? '')),
+            'sens'   => (string)($t['sens'] ?? '?'),
+            'duree'  => $jours === null ? 'inconnue'
+                        : ($jours < 1 ? 'moins d\'un jour'
+                          : ($jours < 5 ? '1 à 5 jours'
+                            : ($jours < 20 ? '5 à 20 jours' : 'plus de 20 jours'))),
+            'jour'   => $o ? ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi',
+                              'Vendredi', 'Samedi'][(int)date('w', $o)] : 'inconnu',
+        ];
+        foreach ($cles as $axe => $valeur) {
+            if (!isset($par[$axe][$valeur])) {
+                $par[$axe][$valeur] = ['n' => 0, 'pnl' => 0.0, 'rendements' => []];
+            }
+            $par[$axe][$valeur]['n']++;
+            $par[$axe][$valeur]['pnl'] += $pnl;
+            $par[$axe][$valeur]['rendements'][] = $rendement;
+        }
+    }
+
+    $sortie = [];
+    foreach ($par as $axe => $groupes) {
+        $lignes = [];
+        foreach ($groupes as $valeur => $g) {
+            $n = $g['n'];
+            $gagnants = count(array_filter($g['rendements'], fn($r) => $r >= 0));
+            $lignes[] = [
+                'valeur' => $valeur, 'n' => $n, 'pnl' => $g['pnl'],
+                'rendement_moyen' => array_sum($g['rendements']) / max($n, 1),
+                'reussite' => $gagnants / max($n, 1) * 100,
+                'fiable' => $n >= ML_TRADES_MIN_GROUPE,
+            ];
+        }
+        usort($lignes, fn($a, $b) => $b['rendement_moyen'] <=> $a['rendement_moyen']);
+        $sortie[$axe] = $lignes;
+    }
+    $sortie['assez'] = true;
+    $sortie['n'] = count($h);
+    $sortie['constats'] = ml_constats_biais($sortie);
+    return $sortie;
+}
+
+/** Classe d'actif, même convention que marketlab/couts.py. */
+function ml_classe_actif(string $symbole): string {
+    if (str_ends_with($symbole, '=X')) return 'Forex';
+    if (str_ends_with($symbole, '=F')) return 'Matières';
+    if (str_ends_with($symbole, 'USDT')) return 'Crypto';
+    if (str_starts_with($symbole, '^')) return 'Indices';
+    return 'Actions';
+}
+
+/**
+ * Ce qui mérite d'être dit, et RIEN de plus.
+ *
+ * On ne commente qu'un écart porté par assez de trades des DEUX côtés. Sinon
+ * on fabriquerait des explications à du bruit — le travers exact qui fait
+ * qu'un trader croit avoir compris quelque chose et change de méthode pour
+ * rien.
+ */
+function ml_constats_biais(array $b): array {
+    $constats = [];
+    $titres = ['classe' => 'classes d\'actif', 'duree' => 'durées de détention',
+               'sens' => 'sens', 'jour' => 'jours d\'ouverture'];
+    foreach ($titres as $axe => $libelle) {
+        $fiables = array_values(array_filter($b[$axe] ?? [], fn($l) => $l['fiable']));
+        if (count($fiables) < 2) continue;
+        $meilleur = $fiables[0];
+        $pire = $fiables[count($fiables) - 1];
+        $ecart = $meilleur['rendement_moyen'] - $pire['rendement_moyen'];
+        if ($ecart < 5) continue;   // sous 5 points de mise, ce n'est pas un écart
+        $constats[] = sprintf(
+            'Parmi les %s : « %s » rapporte %+.1f %% de la mise en moyenne '
+            . '(%d trades), « %s » %+.1f %% (%d trades) — %.0f points d\'écart.',
+            $libelle, $meilleur['valeur'], $meilleur['rendement_moyen'],
+            $meilleur['n'], $pire['valeur'], $pire['rendement_moyen'],
+            $pire['n'], $ecart);
+    }
+    if (!$constats) {
+        $constats[] = 'Aucun écart marqué entre vos catégories de trades. '
+                    . 'C\'est une information : rien ne suggère pour l\'instant '
+                    . 'qu\'une classe, une durée ou un sens vous réussisse mieux '
+                    . 'qu\'un autre.';
+    }
+    return $constats;
+}

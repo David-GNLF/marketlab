@@ -1164,7 +1164,22 @@ function Verdict({ d, rang, onTitre, court, horizonCourt }) {
               ratio {d.plan.ratio_gain_risque} ·
               P(stop) {d.plan["proba_toucher_stop_%"]} % ·
               P(objectif) {d.plan["proba_toucher_objectif_%"]} % ·
-              espérance {d.plan["esperance_%"] > 0 ? "+" : ""}{d.plan["esperance_%"]} %</p>
+              espérance {d.plan["esperance_%"] > 0 ? "+" : ""}{d.plan["esperance_%"]} % brute</p>
+          )}
+          {/* L'espérance ci-dessus ignore le spread payé deux fois et le
+              portage. Afficher le brut sans le net, c'est annoncer un salaire
+              avant charges — et sur un horizon de 20 séances à effet 5, les
+              frais dépassent l'espérance de bien des idées « favorables ». */}
+          {d.plan?.couts?.["seuil_actif_%"] !== undefined && (
+            <p className="note" style={{ marginTop: 2 }}>
+              <strong style={{ color: d.plan.couts.survit_aux_frais
+                ? "var(--good)" : "var(--critical)" }}>
+                net de frais {d.plan.couts["esperance_nette_%"] > 0 ? "+" : ""}
+                {d.plan.couts["esperance_nette_%"]} %
+              </strong>{" · "}
+              seuil de rentabilité {d.plan.couts["seuil_actif_%"]} % sur l'actif,
+              soit {d.plan.couts["seuil_mise_%"]} % de la mise à effet{" "}
+              {d.plan.couts.levier}. {d.plan.couts.lecture}</p>
           )}
           <button className="action secondaire" style={{ marginTop: 8 }}
                   onClick={(e) => { e.stopPropagation(); onTitre(d.symbole); }}>
