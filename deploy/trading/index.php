@@ -122,6 +122,50 @@ function identite_titre(string $symbole): ?array {
 }
 
 /**
+ * Ce que la CHAÎNE D'ENCADREMENT dit de chaque actif, par horizon.
+ *
+ * Toute la chaîne (frais, régime, taille par le risque, sauts, concentration,
+ * Kelly) tourne chaque nuit et publie son verdict dans verdicts.json — mais
+ * jusqu'ici RIEN ne s'interposait au moment où l'utilisateur place son propre
+ * ordre : on choisissait mise et levier sans savoir que la chaîne avait
+ * peut-être écarté ce titre le matin même. Cette carte compacte est embarquée
+ * dans la page et confrontée EN DIRECT à la saisie du ticket. Elle informe,
+ * elle ne bloque jamais : vous restez maître, mais en voyant ce que l'outil
+ * voit.
+ */
+function verdicts_chaine(): array {
+    static $carte = null;
+    if ($carte !== null) return $carte;
+    $carte = [];
+    $v = json_decode((string)@file_get_contents(
+        DOSSIER_DONNEES . '/verdicts.json'), true) ?: [];
+    $jeux = [['dossiers', (string)($v['horizon_officiel'] ?? 20)],
+             ['dossiers_court', (string)($v['horizon_court'] ?? 5)]];
+    foreach ($jeux as [$cle, $h]) {
+        foreach ($v[$cle] ?? [] as $d) {
+            if (!empty($d['erreur']) || empty($d['symbole'])) continue;
+            $dim = $d['dimensionnement'] ?? [];
+            // un dossier d'avant le branchement de la chaîne n'a pas de
+            // verdict : ne rien afficher vaut mieux qu'afficher du vide
+            if (!array_key_exists('retenue', $dim)) continue;
+            $plan = $d['plan'] ?? [];
+            $carte[$d['symbole']][$h] = [
+                'avis' => $d['avis'] ?? null,
+                'retenue' => (bool)$dim['retenue'],
+                'mise_pct' => $dim['mise_%_equite'] ?? null,
+                'risque_pct' => $dim['risque_%_equite'] ?? null,
+                'levier' => $dim['levier'] ?? null,
+                'etapes' => array_values($dim['etapes'] ?? []),
+                'stop' => $plan['stop'] ?? null,
+                'objectif' => $plan['objectif'] ?? null,
+                'esperance_nette' => $plan['esperance_nette_%'] ?? null,
+            ];
+        }
+    }
+    return $carte;
+}
+
+/**
  * LE prix de référence de la plateforme : cotation fraîche du relais, repli
  * sur le dernier cours publié. Utilisé pour l'exécution, la valorisation et
  * l'affichage — une seule définition, donc jamais deux montants différents.
@@ -550,6 +594,15 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
   #recap-ticket { font-size: 13px; background:
     color-mix(in srgb, CanvasText 6%, transparent); border-radius: 6px;
     padding: 10px 12px; margin-top: 10px; line-height: 1.6; }
+  #chaine-ticket { font-size: 13px; border-radius: 6px; padding: 10px 12px;
+    margin-top: 10px; line-height: 1.6; border: 1px solid
+    color-mix(in srgb, CanvasText 18%, transparent); }
+  #chaine-ticket .titre-chaine { font-weight: 600; font-size: 12.5px;
+    text-transform: uppercase; letter-spacing: .04em; opacity: .7; }
+  #chaine-ticket .h-retenue { color: #0a7a0a; }
+  #chaine-ticket .h-ecartee { color: #b25a00; }
+  #chaine-ticket .garde { color: #b25a00; font-weight: 600; }
+  #chaine-ticket .dans-les-clous { color: #0a7a0a; }
   .avis-achat { color: #0a7a0a; font-weight: 600; }
   .avis-vente { color: #d03b3b; font-weight: 600; }
   nav.ancres a.engrenage { background: none; opacity: .55; }
@@ -791,6 +844,7 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
           <input name="objectif" id="t-objectif" type="number" step="any"></div>
       </div>
       <div id="recap-ticket"></div>
+      <div id="chaine-ticket"></div>
       <button>Passer l'ordre</button>
       <p class="note">Perte maximale = la mise (liquidation automatique à
         marge épuisée, contrôlée chaque soir sur les extrêmes de séance —
@@ -990,6 +1044,12 @@ const ML = {
   capitalInitial: <?= json_encode((float)$compte['capital_initial']) ?>,
   symboles: <?= json_encode(array_values($actifs), JSON_UNESCAPED_UNICODE) ?>,
   intervalle: 30000,
+  // le verdict de la chaîne d'encadrement, par actif puis par horizon —
+  // l'analyse date de l'instantané publié, seule l'équité vit en direct
+  chaine: <?= json_encode(verdicts_chaine(), JSON_UNESCAPED_UNICODE) ?>,
+  dateAnalyse: <?= json_encode(date_donnees()) ?>,
+  equite: <?= json_encode(round($eq, 2)) ?>,
+  miseMin: <?= json_encode(MISE_MIN) ?>,
 };
 
 (function () {
@@ -1052,6 +1112,9 @@ const ML = {
 
     const equite = ML.solde + ML.margeReservee + ML.margeUtilisee + pnlTotal;
     const perf = (equite / ML.capitalInitial - 1) * 100;
+    // le panneau de la chaîne compare la mise saisie à l'équité VIVANTE
+    ML.equite = equite;
+    if (window.majChaine) window.majChaine();
     peindre(document.getElementById('v-pnl'), pnlTotal,
             `${pnlTotal >= 0 ? '+' : ''}${nf(pnlTotal)} $`);
     peindre(document.getElementById('v-equite'), null, `${nf(equite)} $`);
@@ -1157,6 +1220,130 @@ const ML = {
               el.addEventListener('change', recalc); }
   });
   recalc();
+})();
+
+/* --------------------------------------- ce que la chaîne d'encadrement en dit
+   Le dernier endroit où l'encadrement n'existait pas : le moment où VOUS
+   placez un ordre. La chaîne (frais, régime, taille par le risque, sauts,
+   concentration, Kelly) a rendu son verdict cette nuit ; ce panneau le
+   confronte en direct à ce que vous saisissez. Il informe, il ne bloque
+   jamais — mais on ne place plus un ordre sans savoir ce que l'outil sait. */
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const boite = $('chaine-ticket');
+  if (!boite || !ML.chaine) return;
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+  const fmt = (x, d = 2) => Number.isFinite(x)
+      ? x.toLocaleString('fr-FR', {maximumFractionDigits: d}) : '—';
+
+  // l'étape qui a tué l'idée, dans les mots mêmes de la chaîne
+  function motifEcartee(v) {
+    const e = (v.etapes || []).find((t) => String(t).includes('ÉCARTÉE'))
+      || (v.etapes || [])[(v.etapes || []).length - 1];
+    return e ? String(e) : 'écartée par la chaîne';
+  }
+
+  function ligneHorizon(h, v) {
+    if (v.retenue) {
+      const enDollars = Number.isFinite(ML.equite) && v.mise_pct !== null
+        ? ` (≈ ${fmt(ML.equite * v.mise_pct / 100)} $ pour vous)` : '';
+      return `<div><span class="h-retenue">horizon ${esc(h)} séances :`
+        + ` RETENUE</span> — mise recommandée <strong>${fmt(v.mise_pct)} %`
+        + ` de l'équité</strong>${enDollars}, perte au stop`
+        + ` ${fmt(v.risque_pct)} % du compte, levier du calcul`
+        + ` ×${fmt(v.levier, 0)}.</div>`;
+    }
+    return `<div><span class="h-ecartee">horizon ${esc(h)} séances :`
+      + ` ÉCARTÉE</span> — ${esc(motifEcartee(v))}</div>`;
+  }
+
+  function rendre() {
+    const sym = $('t-symbole').value;
+    const sens = $('t-sens').value;
+    const mise = parseFloat($('t-mise').value);
+    const levier = parseInt($('t-levier').value, 10) || 1;
+    const parH = ML.chaine[sym];
+    const lignes = [`<div class="titre-chaine">Ce que la chaîne`
+      + ` d'encadrement en dit <span style="font-weight:400">(analyse du`
+      + ` ${esc(ML.dateAnalyse)})</span></div>`];
+
+    if (!parH) {
+      lignes.push(`<div class="note">${esc(sym)} n'est pas dans les salles`
+        + ` de marché détaillées : la chaîne ne l'a pas évalué aujourd'hui.`
+        + ` Mise, stop et frais restent à votre seul jugement.</div>`);
+      boite.innerHTML = lignes.join('');
+      return;
+    }
+    if (sens === 'short') {
+      lignes.push(`<div class="note">La chaîne n'évalue que le sens ACHAT`
+        + ` (le bilan sur deux ans n'a pas justifié la vente) : aucun de ses`
+        + ` verdicts ne s'applique à une vente à découvert.</div>`);
+    }
+
+    const horizons = Object.keys(parH).sort((a, b) => Number(b) - Number(a));
+    for (const h of horizons) lignes.push(ligneHorizon(h, parH[h]));
+
+    // la saisie confrontée au verdict de l'horizon officiel (le plus long)
+    const officiel = parH[horizons[0]];
+    if (sens === 'long' && Number.isFinite(mise) && mise >= ML.miseMin
+        && Number.isFinite(ML.equite) && ML.equite > 0) {
+      const pct = mise / ML.equite * 100;
+      if (!officiel.retenue) {
+        lignes.push(`<div class="garde">Votre mise de ${fmt(mise)} $`
+          + ` (${fmt(pct, 1)} % de l'équité) irait sur une idée que la`
+          + ` chaîne écarte — libre à vous, mais en le sachant.</div>`);
+      } else if (officiel.mise_pct !== null && pct > officiel.mise_pct) {
+        lignes.push(`<div class="garde">Votre mise = ${fmt(pct, 1)} % de`
+          + ` l'équité, au-dessus des ${fmt(officiel.mise_pct)} %`
+          + ` recommandés par le risque : la perte au stop dépasserait la`
+          + ` cible de 1 % du compte.</div>`);
+      } else {
+        lignes.push(`<div class="dans-les-clous">Votre mise = ${fmt(pct, 1)}`
+          + ` % de l'équité — dans la recommandation`
+          + ` (${fmt(officiel.mise_pct)} %).</div>`);
+      }
+      if (officiel.levier !== null && levier > officiel.levier) {
+        lignes.push(`<div class="note">Votre levier ×${levier} dépasse celui`
+          + ` du calcul de la chaîne (×${fmt(officiel.levier, 0)}) : le`
+          + ` portage réel pèsera plus lourd que dans son verdict.</div>`);
+      }
+    }
+
+    if (sens === 'long' && officiel.stop !== null
+        && officiel.objectif !== null) {
+      lignes.push(`<div><button type="button" class="sobre"`
+        + ` id="btn-plan-chaine" data-stop="${esc(officiel.stop)}"`
+        + ` data-objectif="${esc(officiel.objectif)}">Reprendre le plan de`
+        + ` l'outil (stop ${fmt(Number(officiel.stop), 4)} · objectif`
+        + ` ${fmt(Number(officiel.objectif), 4)})</button></div>`);
+    }
+    boite.innerHTML = lignes.join('');
+  }
+
+  // délégation : le bouton est recréé à chaque rendu
+  boite.addEventListener('click', (ev) => {
+    const b = ev.target.closest('#btn-plan-chaine');
+    if (!b) return;
+    for (const [id, valeur] of [['t-stop', b.dataset.stop],
+                                ['t-objectif', b.dataset.objectif]]) {
+      const el = $(id);
+      if (!el) continue;
+      el.value = valeur;
+      // prévenir le récapitulatif ET le tracé du plan sur le graphique
+      el.dispatchEvent(new Event('input', {bubbles: true}));
+      el.dispatchEvent(new Event('change', {bubbles: true}));
+    }
+  });
+
+  window.majChaine = rendre;   // l'équité vivante re-chiffre les montants
+  for (const id of ['t-symbole', 't-sens', 't-mise', 't-levier']) {
+    const el = $(id);
+    if (el) { el.addEventListener('input', rendre);
+              el.addEventListener('change', rendre); }
+  }
+  rendre();
 })();
 
 /* ------------------------------------------------------------------ marché
