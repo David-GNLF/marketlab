@@ -191,9 +191,24 @@ def test_le_perimetre_compte_ce_qui_est_sur_le_disque():
     assert p["actifs_suivis"] == len(config.SUIVIS)
 
 
-def test_l_etat_complet_est_serialisable():
+def test_l_etat_complet_est_serialisable(tmp_path):
     """Il finit dans un fichier JSON lu par un navigateur : un NaN ou un objet
-    non sérialisable le rendrait illisible EN ENTIER."""
-    texte = json.dumps(coulisses.etat(), ensure_ascii=False, default=str)
-    assert "NaN" not in texte
-    json.loads(texte)
+    non sérialisable le rendrait illisible EN ENTIER.
+
+    DEUX corrections nées du même incident (2026-08-02) :
+    - le test sérialisait avec son PROPRE json.dumps au lieu du chemin réel —
+      or c'est `publish._ecrire` qui écrit le fichier, et c'est LUI qui porte
+      désormais l'assainissement NaN → null ; tester un autre chemin, c'est
+      tester un autre programme ;
+    - il cherchait la SOUS-CHAÎNE « NaN », et a explosé sur… un sujet de
+      commit contenant le mot NaN (les derniers commits font partie de l'état
+      publié). Un « NaN » entre guillemets est du JSON parfaitement valide ;
+      seul le token nu est interdit — c'est ce que vérifie la relecture
+      STRICTE (parse_constant qui lève)."""
+    from marketlab import publish
+    chemin = tmp_path / "coulisses.json"
+    publish._ecrire(chemin, coulisses.etat())
+
+    def _interdit(constante):
+        raise AssertionError(f"token {constante} nu dans le JSON publié")
+    json.loads(chemin.read_text(encoding="utf-8"), parse_constant=_interdit)
