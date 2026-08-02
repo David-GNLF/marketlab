@@ -71,6 +71,23 @@ def un_passage(universes=None, dry_run=False) -> dict:
                   f"{r['total_fil']} au fil.")
         except Exception as exc:
             print(f"Fil du site indisponible (non bloquant) : {str(exc)[:80]}")
+
+        # Santé du SITE lui-même : serveur joignable, fichiers critiques en
+        # JSON strictement valide, instantané frais. Né de l'incident du
+        # 2026-08-02 : un NaN a tué la page Coulisses plusieurs JOURS sans
+        # qu'aucune alerte n'existe pour le voir. Alerte sur TRANSITION
+        # seulement — la veille repasse toutes les 10 minutes, et c'est la
+        # septième répétition qu'on ne lit plus.
+        try:
+            from marketlab import sante_site
+            s = sante_site.verifier_et_alerter()
+            print("Santé du site : "
+                  + ("OK" if s["sain"] else " ; ".join(s["problemes"]))
+                  + (f" ({s['transitions']} transition(s) signalée(s))"
+                     if s["transitions"] else ""))
+        except Exception as exc:
+            print(f"Sonde de santé en panne (non bloquant) : "
+                  f"{type(exc).__name__}: {str(exc)[:80]}")
     return bilan
 
 

@@ -67,4 +67,4 @@ Format : `- [x] Titre — précision`.
 - [x] Rapport hebdomadaire de gestion (vendredi soir : comptes, chaîne, gardes, jalons)
 - [x] Pages PHP livrées avec la publication
 - [x] Garde-fou : les comptes de trading ne sont jamais écrasés
-- [ ] Surveillance externe de disponibilité du site
+- [x] Surveillance externe de disponibilité du site — sonde de la veille : HTTP + JSON strict + fraîcheur, alerte sur transition
