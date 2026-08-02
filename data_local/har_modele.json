@@ -5,36 +5,59 @@
       "horizon": 1,
       "scores": {
         "har": {
-          "qlike": 0.30778,
-          "rmse_log": 0.57867
+          "qlike": 0.30793,
+          "rmse_log": 0.5824
         },
         "hasard": {
-          "qlike": 0.28199,
-          "rmse_log": 0.60245
+          "qlike": 0.28227,
+          "rmse_log": 0.60578
         },
         "ewma": {
-          "qlike": 0.35017,
-          "rmse_log": 0.65637
+          "qlike": 0.35016,
+          "rmse_log": 0.65949
         }
       },
       "gagnant": "hasard",
       "gagnant_rmse": "har",
       "har_retenu": false,
       "n_entrainement": 643,
-      "n_test": 709,
+      "n_test": 714,
       "n_titres": 58,
       "coupe": "2026-07-15",
       "periode": [
         "2026-06-21",
-        "2026-07-30"
+        "2026-07-31"
       ],
       "modele": null
     },
     "20": {
-      "suffisant": false,
-      "raison": "échantillon d'entraînement trop mince (184 obs, 200 requises)",
-      "n_entrainement": 184,
-      "n_test": 66,
+      "suffisant": true,
+      "horizon": 20,
+      "scores": {
+        "har": {
+          "qlike": 0.10563,
+          "rmse_log": 0.50205
+        },
+        "hasard": {
+          "qlike": 0.14312,
+          "rmse_log": 0.59961
+        },
+        "ewma": {
+          "qlike": 0.09231,
+          "rmse_log": 0.48354
+        }
+      },
+      "gagnant": "ewma",
+      "gagnant_rmse": "ewma",
+      "har_retenu": false,
+      "n_entrainement": 210,
+      "n_test": 45,
+      "n_titres": 58,
+      "coupe": "2026-07-04",
+      "periode": [
+        "2026-06-21",
+        "2026-07-12"
+      ],
       "modele": null
     }
   },
