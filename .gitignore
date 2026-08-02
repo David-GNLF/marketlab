@@ -42,6 +42,10 @@ data_local/*
 # la table de couts.py devient le repli, plus la verite. Meme logique
 # d'accumulation immuable que la volatilite realisee.
 !data_local/spreads_mesures.csv
+# Instantanes quotidiens des chaines d'options (IV a la monnaie, skew) :
+# les chaines sont ephemeres, seul un releve conserve permet de juger
+# plus tard nos previsions contre celle du marche.
+!data_local/vol_implicite.csv
 # Historique du calendrier économique. ForexFactory ne sert QUE la semaine en
 # cours : sans accumulation conservée, on ne pourra jamais reconstituer les
 # résultats publiés (chaînage par la valeur « précédente » de la publication

@@ -642,6 +642,32 @@ function PageTitre({ meta, symbole, setSymbole }) {
               </div>
             )}
 
+            {f.implicite && (
+              <div className="carte">
+                <h3>Ce que le marché des options price</h3>
+                <div className="rangee">
+                  <Tuile libelle={<Terme code="volatilite_implicite">Implicite ~30 j</Terme>}
+                         valeur={`${f.implicite.iv_atm_pct} %`}
+                         note={`échéance ${f.implicite.jours_echeance} j`} />
+                  {f.implicite.notre_prevision_pct != null && (
+                    <Tuile libelle="Notre prévision (EWMA)"
+                           valeur={`${f.implicite.notre_prevision_pct} %`} />
+                  )}
+                  {f.implicite.realise_21s_pct != null && (
+                    <Tuile libelle="Réalisé 21 séances"
+                           valeur={`${f.implicite.realise_21s_pct} %`} />
+                  )}
+                  {f.implicite.skew_pts != null && (
+                    <Tuile libelle="Skew (put − call)"
+                           valeur={`${f.implicite.skew_pts > 0 ? "+" : ""}${f.implicite.skew_pts} pts`} />
+                  )}
+                </div>
+                {f.implicite.lecture && (
+                  <p className="note">{f.implicite.lecture}</p>
+                )}
+              </div>
+            )}
+
             {f.brokers?.outils && (
               <div className="carte">
                 <h3>Les outils des brokers</h3>
@@ -716,6 +742,26 @@ function PageMacro() {
   const baro = useDonnees(api.getBarometres);
   return (
     <>
+      {macro.donnees?.prime_variance?.mesurable && (
+        <div className="carte">
+          <h3><Terme code="prime_variance">Prime de variance</Terme> — mesurée
+            sur nos propres données</h3>
+          <div className="rangee">
+            <Tuile libelle="Médiane"
+                   valeur={`+${macro.donnees.prime_variance.prime_mediane_pts} pts`}
+                   note={`${macro.donnees.prime_variance.n_jours} séances`} />
+            <Tuile libelle="Jours où le VIX était au-dessus"
+                   valeur={`${macro.donnees.prime_variance["part_jours_positive_%"]} %`} />
+            <Tuile libelle="Fenêtres indépendantes"
+                   valeur={`+${macro.donnees.prime_variance.prime_mediane_independante_pts} pts`}
+                   note={`${macro.donnees.prime_variance.n_independants} fenêtres`} />
+            <Tuile libelle="Pire épisode"
+                   valeur={`${macro.donnees.prime_variance.pire_episode_pts} pts`} />
+          </div>
+          <p className="note">{macro.donnees.prime_variance.lecture}</p>
+        </div>
+      )}
+
       <div className="carte">
         <h3>Thermomètre peur / avidité</h3>
         {!fg.donnees ? <Chargement erreur={fg.erreur} /> : (

@@ -162,11 +162,20 @@ def _journal() -> dict:
 # et `coulisses.perimetre()` les couvrent déjà. Deux sondes qui répondent à la même
 # question finissent toujours par se contredire, et c'est alors la console
 # qu'on cesse de croire.
+def _duel_previsionnistes() -> dict:
+    from marketlab import implicite
+    return implicite.comparer_previsionnistes()
+
+
 SONDES = {
     "volatilite_realisee": _volatilite,
     "modele_volatilite": _modele_volatilite,
     "correspondances_fred": _correspondances_fred,
     "surprises": _surprises,
+    # Nos prévisions de volatilité contre celle du MARCHÉ (options), jugées au
+    # QLIKE quand les fenêtres arrivent à maturité. Tant que trop peu de duels
+    # sont mûrs, la sonde le dit — même contrat que HAR contre EWMA.
+    "duel_previsionnistes": _duel_previsionnistes,
     "journal": _journal,
 }
 
@@ -219,6 +228,13 @@ def _resumer(rapport: dict) -> list[dict]:
     surp = rapport.get("surprises") or {}
     if isinstance(surp, dict) and surp.get("avertissement"):
         points.append({"niveau": "info", "texte": surp["avertissement"]})
+
+    duel = rapport.get("duel_previsionnistes") or {}
+    if isinstance(duel, dict) and duel.get("mesurable"):
+        points.append({"niveau": "info",
+                       "texte": f"Prévision de volatilité : {duel.get('gagnant')} "
+                                f"gagne le duel sur {duel.get('n_duels')} "
+                                f"fenêtres mûres."})
 
     if not points:
         points.append({"niveau": "ok", "texte": "Aucun point d'attention."})

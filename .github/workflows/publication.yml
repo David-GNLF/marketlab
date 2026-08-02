@@ -119,6 +119,14 @@ jobs:
       # notification, NI run rouge. Il ne resterait qu'une ligne dans un
       # journal que personne ne lit, pendant que le verdict de régime reste
       # figé sur la mesure d'un jour précédent.
+      # Photographie du jour des chaînes d'options (actions US) : IV à la
+      # monnaie et skew, accumulés dans data_local/vol_implicite.csv. Les
+      # chaînes sont éphémères — sans relevé conservé, le banc d'essai
+      # « nos prévisions contre celles du marché » ne pourra jamais exister.
+      - name: Volatilité implicite (options)
+        continue-on-error: true
+        run: python -c "from marketlab import implicite; print(implicite.mettre_a_jour_releve())"
+
       - name: Verdict par régime de marché
         run: python -c "from marketlab import regimes; v = regimes.calibrer(); print('avis suspendu dans :', v['suspendus'] or 'aucun régime')"
 

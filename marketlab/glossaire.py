@@ -247,6 +247,24 @@ TERMES: dict[str, dict] = {
                 "attendue des mouvements, pas leur direction.",
         "categorie": "Macro",
     },
+    "volatilite_implicite": {
+        "libelle": "Volatilité implicite",
+        "court": "La volatilité que le marché des options price pour l'avenir.",
+        "long": "Déduite du prix des options : la prévision d'un adversaire "
+                "qui met de l'argent derrière la sienne. Elle dépasse en "
+                "général la volatilité ensuite réalisée — non par erreur, mais "
+                "parce qu'elle contient une prime d'assurance.",
+        "categorie": "Macro",
+    },
+    "prime_variance": {
+        "libelle": "Prime de variance",
+        "court": "L'écart entre la volatilité pricée et celle qui se réalise.",
+        "long": "Ce que les acheteurs de protection paient en trop, la plupart "
+                "du temps. La vendre rapporte régulièrement — puis ruine d'un "
+                "coup les jours où l'assurance sert. Prime de risque "
+                "documentée, pas une anomalie à arbitrer.",
+        "categorie": "Macro",
+    },
     "backwardation": {
         "libelle": "Backwardation",
         "court": "Le court terme coûte plus cher que le long terme : stress.",

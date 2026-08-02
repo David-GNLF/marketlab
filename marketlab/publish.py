@@ -37,7 +37,7 @@ import pandas as pd
 from marketlab import (alerts, broker_tools, config, correlations, cot,
                        coulisses, decision, drivers, eco_calendar, events,
                        forecast,
-                       fundamentals, glossaire, indicators, intraday, levels, macro,
+                       fundamentals, glossaire, implicite, indicators, intraday, levels, macro,
                        news, paper, position, regimes, screener, seasonality, synthese,
                        sentiment_marche, serie, signals)
 from marketlab.data import get_ohlcv
@@ -100,7 +100,15 @@ def bloc_screener() -> list[dict]:
 
 
 def bloc_macro() -> dict:
-    return {"regime": macro.regime(), "indicateurs": _table(macro.snapshot())}
+    sortie = {"regime": macro.regime(), "indicateurs": _table(macro.snapshot())}
+    # La prime de variance : ce que les acheteurs d'assurance paient au-dessus
+    # de la volatilité ensuite réalisée. Mesurée sur l'historique VIX/S&P déjà
+    # en cache ; son échec ne doit pas priver la page du régime macro.
+    try:
+        sortie["prime_variance"] = implicite.prime_variance_vix()
+    except Exception as exc:
+        sortie["prime_variance"] = {"mesurable": False, "raison": str(exc)[:80]}
+    return sortie
 
 
 def bloc_calendrier() -> list[dict]:
@@ -188,6 +196,9 @@ def fiche_titre(symbole: str, df: pd.DataFrame | None = None) -> dict:
                                     vol_cible=har.vol_cible(symbole)).items()
                                 if not k.startswith("_")}),
         ("analogues", lambda: forecast.analogues(df, horizon=20)),
+        # ce que le marché des options price pour ce titre — lu dans le relevé
+        # accumulé, aucun réseau ici
+        ("implicite", lambda: implicite.synthese_titre(symbole, df)),
         ("niveaux", lambda: {"zones": levels.zones_proches(df),
                              "pivots": levels.pivots(df)}),
         ("saisonnalite", lambda: seasonality.analyser(symbole)),

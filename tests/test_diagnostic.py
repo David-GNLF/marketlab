@@ -30,6 +30,12 @@ def _sans_reseau(monkeypatch):
     monkeypatch.setattr(surprise, "surprises",
                         lambda *a, **k: pd.DataFrame(columns=surprise.COLONNES))
     monkeypatch.setattr(surprise, "score_par_devise", lambda *a, **k: {})
+    # le duel IV/EWMA lit le CSV commité puis SORTIRAIT sur le réseau : même
+    # famille de fuite que celle qui avait coûté 9 minutes par déploiement
+    from marketlab import implicite
+    monkeypatch.setattr(implicite, "comparer_previsionnistes",
+                        lambda *a, **k: {"mesurable": False,
+                                         "raison": "neutralisé en test"})
 
 
 # ---------------------------------------------------------------------------
