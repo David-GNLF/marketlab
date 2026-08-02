@@ -27,6 +27,18 @@ Format : `- [x] Titre — précision`.
 - [x] Indice de surprise économique
 - [ ] Repondération automatique sur bilan réel glissant
 
+## Encadrement du risque
+
+- [x] Coûts réels : spread mesuré (estimateur de Roll), portage, seuil de survie aux frais
+- [x] Volatilité implicite : prime de variance du marché, portrait IV par titre, skew
+- [x] HAR-sur-GKYZ branché sur le cône (horizon 20, ré-arbitré chaque nuit, peut se désarmer)
+- [x] Chaîne de dimensionnement : frais → régime → risque → sauts → concentration → plafond → Kelly
+- [x] Concentration : corrélations de stress signées par le sens + co-chute de queue
+- [x] Surveillance nocturne des positions ouvertes (régime, sauts, portage, horizon, concentration)
+- [x] Journal du filtre : les écartées rejouées contre les retenues à l'échéance, net des coûts
+- [x] Le ticket d'ordre montre le verdict de la chaîne au moment d'agir
+- [ ] Bascule du robot au dimensionnement par le risque — attend le verdict du journal
+
 ## Robots
 
 - [x] « claude » — tous marchés, 20 séances (référence)
@@ -52,6 +64,7 @@ Format : `- [x] Titre — précision`.
 - [x] Publication quotidienne automatique
 - [x] Veille d'alertes en balayage continu
 - [x] Point du matin sur l'activité des robots
+- [x] Rapport hebdomadaire de gestion (vendredi soir : comptes, chaîne, gardes, jalons)
 - [x] Pages PHP livrées avec la publication
 - [x] Garde-fou : les comptes de trading ne sont jamais écrasés
 - [ ] Surveillance externe de disponibilité du site

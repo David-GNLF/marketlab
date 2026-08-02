@@ -154,7 +154,7 @@ def test_texte_assemble_les_blocs():
                    "regimes_suspendus": ["normal", "tendu"]},
     }
     t = rh.texte(rapport)
-    assert "2026-S32" in t and "claude 1010.0 $" in t
+    assert "2026-S32" in t and "claude 1 010,00 $" in t
     assert "l'horizon court fait -3.5 pts" in t.replace("−", "-")
     assert "28 verdicts" in t and "20 frais" in t
     assert "aucune garde déclenchée" in t

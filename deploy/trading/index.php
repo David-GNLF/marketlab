@@ -1238,11 +1238,18 @@ const ML = {
   const fmt = (x, d = 2) => Number.isFinite(x)
       ? x.toLocaleString('fr-FR', {maximumFractionDigits: d}) : '—';
 
-  // l'étape qui a tué l'idée, dans les mots mêmes de la chaîne
+  // l'étape qui a tué l'idée, dans les mots mêmes de la chaîne — sauf le cas
+  // « aucune équité ou aucun plan », un message interne qui, lu ici, ferait
+  // croire que VOTRE compte n'a pas d'équité
   function motifEcartee(v) {
     const e = (v.etapes || []).find((t) => String(t).includes('ÉCARTÉE'))
       || (v.etapes || [])[(v.etapes || []).length - 1];
-    return e ? String(e) : 'écartée par la chaîne';
+    if (!e) return 'écartée par la chaîne';
+    if (String(e).includes('aucune équité ou aucun plan')) {
+      return 'pas de plan calculable à cet horizon (stop et objectif non '
+        + 'simulables) : rien à dimensionner';
+    }
+    return String(e);
   }
 
   function ligneHorizon(h, v) {

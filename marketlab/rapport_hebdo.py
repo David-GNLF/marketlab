@@ -198,6 +198,14 @@ def composer(quand: pd.Timestamp | None = None) -> dict:
     }
 
 
+def _montant(x) -> str:
+    """1004.15 → « 1 004,15 » — le rapport est en français, ses nombres aussi."""
+    try:
+        return f"{float(x):,.2f}".replace(",", " ").replace(".", ",")
+    except (TypeError, ValueError):
+        return "?"
+
+
 def texte(rapport: dict) -> str:
     """Le condensé en français, balises <b> comme le reste des notifications."""
     lignes = [f"<b>MarketLab — la semaine {rapport['semaine']}</b>"]
@@ -208,7 +216,7 @@ def texte(rapport: dict) -> str:
         for cpt in c.get("comptes") or []:
             sem = cpt.get("semaine_%")
             morceaux.append(
-                f"{cpt['nom']} {cpt.get('equite')} $"
+                f"{cpt['nom']} {_montant(cpt.get('equite'))} $"
                 + (f" ({sem:+.1f} % sem.)" if sem is not None else ""))
         if morceaux:
             lignes.append("Comptes : " + " · ".join(morceaux))

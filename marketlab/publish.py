@@ -27,6 +27,7 @@ publication des autres, et l'erreur est consignée dans meta.json.
 """
 
 import json
+import math
 import posixpath
 import re
 import shutil
@@ -59,9 +60,29 @@ HORIZON_OFFICIEL = 20
 HORIZON_COURT = 5
 
 
+def _assainir(donnees):
+    """NaN et infinis → None, récursivement, AVANT la sérialisation.
+
+    `json.dumps` écrit `NaN` tel quel (extension Python, JSON invalide) et un
+    seul suffit à tuer TOUTE la page qui charge le fichier : constaté sur
+    Coulisses le 2026-08-02 — la sonde FRED a émis `"recalcule": NaN` pour un
+    indicateur sans donnée, `JSON.parse` a levé, et la page entière est morte
+    en silence. Le nettoyage vit ICI, au point unique d'écriture : aucune
+    sonde future n'aura à y penser.
+    """
+    if isinstance(donnees, dict):
+        return {k: _assainir(v) for k, v in donnees.items()}
+    if isinstance(donnees, (list, tuple)):
+        return [_assainir(v) for v in donnees]
+    if isinstance(donnees, float) and not math.isfinite(donnees):
+        return None
+    return donnees
+
+
 def _ecrire(chemin: Path, donnees) -> None:
     chemin.parent.mkdir(parents=True, exist_ok=True)
-    chemin.write_text(json.dumps(donnees, ensure_ascii=False, default=str),
+    chemin.write_text(json.dumps(_assainir(donnees), ensure_ascii=False,
+                                 default=str, allow_nan=False),
                       encoding="utf-8")
 
 

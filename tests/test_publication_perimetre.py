@@ -88,3 +88,23 @@ def test_les_chemins_du_module_remontent_au_bon_niveau():
     texte = (config.ROOT / "front" / "src" / "graphique-autonome.js") \
         .read_text(encoding="utf-8")
     assert 'const RACINE = "../";' in texte
+
+
+def test_un_nan_ne_peut_plus_tuer_une_page(tmp_path):
+    """INCIDENT DU 2026-08-02. La sonde FRED a émis `"recalcule": NaN` pour un
+    indicateur sans donnée ; `json.dumps` écrit `NaN` tel quel (extension
+    Python, invalide en JSON), `JSON.parse` du navigateur a levé, et la page
+    Coulisses ENTIÈRE est morte — pas la ligne fautive, la page. Le nettoyage
+    vit au point unique d'écriture : NaN et infinis deviennent null, et
+    `allow_nan=False` fait échouer la génération plutôt que publier un
+    fichier qu'aucun navigateur ne lira."""
+    import json
+    import math
+
+    from marketlab import publish
+    chemin = tmp_path / "bloc.json"
+    publish._ecrire(chemin, {"a": float("nan"), "b": [1.0, float("inf")],
+                             "c": {"d": float("-inf"), "ok": 2.5}})
+    relu = json.loads(chemin.read_text(encoding="utf-8"))   # parse STRICT
+    assert relu == {"a": None, "b": [1.0, None], "c": {"d": None, "ok": 2.5}}
+    assert math.isfinite(relu["c"]["ok"])

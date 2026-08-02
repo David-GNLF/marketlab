@@ -1818,6 +1818,8 @@ function SectionAnalyse({ analyse: a }) {
   const modele = a.modele_volatilite ?? {};
   const vol = a.volatilite_realisee ?? {};
   const surp = a.surprises ?? {};
+  const duel = a.duel_previsionnistes ?? {};
+  const chaine = a.chaine_dimensionnement ?? {};
 
   return (
     <div className="carte">
@@ -1872,6 +1874,35 @@ function SectionAnalyse({ analyse: a }) {
       <p className="note">Un avantage sur un seul des deux critères ne suffit
         pas : tant qu'ils se contredisent, rien n'est mis en service et le cône
         de prévision garde son comportement actuel.</p>
+
+      <h3 style={{ marginTop: 14 }}>Le procès du filtre</h3>
+      <p className="note">La chaîne de dimensionnement écarte la plupart des
+        idées — aux frais, au régime — et chaque verdict est consigné puis
+        <strong> rejoué sur les cours réels à l'échéance</strong>. Si les
+        écartées font mieux que les retenues net des coûts, le filtre détruit
+        de la valeur, et c'est ici que ça se lira.</p>
+      <div className="rangee">
+        <Tuile libelle="Verdicts suivis" valeur={chaine.suivis ?? "—"}
+               note="depuis l'ouverture du journal" />
+        <Tuile libelle="Arrivés à échéance" valeur={chaine.murs ?? "—"}
+               note={`${chaine.en_attente ?? 0} en attente`} />
+      </div>
+      {Object.keys(chaine.par_groupe ?? {}).length > 0 && (
+        <Table lignes={Object.entries(chaine.par_groupe).map(([g, s]) => ({
+          Groupe: g, N: s.n,
+          "Net moyen %": s["rendement_net_moyen_%"],
+          "Net médian %": s["rendement_net_median_%"],
+          "Positifs %": s["part_positive_%"],
+        }))} />
+      )}
+      <p className="note">{chaine.lecture ?? "—"}</p>
+
+      <h3 style={{ marginTop: 14 }}>Prévision de volatilité : nous contre le
+        marché</h3>
+      <p className="note">{duel.mesurable
+        ? `${duel.gagnant} gagne le duel au QLIKE sur ${duel.n_duels} `
+          + "fenêtres arrivées à maturité."
+        : (duel.raison ?? "—")}</p>
 
       <h3 style={{ marginTop: 14 }}>Matière première</h3>
       <div className="rangee">
