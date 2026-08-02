@@ -89,14 +89,31 @@ def _modele_volatilite() -> dict:
             "n_test": entree.get("n_test"),
             "raison": entree.get("raison"),
         }
+    from marketlab import vol_ohlc
+    gkyz = vol_ohlc.charger_modele() or {}
+    if gkyz.get("retenu"):
+        lecture = ("HAR-sur-GKYZ (horizon 20, 5 ans d'OHLC) pilote la largeur "
+                   "du cône via har.vol_cible ; l'arbitrage 5 min reste "
+                   + ("retenu en repli" if enregistre.get("retenu")
+                      else "non retenu"))
+    elif enregistre.get("retenu"):
+        lecture = "HAR 5 min pilote la largeur du cône"
+    else:
+        lecture = "aucun modèle retenu : le cône garde son comportement inconditionnel"
+    arb = (gkyz.get("arbitrage") or {}).get("scores") or {}
     return {
         "retenu": bool(enregistre.get("retenu")),
         "horizons": horizons,
+        "gkyz": {"retenu": bool(gkyz.get("retenu")),
+                 "horizon": gkyz.get("horizon"),
+                 "scores": arb,
+                 "n_test": (gkyz.get("arbitrage") or {}).get("n_test")},
         # Cette phrase a longtemps été fausse : le modèle etait retenu et
         # branche nulle part. Elle est vraie depuis que decision, levels,
-        # position et publish passent har.vol_cible() au simulateur.
-        "lecture": ("HAR pilote la largeur du cône" if enregistre.get("retenu")
-                    else "HAR écarté : le cône garde son comportement actuel"),
+        # position et publish passent har.vol_cible() au simulateur — et
+        # depuis le 2026-08-02, c'est le modèle GKYZ horizon 20 qui parle
+        # en premier dans cet arbitre.
+        "lecture": lecture,
     }
 
 

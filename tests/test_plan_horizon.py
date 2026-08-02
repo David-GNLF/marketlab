@@ -42,6 +42,11 @@ def marche_synthetique(monkeypatch):
     monkeypatch.setattr(levels.forecast, "regime", lambda d: {"nom": "test"})
     monkeypatch.setattr(levels.events, "risque_evenement",
                         lambda s, h: {"concerne": False})
+    # Depuis que har.vol_cible arbitre vers le modèle GKYZ (commité et
+    # retenu), le laisser vivant ferait sortir CE test sur le réseau pour
+    # chercher l'OHLC d'un symbole synthétique — la famille de fuite qui a
+    # déjà coûté neuf minutes par déploiement.
+    monkeypatch.setattr(levels.har, "vol_cible", lambda s: None)
     return df
 
 

@@ -1,0 +1,43 @@
+{
+  "retenu": true,
+  "horizon": 20,
+  "jours": 1825,
+  "arbitrage": {
+    "suffisant": true,
+    "horizon": 20,
+    "scores": {
+      "har": {
+        "qlike": 0.1381,
+        "rmse_log": 0.49395
+      },
+      "hasard": {
+        "qlike": 26.05761,
+        "rmse_log": 1.00745
+      },
+      "ewma": {
+        "qlike": 0.20681,
+        "rmse_log": 0.74412
+      }
+    },
+    "gagnant": "har",
+    "gagnant_rmse": "har",
+    "har_retenu": true,
+    "n_entrainement": 27380,
+    "n_test": 18148,
+    "n_titres": 36,
+    "coupe": "2024-07-30",
+    "periode": [
+      "2021-08-26",
+      "2026-07-13"
+    ]
+  },
+  "modele": {
+    "b0": -0.6682669428440512,
+    "b_jour": 0.051569710791675605,
+    "b_semaine": 0.14493228020781546,
+    "b_mois": 0.7246071994451099,
+    "somme_pentes": 0.9211091904446009,
+    "n_obs": 45528,
+    "r2": 0.8428598053647474
+  }
+}

@@ -130,9 +130,13 @@ jobs:
       - name: Verdict par régime de marché
         run: python -c "from marketlab import regimes; v = regimes.calibrer(); print('avis suspendu dans :', v['suspendus'] or 'aucun régime')"
 
+      # Deux arbitrages, chacun se rejoue chaque nuit et peut se désarmer :
+      # le 5 min (horizon 1, EWMA vainqueur à ce jour) et le GKYZ (horizon 20
+      # — celui du cône — HAR vainqueur sur les deux critères, 45 528 obs).
+      # har.vol_cible fait parler le GKYZ en premier.
       - name: Arbitrage du modèle de volatilité
         continue-on-error: true
-        run: python -c "from marketlab import har; r = har.calibrer(); print('HAR retenu :', r['retenu'])"
+        run: python -c "from marketlab import har, vol_ohlc; r = har.calibrer(); print('HAR 5min retenu :', r['retenu']); g = vol_ohlc.calibrer(); print('HAR GKYZ retenu :', g['retenu'])"
 
       # La clé FRED va à l'étape de GÉNÉRATION, pas à celle de publication :
       # c'est ici que macro.py et drivers.py interrogent la Réserve fédérale

@@ -34,6 +34,11 @@ data_local/*
 # du modèle s'il a été retenu. Même logique que poids_appris.json : dérivé des
 # données, commité pour persister d'un runner à l'autre.
 !data_local/har_modele.json
+# Le modele HAR-sur-GKYZ (horizon du cone) : retenu sur les deux
+# criteres et 5 ans d'OHLC, il pilote har.vol_cible. Commite pour
+# persister d'un runner a l'autre — sans lui, le cone redeviendrait
+# inconditionnel a chaque execution.
+!data_local/har_gkyz.json
 # Verdict par regime : dans quels marches l'avis directionnel est
 # suspendu. Derive du journal, commite pour persister d'un runner a
 # l'autre — sans lui, le veto serait desarme a chaque execution.

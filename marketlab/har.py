@@ -341,9 +341,25 @@ def vol_cible(symbole: str) -> float | None:
     de volatilité relevée — auquel cas l'appelant garde son comportement
     inconditionnel, surtout pas une valeur inventée.
 
-    L'horizon est 1 : `vol_cible` attend un écart-type QUOTIDIEN, que le
-    simulateur étale ensuite lui-même sur la durée du pari.
+    DEUX MODÈLES SE PRÉSENTENT, l'arbitrage est ici et nulle part ailleurs :
+
+    1. HAR-sur-GKYZ à l'horizon 20 — celui du cône. Retenu sur les deux
+       critères, vérifié sur les vrais cinq ans (45 528 observations, QLIKE
+       0,138 contre 0,207 pour l'EWMA). Ses unités couvrent les nuits, comme
+       les rendements quotidiens que le simulateur rééchantillonne — la
+       volatilité 5 min, elle, les exclut et visait donc légèrement bas.
+    2. le modèle 5 min à l'horizon 1, en repli — s'il est un jour retenu.
+
+    None si aucun des deux n'a fait ses preuves : l'appelant garde son
+    comportement inconditionnel, surtout pas une valeur inventée.
     """
+    try:
+        from marketlab import vol_ohlc
+        p = vol_ohlc.prevoir(symbole, horizon=20)
+        if p:
+            return float(p["vol_jour"])
+    except Exception:
+        pass          # l'arbitre ne doit jamais faire tomber une fiche
     p = prevoir(symbole, horizon=1)
     return float(p["vol_jour"]) if p else None
 

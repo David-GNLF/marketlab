@@ -170,3 +170,119 @@ def test_l_es_est_toujours_au_moins_aussi_severe_que_la_var():
     p = forecast.projeter(df, horizon=10, n_sim=4000)
     assert p["perte_moyenne_pire_5_%"] <= p["var_95_%"]
     assert p["perte_moyenne_pire_5_%"] < 0
+
+
+# ---------------------------------------------------------------------------
+# Le modèle de production HAR-sur-GKYZ, et son arbitre
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _memo_propre():
+    vol_ohlc._MEMO.clear()
+    yield
+    vol_ohlc._MEMO.clear()
+
+
+def test_calibrer_ne_retient_que_sur_les_deux_criteres(tmp_path, monkeypatch):
+    from marketlab import har
+    monkeypatch.setattr(vol_ohlc, "MODELE_PATH", tmp_path / "g.json")
+    monkeypatch.setattr(vol_ohlc, "_releve_gkyz",
+                        lambda *a, **k: pd.DataFrame({"date": ["2026-01-01"],
+                                                      "symbole": ["A"],
+                                                      "interval": ["1d-gkyz"],
+                                                      "rv": [1e-4],
+                                                      "n_barres": [1],
+                                                      "vol_annualisee_%": [16.0]}))
+    monkeypatch.setattr(har, "comparer",
+                        lambda *a, **k: {"har_retenu": False, "suffisant": True})
+    v = vol_ohlc.calibrer()
+    assert v["retenu"] is False and "modele" not in v
+    assert (tmp_path / "g.json").exists()
+
+
+def test_calibrer_reajuste_sur_tout_quand_retenu(tmp_path, monkeypatch):
+    """La décision se prend hors échantillon ; les coefficients de production
+    profitent ensuite de TOUTES les données — même contrat que har.calibrer."""
+    from marketlab import har
+    monkeypatch.setattr(vol_ohlc, "MODELE_PATH", tmp_path / "g.json")
+    monkeypatch.setattr(vol_ohlc, "_releve_gkyz",
+                        lambda *a, **k: pd.DataFrame({"date": ["2026-01-01"],
+                                                      "symbole": ["A"],
+                                                      "interval": ["1d-gkyz"],
+                                                      "rv": [1e-4],
+                                                      "n_barres": [1],
+                                                      "vol_annualisee_%": [16.0]}))
+    monkeypatch.setattr(har, "comparer", lambda *a, **k: {
+        "har_retenu": True, "modele": {"b0": 9.0}})
+    monkeypatch.setattr(har, "panel", lambda *a, **k: "panneau")
+    monkeypatch.setattr(har, "ajuster", lambda *_: {"b0": -0.1, "b_jour": 0.2,
+                                                    "b_semaine": 0.3,
+                                                    "b_mois": 0.4})
+    v = vol_ohlc.calibrer()
+    assert v["retenu"] is True
+    assert v["modele"]["b0"] == pytest.approx(-0.1)      # le réajusté, pas l'arbitré
+
+
+def _modele(tmp_path, monkeypatch, horizon=20, retenu=True):
+    import json
+    chemin = tmp_path / "g.json"
+    chemin.write_text(json.dumps({
+        "retenu": retenu, "horizon": horizon,
+        "modele": {"b0": 0.0, "b_jour": 1.0, "b_semaine": 0.0, "b_mois": 0.0}}),
+        encoding="utf-8")
+    monkeypatch.setattr(vol_ohlc, "MODELE_PATH", chemin)
+
+
+def test_prevoir_predit_dans_les_bonnes_unites(tmp_path, monkeypatch):
+    """Coefficients posés à l'identité sur rv_j : la prévision doit valoir
+    exactement la racine de la dernière variance GKYZ — le test d'unités qui
+    évite de viser une variance avec un écart-type."""
+    _modele(tmp_path, monkeypatch)
+    df = _ohlc(60, graine=20)
+    from marketlab import data
+    monkeypatch.setattr(data, "get_ohlcv", lambda *a, **k: df)
+    p = vol_ohlc.prevoir("AAPL")
+    attendu = float(np.sqrt(vol_ohlc.variance_gkyz(df).iloc[-1]))
+    assert p["vol_jour"] == pytest.approx(attendu, rel=1e-6)
+
+
+def test_prevoir_refuse_sans_preuve_ou_hors_horizon(tmp_path, monkeypatch):
+    _modele(tmp_path, monkeypatch, retenu=False)
+    assert vol_ohlc.prevoir("AAPL") is None
+    vol_ohlc._MEMO.clear()
+    _modele(tmp_path, monkeypatch, horizon=5)
+    assert vol_ohlc.prevoir("AAPL", horizon=20) is None
+
+
+def test_prevoir_refuse_un_historique_trop_court(tmp_path, monkeypatch):
+    _modele(tmp_path, monkeypatch)
+    from marketlab import data
+    monkeypatch.setattr(data, "get_ohlcv", lambda *a, **k: _ohlc(10, graine=21))
+    assert vol_ohlc.prevoir("AAPL") is None
+
+
+def test_l_arbitre_fait_parler_gkyz_en_premier(monkeypatch):
+    """har.vol_cible : le modèle prouvé sur 45 528 observations prime sur le
+    modèle 5 min, et le repli fonctionne dans les deux étages."""
+    from marketlab import har
+    monkeypatch.setattr(vol_ohlc, "prevoir", lambda *a, **k: {"vol_jour": 0.02})
+    monkeypatch.setattr(har, "prevoir", lambda *a, **k: {"vol_jour": 0.99})
+    assert har.vol_cible("AAPL") == pytest.approx(0.02)
+
+    monkeypatch.setattr(vol_ohlc, "prevoir", lambda *a, **k: None)
+    assert har.vol_cible("AAPL") == pytest.approx(0.99)
+
+    monkeypatch.setattr(har, "prevoir", lambda *a, **k: None)
+    assert har.vol_cible("AAPL") is None
+
+
+def test_l_arbitre_survit_a_un_etage_en_panne(monkeypatch):
+    """Une panne du chemin GKYZ ne doit jamais faire tomber une fiche."""
+    from marketlab import har
+
+    def tombe(*a, **k):
+        raise RuntimeError("cassé")
+
+    monkeypatch.setattr(vol_ohlc, "prevoir", tombe)
+    monkeypatch.setattr(har, "prevoir", lambda *a, **k: {"vol_jour": 0.015})
+    assert har.vol_cible("AAPL") == pytest.approx(0.015)

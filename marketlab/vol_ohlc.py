@@ -137,9 +137,18 @@ def rejouer_arbitrage_har(symboles: list[str] | None = None,
     d'aligner aussi ses entrées — une décision à prendre les yeux ouverts, pas
     un effet de bord d'un rejeu.
     """
-    from marketlab import config, har
-    from marketlab.data import get_ohlcv
+    from marketlab import har
+    releve = _releve_gkyz(symboles, jours)
+    if releve.empty:
+        return {"suffisant": False, "raison": "aucun OHLC exploitable"}
+    verdict = har.comparer(horizon=horizon, releve=releve, interval="1d-gkyz")
+    verdict["matiere"] = f"GKYZ quotidien, {releve['symbole'].nunique()} titres"
+    return verdict
 
+
+def _releve_gkyz(symboles: list[str] | None, jours: int) -> pd.DataFrame:
+    from marketlab import config
+    from marketlab.data import get_ohlcv
     symboles = list(symboles or config.FICHES)
     morceaux = []
     for sym in symboles:
@@ -158,8 +167,107 @@ def rejouer_arbitrage_har(symboles: list[str] | None = None,
                 var_jour.to_numpy() * PERIODES_AN) * 100,
         }))
     if not morceaux:
-        return {"suffisant": False, "raison": "aucun OHLC exploitable"}
-    releve = pd.concat(morceaux, ignore_index=True)
-    verdict = har.comparer(horizon=horizon, releve=releve, interval="1d-gkyz")
-    verdict["matiere"] = f"GKYZ quotidien, {releve['symbole'].nunique()} titres"
-    return verdict
+        return pd.DataFrame(columns=["date", "symbole", "interval", "rv",
+                                     "n_barres", "vol_annualisee_%"])
+    return pd.concat(morceaux, ignore_index=True)
+
+
+# ---------------------------------------------------------------------------
+# Production : le modèle HAR-sur-GKYZ, horizon du cône
+# ---------------------------------------------------------------------------
+
+# Décision utilisateur du 2026-08-02, prise sur mesure : à l'horizon 20 —
+# celui du cône — HAR bat l'EWMA sur LES DEUX critères, vérifié d'abord sur
+# ~2 ans (QLIKE 0,172 vs 0,204) puis sur les vrais 5 ans et 45 528
+# observations (QLIKE 0,138 vs 0,207, RMSE 0,494 vs 0,744). À l'horizon 1,
+# l'EWMA garde le QLIKE : le fichier n'encode QUE ce qui est prouvé.
+MODELE_PATH = None      # défini après import de config (voir bas de module)
+
+HORIZON_CONE = 20
+JOURS_CALIBRATION = 1825          # les vrais cinq ans, en jours calendaires
+FENETRE_SEMAINE, FENETRE_MOIS = 5, 22
+
+_MEMO: dict = {}
+
+
+def calibrer(jours: int = JOURS_CALIBRATION, ecrire: bool = True) -> dict:
+    """Arbitre HAR-sur-GKYZ à l'horizon du cône, puis réajuste sur tout.
+
+    Même contrat que har.calibrer : la décision de retenir se prend HORS
+    échantillon sur les deux critères ; seuls les coefficients profitent
+    ensuite de toutes les données. Et le verdict se rejoue chaque nuit — si
+    l'avantage disparaît, le modèle se désarme tout seul, comme il s'est armé.
+    """
+    from marketlab import har
+    releve = _releve_gkyz(None, jours)
+    arbitrage = rejouer_arbitrage_har(horizon=HORIZON_CONE, jours=jours)         if releve.empty else None
+    if arbitrage is None:
+        arbitrage = har.comparer(horizon=HORIZON_CONE, releve=releve,
+                                 interval="1d-gkyz")
+    resultat = {"retenu": bool(arbitrage.get("har_retenu")),
+                "horizon": HORIZON_CONE, "jours": jours,
+                "arbitrage": {k: v for k, v in arbitrage.items()
+                              if k != "modele"}}
+    if resultat["retenu"] and not releve.empty:
+        complet = har.ajuster(har.panel(releve=releve, horizon=HORIZON_CONE,
+                                        interval="1d-gkyz"))
+        resultat["modele"] = complet or arbitrage.get("modele")
+        resultat["retenu"] = resultat["modele"] is not None
+    if ecrire and MODELE_PATH is not None:
+        import json
+        MODELE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        MODELE_PATH.write_text(json.dumps(resultat, indent=2,
+                                          ensure_ascii=False),
+                               encoding="utf-8")
+        _MEMO.pop("modele", None)
+    return resultat
+
+
+def charger_modele() -> dict | None:
+    if "modele" in _MEMO:
+        return _MEMO["modele"]
+    try:
+        import json
+        _MEMO["modele"] = json.loads(MODELE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        _MEMO["modele"] = None
+    return _MEMO["modele"]
+
+
+def prevoir(symbole: str, horizon: int = HORIZON_CONE) -> dict | None:
+    """Volatilité quotidienne prévue sur l'horizon du cône. None sans preuve.
+
+    Le modèle prédit la MOYENNE du log de la variance quotidienne sur les
+    `horizon` prochaines séances — précisément le niveau qu'un cône de
+    20 séances doit viser, là où une prévision à un jour décrirait demain et
+    pas le trajet. Une prédiction aberrante n'est pas bridée ici : c'est le
+    simulateur qui borne (facteur [0,33 ; 3] de `forecast.projeter`), une
+    seule ceinture au bon endroit plutôt que deux qui se contredisent.
+    """
+    enregistre = charger_modele()
+    if not enregistre or not enregistre.get("retenu")             or int(enregistre.get("horizon", -1)) != int(horizon):
+        return None
+    modele = enregistre.get("modele")
+    if not modele:
+        return None
+    try:
+        from marketlab.data import get_ohlcv
+        var_jour = variance_gkyz(get_ohlcv(symbole, lookback_days=250))
+    except Exception:
+        return None
+    var_jour = var_jour[var_jour > 0]
+    if len(var_jour) < FENETRE_MOIS:
+        return None
+    from marketlab import har
+    lg = np.log(var_jour)
+    pred = float(har.predire_log(modele, float(lg.iloc[-1]),
+                                 float(lg.tail(FENETRE_SEMAINE).mean()),
+                                 float(lg.tail(FENETRE_MOIS).mean())))
+    vol_jour = float(np.sqrt(np.exp(pred)))
+    return {"symbole": symbole, "horizon": horizon, "vol_jour": vol_jour,
+            "vol_annualisee_%": round(vol_jour * np.sqrt(PERIODES_AN) * 100, 2),
+            "n_seances": int(len(var_jour))}
+
+
+from marketlab import config as _config          # noqa: E402
+MODELE_PATH = _config.DATA_DIR / "har_gkyz.json"
