@@ -176,6 +176,21 @@ jobs:
           MARKETLAB_NTFY_TOPIC: ${{ secrets.MARKETLAB_NTFY_TOPIC }}
         run: python scripts/robot_trading.py
 
+      # Le rapport hebdomadaire de gestion : l'outil rend compte au lieu
+      # d'attendre d'être visité. L'étape tourne chaque nuit mais le module
+      # ne part que le VENDREDI (après la clôture US) et une seule fois par
+      # semaine ISO — marqueur versionné dans data_local. Placé APRÈS le
+      # robot : les équités et les gardes de la nuit sont dedans.
+      - name: Rapport hebdomadaire de gestion
+        continue-on-error: true
+        env:
+          MARKETLAB_FTP_HOTE: ${{ secrets.MARKETLAB_FTP_HOTE }}
+          MARKETLAB_FTP_UTILISATEUR: ${{ secrets.MARKETLAB_FTP_UTILISATEUR }}
+          MARKETLAB_FTP_MOT_DE_PASSE: ${{ secrets.MARKETLAB_FTP_MOT_DE_PASSE }}
+          MARKETLAB_FTP_DOSSIER: ${{ secrets.MARKETLAB_FTP_DOSSIER }}
+          MARKETLAB_NTFY_TOPIC: ${{ secrets.MARKETLAB_NTFY_TOPIC }}
+        run: python -c "from marketlab import rapport_hebdo; print(rapport_hebdo.envoyer())"
+
       - name: Publier le site
         env:
           MARKETLAB_FTP_HOTE: ${{ secrets.MARKETLAB_FTP_HOTE }}
