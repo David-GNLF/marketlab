@@ -47,6 +47,10 @@ data_local/*
 # la table de couts.py devient le repli, plus la verite. Meme logique
 # d'accumulation immuable que la volatilite realisee.
 !data_local/spreads_mesures.csv
+# Part de saut par seance (variation bipower) : la fraction de la
+# volatilite qui TRAVERSE les stops au lieu de passer par tous les
+# prix. Meme accumulation immuable, memes barres.
+!data_local/sauts_mesures.csv
 # Instantanes quotidiens des chaines d'options (IV a la monnaie, skew) :
 # les chaines sont ephemeres, seul un releve conserve permet de juger
 # plus tard nos previsions contre celle du marche.

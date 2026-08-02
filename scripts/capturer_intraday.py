@@ -52,6 +52,9 @@ def relever(interval: str, jours: int, recalculer: bool, symboles=None) -> int:
         s = microstructure.mettre_a_jour_releve(symboles, interval=interval)
         print(f"Spread mesuré (Roll) : {s['titres']} titre(s), "
               f"{s['ajoutees']} séance(s) ajoutée(s), {s['total']} au total.")
+        j = microstructure.mettre_a_jour_sauts(symboles, interval=interval)
+        print(f"Part de saut (bipower) : {j['titres']} titre(s), "
+              f"{j['ajoutees']} séance(s) ajoutée(s), {j['total']} au total.")
     except Exception as exc:
         print(f"Spread non mesurable (non bloquant) : {str(exc)[:80]}")
     return 0

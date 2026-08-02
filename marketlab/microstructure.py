@@ -215,3 +215,128 @@ def spread_median(symbole: str,
     return {"spread_pct": float(valeurs.median()),
             "n_seances": int(len(valeurs)),
             "derniere": str(part["date"].iloc[-1])}
+
+
+# ---------------------------------------------------------------------------
+# Sauts contre diffusion — la part de volatilité qui traverse les stops
+# ---------------------------------------------------------------------------
+#
+# Un stop protège contre la dérive CONTINUE : le cours passe par tous les prix
+# intermédiaires, l'ordre s'exécute au niveau demandé. Un SAUT ne passe par
+# rien — annonce, trou de liquidité — et l'exécution se fait de l'autre côté,
+# plus loin que prévu. La variation bipower (Barndorff-Nielsen & Shephard,
+# 2004) sépare les deux : robuste aux sauts, elle estime la seule composante
+# continue, et l'écart RV − BV mesure ce que les sauts ont apporté.
+#
+#     part de saut = max(0, RV − BV) / RV
+#
+# Un actif à forte part de saut a des stops moins fiables que sa volatilité ne
+# le laisse croire — c'est une caractéristique STRUCTURELLE, mesurable, sans
+# aucune hypothèse sur l'avenir. Le dimensionnement la consomme.
+
+SAUTS_PATH = config.DATA_DIR / "sauts_mesures.csv"
+COLONNES_SAUTS = ["date", "symbole", "interval", "rv", "bv", "part_saut"]
+SEANCES_MIN_SAUTS = 10        # séances estimées avant qu'une médiane ait un sens
+
+
+def variation_bipower(closes: pd.Series) -> dict:
+    """RV, BV et part de saut d'UNE séance."""
+    c = pd.to_numeric(closes, errors="coerce").dropna()
+    r = np.log(c[c > 0]).diff().dropna()
+    if len(r) < ECARTS_MIN_JOUR:
+        return {"mesurable": False}
+    rv = float((r ** 2).sum())
+    bv = float((np.pi / 2) * (r.abs() * r.abs().shift(1)).dropna().sum())
+    if rv <= 0:
+        return {"mesurable": False}
+    return {"mesurable": True, "rv": rv, "bv": bv,
+            "part_saut": max(0.0, rv - bv) / rv}
+
+
+def releve_sauts_du_magasin(symbole: str,
+                            interval: str = intraday.INTERVALLE_DEFAUT,
+                            aujourdhui: dt.date | None = None) -> pd.DataFrame:
+    """Part de saut par séance TERMINÉE, depuis les barres archivées."""
+    barres = intraday.lire(symbole, interval)
+    if barres.empty or "close" not in barres.columns:
+        return pd.DataFrame(columns=COLONNES_SAUTS)
+    limite = (aujourdhui or dt.datetime.now(dt.timezone.utc).date()).isoformat()
+    lignes = []
+    for jour, part in barres.groupby(pd.DatetimeIndex(barres.index).normalize()):
+        date = pd.Timestamp(jour).date().isoformat()
+        if date >= limite:
+            continue
+        e = variation_bipower(part["close"])
+        if not e["mesurable"]:
+            continue
+        lignes.append({"date": date, "symbole": symbole, "interval": interval,
+                       "rv": e["rv"], "bv": e["bv"],
+                       "part_saut": round(e["part_saut"], 4)})
+    if not lignes:
+        return pd.DataFrame(columns=COLONNES_SAUTS)
+    return pd.DataFrame(lignes)[COLONNES_SAUTS]
+
+
+def charger_sauts() -> pd.DataFrame:
+    if not SAUTS_PATH.exists():
+        return pd.DataFrame(columns=COLONNES_SAUTS)
+    try:
+        df = pd.read_csv(SAUTS_PATH)
+    except Exception:
+        return pd.DataFrame(columns=COLONNES_SAUTS)
+    for col in COLONNES_SAUTS:
+        if col not in df.columns:
+            df[col] = np.nan
+    return df[COLONNES_SAUTS]
+
+
+def mettre_a_jour_sauts(symboles: list[str] | None = None,
+                        interval: str = intraday.INTERVALLE_DEFAUT,
+                        ecrire: bool = True) -> dict:
+    """Accumule la part de saut, union immuable — même contrat que le spread."""
+    symboles = list(symboles or config.SUIVIS)
+    lignes = []
+    for sym in symboles:
+        try:
+            r = releve_sauts_du_magasin(sym, interval)
+        except Exception:
+            continue
+        if not r.empty:
+            lignes.append(r)
+    nouveau = (pd.concat(lignes, ignore_index=True) if lignes
+               else pd.DataFrame(columns=COLONNES_SAUTS))
+    ancien = charger_sauts()
+    cadres = [c for c in (ancien, nouveau) if not c.empty]
+    fusion = (pd.concat(cadres, ignore_index=True)[COLONNES_SAUTS]
+              .drop_duplicates(subset=["date", "symbole", "interval"],
+                               keep="first")
+              .sort_values(["date", "symbole"]).reset_index(drop=True)
+              if cadres else pd.DataFrame(columns=COLONNES_SAUTS))
+    if ecrire:
+        SAUTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        fusion.to_csv(SAUTS_PATH, index=False, float_format="%.10g")
+        _MEMO.pop("sauts", None)
+    return {"titres": int(nouveau["symbole"].nunique()) if not nouveau.empty else 0,
+            "ajoutees": len(fusion) - len(ancien), "total": len(fusion)}
+
+
+def part_sauts(symbole: str,
+               interval: str = intraday.INTERVALLE_DEFAUT) -> dict | None:
+    """Part de saut MÉDIANE d'un actif. None sous le seuil de séances.
+
+    La médiane, pour la même raison que le spread : une séance d'annonce ne
+    doit pas définir la structure d'un actif — mais si la MOITIÉ des séances
+    sont sauteuses, c'est bien la structure.
+    """
+    if "sauts" not in _MEMO:
+        _MEMO["sauts"] = charger_sauts()
+    releve = _MEMO["sauts"]
+    if releve.empty:
+        return None
+    part = releve[(releve["symbole"] == symbole)
+                  & (releve["interval"] == interval)]
+    valeurs = pd.to_numeric(part["part_saut"], errors="coerce").dropna()
+    if len(valeurs) < SEANCES_MIN_SAUTS:
+        return None
+    return {"part_saut": float(valeurs.median()),
+            "n_seances": int(len(valeurs))}

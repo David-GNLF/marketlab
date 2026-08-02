@@ -50,6 +50,30 @@ PLAFOND_MISE_PCT = 10.0
 MISE_MIN = 10.0
 
 
+def _kelly(plan: dict) -> float | None:
+    """Fraction de Kelly du plan, en part de l'équité exposée (notionnel).
+
+    Trois issues par construction du plan : objectif touché (+g, probabilité
+    p), stop touché (−s, probabilité q), ni l'un ni l'autre (≈ 0). Maximiser
+    la croissance logarithmique donne, en fermé :
+
+        f* = (p·g − q·s) / (g·s·(p + q))
+
+    None si le plan ne porte pas ses probabilités — on ne fabrique pas un
+    plafond avec des chiffres absents.
+    """
+    try:
+        p = float(plan.get("proba_toucher_objectif_%", 0)) / 100
+        q = float(plan.get("proba_toucher_stop_%", 0)) / 100
+        g = float(plan.get("gain_potentiel_%", 0)) / 100
+        s = float(plan.get("risque_%", 0)) / 100
+    except (TypeError, ValueError):
+        return None
+    if min(p, q) <= 0 or min(g, s) <= 0 or p + q > 1.001:
+        return None
+    return (p * g - q * s) / (g * s * (p + q))
+
+
 def dimensionner(symbole: str, plan: dict, equite: float,
                  positions: list[dict] | None = None,
                  horizon: int = 20, levier: float | None = None,
@@ -130,6 +154,30 @@ def dimensionner(symbole: str, plan: dict, equite: float,
         f"stop à {risque_actif_pct:.2f} % ⇒ notionnel {notionnel:.0f} $, "
         f"mise {mise:.2f} $ à effet {levier:.0f}")
 
+    # --- 3 bis. la part de saut : ce que le stop ne protège pas -----------
+    # La taille ci-dessus suppose que la perte s'arrête AU stop. C'est vrai
+    # pour la dérive continue ; un saut traverse le stop et l'exécution se
+    # fait plus loin. La variation bipower mesure, par actif, la part de la
+    # variance qui vient des sauts — et la mise est réduite d'autant :
+    # 1/(1 + part), soit ×0,77 pour un actif dont 30 % de la variance saute.
+    # Ordre de grandeur assumé, pas un modèle d'exécution : le but est que
+    # deux actifs de même volatilité mais de structures différentes ne portent
+    # pas la même mise.
+    try:
+        from marketlab import microstructure
+        sauts = microstructure.part_sauts(symbole)
+    except Exception:
+        sauts = None
+    if sauts and sauts["part_saut"] > 0.05:
+        facteur_sauts = 1 / (1 + sauts["part_saut"])
+        mise *= facteur_sauts
+        notionnel = mise * levier
+        etapes.append(
+            f"sauts : {sauts['part_saut'] * 100:.0f} % de la variance de cet "
+            f"actif TRAVERSE les stops au lieu de passer par tous les prix "
+            f"(médiane sur {sauts['n_seances']} séances) — mise réduite à "
+            f"{facteur_sauts * 100:.0f} %")
+
     # --- 4. plafond de concentration --------------------------------------
     if positions:
         try:
@@ -161,6 +209,29 @@ def dimensionner(symbole: str, plan: dict, equite: float,
             f"mais un écart de cotation suffirait à le franchir")
         mise = plafond
         notionnel = mise * levier
+
+    # --- 6. le plafond de Kelly -------------------------------------------
+    # La fraction de Kelly maximise la croissance composée SI les probabilités
+    # du plan sont justes — hypothèse trop forte pour la viser, assez bonne
+    # pour servir de PLAFOND : une taille au-dessus de Kelly perd de l'argent
+    # en croissance composée même quand les probabilités sont exactes. Le
+    # dimensionnement par le risque vit très en dessous ; le jour où un stop
+    # étroit et un gros budget la dépasseraient, c'est Kelly qui a raison.
+    kelly = _kelly(plan)
+    if kelly is not None:
+        resultat["kelly"] = {
+            "fraction": round(kelly, 4),
+            "plafond_notionnel": round(kelly * equite, 2),
+            "part_utilisee_%": (round(notionnel / (kelly * equite) * 100, 1)
+                                if kelly > 0 else None),
+        }
+        if kelly > 0 and notionnel > kelly * equite:
+            notionnel = kelly * equite
+            mise = notionnel / levier
+            etapes.append(
+                f"plafond de Kelly : exposition ramenée à "
+                f"{notionnel:.0f} $ — au-delà, même des probabilités EXACTES "
+                f"perdent de l'argent en croissance composée")
 
     if mise < MISE_MIN:
         etapes.append(f"mise résiduelle sous {MISE_MIN:.0f} $ : position écartée "

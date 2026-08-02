@@ -41,6 +41,12 @@ def sans_reseau(monkeypatch):
     vols["GC=F"] = 16.0
     monkeypatch.setattr(rp, "matrice_stress", lambda *a, **k: corr)
     monkeypatch.setattr(rp, "volatilites", lambda *a, **k: vols)
+    # la co-chute de queue lit correlations.rendements — RÉSEAU. Ces tests
+    # vérifient l'arithmétique de concentration ; le détecteur de queue a les
+    # siens, sur données injectées.
+    monkeypatch.setattr(rp.correlations, "rendements",
+                        lambda *a, **k: (_ for _ in ()).throw(
+                            RuntimeError("réseau neutralisé en test")))
     return corr, vols
 
 
@@ -155,3 +161,70 @@ def test_bilan_sans_candidat(sans_reseau):
     assert b["vol_avant_%"] is not None
     assert b["paris_independants"] is not None
     assert b["facteur"] == 1.0
+
+
+# ---------------------------------------------------------------------------
+# La co-chute de queue : ce que la corrélation ne voit pas
+# ---------------------------------------------------------------------------
+
+def _paire_crash_commun(n=800, graine=0):
+    """Rendements quasi indépendants au quotidien, mais qui s'effondrent
+    ENSEMBLE les jours de crash — la configuration exacte que la corrélation
+    moyenne sous-estime et que la queue révèle."""
+    rng = np.random.default_rng(graine)
+    a = rng.normal(0, 0.01, n)
+    b = rng.normal(0, 0.01, n)
+    # crashs a -5 sigma sur 9 % des jours : la queue a 10 % est alors remplie
+    # a ~90 % par les jours de crash communs (lambda attendu ~0,9) tandis que
+    # la correlation reste ~0,63, sous le seuil « meme pari ». Deux essais plus
+    # mous (-3,5 %/6 % puis -5 %/7 %) donnaient un lambda attendu trop proche
+    # du seuil de 0,60 : le verdict basculait selon la GRAINE, et un test qui
+    # depend du tirage ne teste que sa chance.
+    crash = rng.random(n) < 0.09
+    a[crash] -= 0.05
+    b[crash] -= 0.05
+    idx = pd.date_range("2023-01-02", periods=n, freq="B")
+    return pd.Series(a, index=idx), pd.Series(b, index=idx)
+
+
+def test_des_paris_independants_ont_une_co_chute_de_base():
+    rng = np.random.default_rng(1)
+    idx = pd.date_range("2023-01-02", periods=800, freq="B")
+    a = pd.Series(rng.normal(0, 0.01, 800), index=idx)
+    b = pd.Series(rng.normal(0, 0.01, 800), index=idx)
+    l = rp.co_chute(a, b)
+    assert l == pytest.approx(0.10, abs=0.07)
+
+
+def test_un_crash_commun_est_vu_par_la_queue_pas_par_la_correlation():
+    """Le cas qui justifie le second détecteur : corrélation ordinaire sous le
+    seuil « même pari », co-chute très au-dessus du sien."""
+    a, b = _paire_crash_commun(graine=2)
+    assert float(a.corr(b)) < rp.SEUIL_MEME_PARI
+    assert rp.co_chute(a, b) > rp.SEUIL_CO_CHUTE
+
+
+def test_trop_court_pour_juger_la_queue():
+    idx = pd.date_range("2026-01-01", periods=100, freq="B")
+    rng = np.random.default_rng(3)
+    a = pd.Series(rng.normal(0, 0.01, 100), index=idx)
+    assert rp.co_chute(a, a) is None
+
+
+def test_evaluer_reduit_sur_co_chute_quand_la_correlation_se_tait(sans_reseau,
+                                                                  monkeypatch):
+    """Intégration : corrélation de stress posée MODÉRÉE (le premier détecteur
+    se tait), crash commun dans les rendements — le second parle, une seule
+    raison est donnée."""
+    corr, _ = sans_reseau
+    corr.loc["EURUSD=X", "GC=F"] = corr.loc["GC=F", "EURUSD=X"] = 0.30
+    a, b = _paire_crash_commun(graine=4)
+    monkeypatch.setattr(rp.correlations, "rendements",
+                        lambda *a_, **k: pd.DataFrame({"GC=F": a,
+                                                       "EURUSD=X": b}))
+    bilan = rp.evaluer([pos("EURUSD=X")], 1000.0, pos("GC=F"))
+    assert bilan["meme_pari_que"] == "EURUSD=X"
+    assert bilan["co_chute_max"] >= rp.SEUIL_CO_CHUTE
+    assert sum("co-chute" in r for r in bilan["raisons"]) == 1
+    assert not any("corrélation +" in r for r in bilan["raisons"])
+    assert bilan["facteur"] < 1.0

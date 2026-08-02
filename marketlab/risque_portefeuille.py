@@ -51,6 +51,37 @@ SEUIL_MEME_PARI = 0.75
 # Plancher de taille : en dessous, la position ne vaut pas ses frais.
 FACTEUR_MIN = 0.25
 
+# Co-chute de queue. La corrélation — même de stress — est une moyenne : deux
+# actifs peuvent être modérément corrélés au quotidien et s'effondrer ENSEMBLE
+# les mauvais jours, et c'est le seul cas qui compte pour un portefeuille.
+# On mesure donc directement : quand le pari déjà détenu vit un jour de son
+# pire décile, quelle est la probabilité que le candidat vive le sien ?
+# Sous indépendance elle vaut 10 % ; au-dessus de ce seuil, les deux paris
+# meurent ensemble quel que soit ce que dit la corrélation ordinaire.
+SEUIL_CO_CHUTE = 0.60
+CO_CHUTE_QUANTILE = 0.10
+CO_CHUTE_OBS_MIN = 40          # jours de queue observés — ~400 séances
+
+
+def co_chute(candidat_r: pd.Series, detenu_r: pd.Series) -> float | None:
+    """P(le candidat vit son pire décile | le détenu vit le sien).
+
+    Les séries sont les rendements DU PARI (déjà signées par le sens) : deux
+    achats sur des actifs anti-corrélés ont des queues disjointes, un achat et
+    une vente sur les mêmes en ont de communes — comme pour la corrélation
+    signée, c'est le pari qui compte, pas le cours.
+    """
+    cadre = pd.concat([candidat_r.rename("c"), detenu_r.rename("d")],
+                      axis=1).dropna()
+    if len(cadre) < CO_CHUTE_OBS_MIN / CO_CHUTE_QUANTILE:
+        return None
+    seuil_c = cadre["c"].quantile(CO_CHUTE_QUANTILE)
+    seuil_d = cadre["d"].quantile(CO_CHUTE_QUANTILE)
+    queue_d = cadre[cadre["d"] <= seuil_d]
+    if len(queue_d) < CO_CHUTE_OBS_MIN:
+        return None
+    return float((queue_d["c"] <= seuil_c).mean())
+
 
 def _sens(valeur) -> int:
     return -1 if str(valeur).lower() in {"short", "vente", "-1"} else 1
@@ -200,6 +231,34 @@ def evaluer(positions: list[dict], equite: float,
                 f"même pari que {pire[0]} (corrélation {pire[1]:+.2f} en "
                 f"régime tendu) : ce n'est pas une ligne de plus, c'est la "
                 f"même agrandie")
+
+    # Second détecteur, pour ce que la corrélation ne voit pas : la co-chute
+    # de queue. Ne se déclenche que si le premier n'a rien dit — deux raisons
+    # pour le même fait n'en font pas deux.
+    if bilan["meme_pari_que"] is None and detenus:
+        try:
+            rendements = correlations.rendements(symboles, 750)
+        except Exception:
+            rendements = None
+        if rendements is not None and sym in rendements.columns:
+            cand_r = rendements[sym] * sens_c
+            pire_l, pire_avec = 0.0, None
+            for s, e in detenus.items():
+                if s == sym or s not in rendements.columns:
+                    continue
+                l = co_chute(cand_r, rendements[s] * np.sign(e or 1))
+                if l is not None and l > pire_l:
+                    pire_l, pire_avec = l, s
+            if pire_avec is not None:
+                bilan["co_chute_max"] = round(pire_l, 2)
+                if pire_l >= SEUIL_CO_CHUTE:
+                    bilan["meme_pari_que"] = pire_avec
+                    bilan["raisons"].append(
+                        f"co-chute de queue avec {pire_avec} : quand il vit "
+                        f"son pire décile, le candidat vit le sien "
+                        f"{pire_l * 100:.0f} % du temps (10 % si "
+                        f"indépendants) — ils meurent ensemble, même si la "
+                        f"corrélation ordinaire ne le montre pas")
 
     apres = dict(detenus)
     apres[sym] = apres.get(sym, 0.0) + expo_c

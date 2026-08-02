@@ -5,6 +5,16 @@ import pytest
 from marketlab import dimensionnement as dim
 
 
+@pytest.fixture(autouse=True)
+def _sans_structure(monkeypatch):
+    """Neutralise la part de saut : le CSV sera commité, et ces tests
+    vérifient la géométrie de la chaîne, pas la structure d'un actif réel —
+    un AAPL à 20 % de sauts changerait leurs valeurs exactes selon
+    l'environnement, le défaut même qu'on a déjà payé deux fois."""
+    from marketlab import microstructure
+    monkeypatch.setattr(microstructure, "part_sauts", lambda *a, **k: None)
+
+
 def _plan(risque_pct=5.0, esperance=2.0, survit=True, seuil=0.31):
     return {
         "risque_%": risque_pct,
@@ -172,3 +182,72 @@ def test_comparaison_a_la_taille_fixe():
 def test_le_resultat_est_serialisable():
     import json
     json.dumps(dim.dimensionner("AAPL", _plan(), 1000.0))
+
+
+# ---------------------------------------------------------------------------
+# La part de saut : ce que le stop ne protège pas
+# ---------------------------------------------------------------------------
+
+def test_la_part_de_saut_reduit_la_mise(monkeypatch):
+    """Deux actifs de même volatilité mais de structures différentes ne
+    doivent pas porter la même mise : le stop de l'un s'exécute où on l'a mis,
+    celui de l'autre est traversé."""
+    from marketlab import microstructure
+    lisse = dim.dimensionner("AAPL", _plan(), 1000.0, levier=2)
+    monkeypatch.setattr(microstructure, "part_sauts",
+                        lambda *a, **k: {"part_saut": 0.30, "n_seances": 40})
+    sauteur = dim.dimensionner("AAPL", _plan(), 1000.0, levier=2)
+    assert sauteur["mise"] == pytest.approx(lisse["mise"] / 1.30, rel=0.01)
+    assert any("TRAVERSE les stops" in e for e in sauteur["etapes"])
+
+
+def test_une_part_de_saut_negligeable_ne_reduit_rien(monkeypatch):
+    from marketlab import microstructure
+    monkeypatch.setattr(microstructure, "part_sauts",
+                        lambda *a, **k: {"part_saut": 0.03, "n_seances": 40})
+    r = dim.dimensionner("AAPL", _plan(), 1000.0, levier=2)
+    assert not any("sauts" in e for e in r["etapes"])
+
+
+# ---------------------------------------------------------------------------
+# Kelly : un plafond, jamais une cible
+# ---------------------------------------------------------------------------
+
+def _plan_avec_probas(**kw):
+    p = _plan(**{k: v for k, v in kw.items() if k in
+                 ("risque_pct", "esperance", "survit", "seuil")})
+    p["proba_toucher_objectif_%"] = kw.get("p_obj", 42.0)
+    p["proba_toucher_stop_%"] = kw.get("p_stop", 40.0)
+    p["gain_potentiel_%"] = kw.get("gain", 10.0)
+    if "risque_pct" in kw:
+        p["risque_%"] = kw["risque_pct"]
+    return p
+
+
+def test_kelly_est_calcule_et_affiche_la_marge():
+    """f* = (p·g − q·s) / (g·s·(p+q)) — et la part de Kelly réellement
+    utilisée dit la marge de sécurité du dimensionnement par le risque."""
+    plan = _plan_avec_probas(risque_pct=10.0, p_obj=42, p_stop=40, gain=10)
+    r = dim.dimensionner("AAPL", plan, 1000.0, levier=2)
+    attendu = (0.42 * 0.10 - 0.40 * 0.10) / (0.10 * 0.10 * 0.82)
+    assert r["kelly"]["fraction"] == pytest.approx(attendu, rel=1e-3)
+    assert r["kelly"]["part_utilisee_%"] < 100
+
+
+def test_kelly_plafonne_une_exposition_excessive(monkeypatch):
+    """Le jour où un gros budget de risque et un stop large dépassent Kelly,
+    c'est Kelly qui a raison : au-delà, même des probabilités EXACTES perdent
+    de l'argent en croissance composée."""
+    monkeypatch.setattr(dim, "PLAFOND_MISE_PCT", 100.0)
+    plan = _plan_avec_probas(risque_pct=10.0, p_obj=42, p_stop=40, gain=10)
+    r = dim.dimensionner("AAPL", plan, 1000.0, levier=2, risque_pct=5.0)
+    kelly_notionnel = r["kelly"]["plafond_notionnel"]
+    assert r["notionnel"] == pytest.approx(kelly_notionnel, rel=1e-3)
+    assert any("Kelly" in e for e in r["etapes"])
+    assert r["risque_%_equite"] < 5.0        # la chaîne n'a fait que réduire
+
+
+def test_sans_probas_pas_de_kelly():
+    """On ne fabrique pas un plafond avec des chiffres absents."""
+    r = dim.dimensionner("AAPL", _plan(), 1000.0, levier=2)
+    assert "kelly" not in r
