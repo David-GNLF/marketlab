@@ -1,25 +1,25 @@
 {
- "n_evalues": 3232,
+ "n_evalues": 3235,
  "ic_par_composante": {
   "technique": {
    "ic": -0.079,
-   "n": 3232,
+   "n": 3235,
    "n_effectif": 161,
-   "ic_borne_basse_95": -0.23,
+   "ic_borne_basse_95": -0.231,
    "prouve": false
   },
   "prevision": {
-   "ic": -0.075,
-   "n": 3232,
+   "ic": -0.076,
+   "n": 3235,
    "n_effectif": 161,
-   "ic_borne_basse_95": -0.227,
+   "ic_borne_basse_95": -0.228,
    "prouve": false
   },
   "analogues": {
-   "ic": -0.037,
-   "n": 3232,
+   "ic": -0.038,
+   "n": 3235,
    "n_effectif": 161,
-   "ic_borne_basse_95": -0.19,
+   "ic_borne_basse_95": -0.191,
    "prouve": false
   },
   "fondamentaux": {
@@ -36,12 +36,12 @@
   },
   "saisonnalite": {
    "ic": null,
-   "n": 0,
+   "n": 3,
    "note": "trop peu de données, poids de base conservé"
   },
   "sentiment": {
    "ic": null,
-   "n": 0,
+   "n": 3,
    "note": "trop peu de données, poids de base conservé"
   }
  },
@@ -51,7 +51,7 @@
  "candidats": {
   "brokers": {
    "ic": null,
-   "n": 0,
+   "n": 3,
    "note": "pas encore assez de verdicts évalués"
   },
   "filtre_marche": {
@@ -75,8 +75,8 @@
    "note": "pas encore assez de verdicts évalués"
   }
  },
- "statut": "aucune composante n'a démontré de pouvoir prédictif sur 3232 verdicts (aucun IC significativement positif à 95 %) : pondérations de base conservées",
- "date": "2026-08-02 10:15",
+ "statut": "aucune composante n'a démontré de pouvoir prédictif sur 3235 verdicts (aucun IC significativement positif à 95 %) : pondérations de base conservées",
+ "date": "2026-08-02 22:58",
  "poids_base": {
   "technique": 0.25,
   "prevision": 0.2,
