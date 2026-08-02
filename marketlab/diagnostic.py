@@ -184,6 +184,12 @@ def _duel_previsionnistes() -> dict:
     return implicite.comparer_previsionnistes()
 
 
+def _chaine_dimensionnement() -> dict:
+    """Le filtre gagne-t-il sa vie ? Écartées contre retenues, à l'échéance."""
+    from marketlab import journal_chaine
+    return journal_chaine.bilan()
+
+
 SONDES = {
     "volatilite_realisee": _volatilite,
     "modele_volatilite": _modele_volatilite,
@@ -194,6 +200,11 @@ SONDES = {
     # sont mûrs, la sonde le dit — même contrat que HAR contre EWMA.
     "duel_previsionnistes": _duel_previsionnistes,
     "journal": _journal,
+    # Le tribunal du FILTRE : les idées écartées par la chaîne de
+    # dimensionnement, rejouées à l'échéance contre les retenues, net des
+    # coûts connus au moment de décider. Tant que trop peu de verdicts sont
+    # mûrs, la sonde le dit — même contrat que les duels de volatilité.
+    "chaine_dimensionnement": _chaine_dimensionnement,
 }
 
 
@@ -252,6 +263,14 @@ def _resumer(rapport: dict) -> list[dict]:
                        "texte": f"Prévision de volatilité : {duel.get('gagnant')} "
                                 f"gagne le duel sur {duel.get('n_duels')} "
                                 f"fenêtres mûres."})
+
+    chaine = rapport.get("chaine_dimensionnement") or {}
+    if isinstance(chaine, dict) \
+            and str(chaine.get("lecture", "")).startswith("ATTENTION"):
+        # Le seul verdict que ce journal existe pour rendre : si le filtre
+        # détruit de la valeur, ça se dit en tête de page, pas au fond d'un
+        # tableau.
+        points.append({"niveau": "attention", "texte": chaine["lecture"]})
 
     if not points:
         points.append({"niveau": "ok", "texte": "Aucun point d'attention."})

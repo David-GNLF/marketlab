@@ -35,7 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pandas as pd
 
 from marketlab import (config, ftps, notify, rapport_seance,
-                       risque_portefeuille)
+                       risque_portefeuille, surveillance)
 from marketlab.data import get_ohlcv
 
 CAPITAL_DEPART = 1000.0
@@ -411,6 +411,7 @@ def main() -> int:
             print(f"compte robot « {nom} » créé ({CAPITAL_DEPART:.0f} $ "
                   f"virtuels, horizon {cfg_robot['horizon']})")
 
+        gardes_fil: list[tuple[str, bool]] = []
         for fichier in fichiers:
             compte = _telecharger(session, base, fichier)
             if not compte:
@@ -418,6 +419,22 @@ def main() -> int:
             evenements = tenir_compte(compte)
             evenements += executer_ordres(compte)
             evenements += facturer_portage(compte)
+            # SURVEILLANCE DES POSITIONS OUVERTES. La chaîne d'encadrement
+            # jugeait l'idée à l'entrée puis ne regardait plus jamais la
+            # position — or régime, sauts, concentration et portage bougent
+            # pendant la vie du trade. Les gardes sont rejoués ici, dans la
+            # même fenêtre nocturne : SIGNALER seulement, jamais agir.
+            # Le type de l'erreur est imprimé (leçon du NameError avalé) :
+            # une surveillance qui tombe en panne doit se voir.
+            try:
+                gardes = surveillance.examiner(compte)
+            except Exception as exc:
+                gardes = []
+                print(f"surveillance en panne (non bloquant) : "
+                      f"{type(exc).__name__}: {str(exc)[:90]}")
+            evenements += gardes
+            gardes_fil += [(f"🛡️ compte {compte.get('nom', '?')} — {g}", False)
+                           for g in gardes]
             est_robot = compte["nom"] in ROBOTS
             if est_robot:
                 v = verdicts_par_robot.get(compte["nom"]) or []
@@ -468,6 +485,18 @@ def main() -> int:
             session.quit()
         except Exception:
             session.close()
+
+    # Les alertes de surveillance rejoignent le fil public du site : elles y
+    # côtoient celles du scanner horaire, avec le même contrat (le silence
+    # est une information, une panne d'envoi n'empêche pas la tenue).
+    if gardes_fil:
+        try:
+            from marketlab import fil_alertes
+            r = fil_alertes.publier(gardes_fil)
+            print(f"fil d'alertes : {r['publiees']} garde(s) publiée(s)")
+        except Exception as exc:
+            print(f"fil d'alertes injoignable (non bloquant) : "
+                  f"{type(exc).__name__}: {str(exc)[:80]}")
 
     classement.sort(key=lambda c: -c["perf_%"])
     CONCOURS_LOCAL.parent.mkdir(parents=True, exist_ok=True)

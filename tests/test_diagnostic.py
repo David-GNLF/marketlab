@@ -36,6 +36,12 @@ def _sans_reseau(monkeypatch):
     monkeypatch.setattr(implicite, "comparer_previsionnistes",
                         lambda *a, **k: {"mesurable": False,
                                          "raison": "neutralisé en test"})
+    # même famille : le bilan de la chaîne lira le CSV commité puis rejouera
+    # chaque verdict mûr sur les cours réels — donc le réseau
+    from marketlab import journal_chaine
+    monkeypatch.setattr(journal_chaine, "bilan",
+                        lambda *a, **k: {"suivis": 0, "murs": 0,
+                                         "lecture": "neutralisé en test"})
 
 
 # ---------------------------------------------------------------------------

@@ -51,6 +51,11 @@ data_local/*
 # volatilite qui TRAVERSE les stops au lieu de passer par tous les
 # prix. Meme accumulation immuable, memes barres.
 !data_local/sauts_mesures.csv
+# Le journal des verdicts de la CHAINE de dimensionnement : ce que le
+# filtre a retenu ou ecarte, et a quel maillon. C'est ce qui rend le
+# filtre FALSIFIABLE — a l'echeance, les ecartees sont rejouees contre
+# les retenues, net des couts connus au moment de decider.
+!data_local/journal_chaine.csv
 # Instantanes quotidiens des chaines d'options (IV a la monnaie, skew) :
 # les chaines sont ephemeres, seul un releve conserve permet de juger
 # plus tard nos previsions contre celle du marche.

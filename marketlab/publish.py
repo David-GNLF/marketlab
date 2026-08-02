@@ -37,7 +37,8 @@ import pandas as pd
 from marketlab import (alerts, broker_tools, config, correlations, cot,
                        coulisses, decision, drivers, eco_calendar, events,
                        forecast,
-                       fundamentals, glossaire, implicite, indicators, intraday, levels, macro,
+                       fundamentals, glossaire, implicite, indicators, intraday,
+                       journal_chaine, levels, macro,
                        news, paper, position, regimes, screener, seasonality, synthese,
                        sentiment_marche, serie, signals)
 from marketlab.data import get_ohlcv
@@ -273,6 +274,16 @@ def bloc_verdicts() -> dict:
         d["classe"] = _classe_actif(d["symbole"])
         d["nom"] = config.NOMS_ACTIFS.get(d["symbole"], d["symbole"])
     decision.journaliser(courts)
+
+    # Le journal de la CHAÎNE, à côté de celui des notes : ce que le filtre a
+    # retenu ou écarté, et à quel maillon. C'est ce qui permettra de juger le
+    # filtre à l'échéance au lieu de le croire sur parole. Non bloquant : une
+    # trace manquée ne vaut pas une publication manquée.
+    try:
+        journal_chaine.journaliser(dossiers + courts)
+    except Exception as exc:
+        print(f"journal de la chaîne non consigné (non bloquant) : "
+              f"{type(exc).__name__}: {str(exc)[:80]}")
 
     # Décomposition de la note en apports de chaque composante : la somme
     # redonne exactement la note publiée, donc l'explication est vérifiable et

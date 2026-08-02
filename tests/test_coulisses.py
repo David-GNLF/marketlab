@@ -46,6 +46,12 @@ def _sans_reseau(monkeypatch):
     monkeypatch.setattr(implicite, "comparer_previsionnistes",
                         lambda *a, **k: {"mesurable": False,
                                          "raison": "neutralisé en test"})
+    # même famille : le bilan de la chaîne rejoue les verdicts mûrs sur les
+    # cours réels dès que le CSV commité en contient
+    from marketlab import journal_chaine
+    monkeypatch.setattr(journal_chaine, "bilan",
+                        lambda *a, **k: {"suivis": 0, "murs": 0,
+                                         "lecture": "neutralisé en test"})
 
 # Noms de champ qui trahiraient une valeur transportée par erreur.
 CHAMPS_INTERDITS = [
