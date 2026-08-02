@@ -5,6 +5,21 @@ import pytest
 from marketlab import couts
 
 
+@pytest.fixture(autouse=True)
+def _table_seule(monkeypatch):
+    """Fige ces tests sur la TABLE de spreads.
+
+    Depuis que le spread est mesuré (estimateur de Roll, relevé versionné dans
+    data_local/spreads_mesures.csv), `couts()` préfère la mesure quand elle
+    existe. Ces tests vérifient l'arithmétique des coûts, pas l'estimateur —
+    qui a son propre fichier de tests. Sans cette fixture, ils passeraient en
+    local (pas de CSV) et casseraient en CI (CSV commité) : un test dont le
+    verdict dépend de l'environnement ne teste rien.
+    """
+    from marketlab import microstructure
+    monkeypatch.setattr(microstructure, "spread_median", lambda *a, **k: None)
+
+
 def test_le_spread_est_paye_deux_fois():
     """Un aller-retour, c'est une entrée ET une sortie."""
     c = couts.couts("AAPL", horizon=0, levier=1)

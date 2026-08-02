@@ -43,6 +43,17 @@ def relever(interval: str, jours: int, recalculer: bool, symboles=None) -> int:
     print(f"Relevé : {config.RV_PATH}")
     if bilan["echecs"]:
         print(f"Échecs : {', '.join(bilan['echecs'][:12])}")
+
+    # Spread effectif (Roll) sur les MÊMES barres, dans la foulée : la capture
+    # vient de les écrire, autant les relire tant qu'elles sont là. Aucun
+    # appel réseau supplémentaire — c'est tout l'intérêt de la co-localiser.
+    try:
+        from marketlab import microstructure
+        s = microstructure.mettre_a_jour_releve(symboles, interval=interval)
+        print(f"Spread mesuré (Roll) : {s['titres']} titre(s), "
+              f"{s['ajoutees']} séance(s) ajoutée(s), {s['total']} au total.")
+    except Exception as exc:
+        print(f"Spread non mesurable (non bloquant) : {str(exc)[:80]}")
     return 0
 
 

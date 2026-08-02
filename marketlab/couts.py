@@ -70,6 +70,36 @@ def levier_defaut(symbole: str) -> int:
     return LEVIERS.get(classe_actif(symbole), 2)
 
 
+def spread_effectif(symbole: str) -> dict:
+    """Spread retenu : MESURÉ si assez de séances estimées, table sinon.
+
+    La mesure (estimateur de Roll sur les barres 5 min archivées) a montré que
+    la table surestime d'un facteur 2 le forex et l'or — des idées étaient
+    écartées à tort par le filtre de coût. Mais l'estimateur reste un
+    estimateur : la valeur mesurée est BORNÉE entre ¼ et 4 fois la table.
+    Elle a le droit d'affiner l'ordre de grandeur, pas de le renverser
+    silencieusement — un spread mesuré à zéro sur des cotations lissées
+    ferait croire que trader est gratuit.
+
+    La source est toujours dite : un chiffre dont on ignore la provenance ne
+    se conteste pas, et c'est précisément ce qu'on reproche aux tables.
+    """
+    table = SPREAD_PCT.get(classe_actif(symbole), SPREAD_DEFAUT)
+    mesure = None
+    try:
+        from marketlab import microstructure
+        mesure = microstructure.spread_median(symbole)
+    except Exception:
+        mesure = None
+    if not mesure:
+        return {"spread_pct": table, "source": "table"}
+    borne = min(max(float(mesure["spread_pct"]), table / 4), table * 4)
+    source = f"mesuré ({mesure['n_seances']} séances)"
+    if borne != float(mesure["spread_pct"]):
+        source += ", borné par la table"
+    return {"spread_pct": borne, "source": source}
+
+
 def couts(symbole: str, horizon: int = 20, levier: float | None = None,
           spread_pct: float | None = None) -> dict:
     """Coût complet d'un aller-retour, et seuil de rentabilité qui en découle.
@@ -88,8 +118,11 @@ def couts(symbole: str, horizon: int = 20, levier: float | None = None,
     classe = classe_actif(symbole)
     levier = float(levier if levier is not None else levier_defaut(symbole))
     levier = max(levier, 1.0)
-    spread = float(spread_pct if spread_pct is not None
-                   else SPREAD_PCT.get(classe, SPREAD_DEFAUT))
+    if spread_pct is not None:
+        spread, spread_source = float(spread_pct), "fourni"
+    else:
+        retenu = spread_effectif(symbole)
+        spread, spread_source = float(retenu["spread_pct"]), retenu["source"]
 
     # Aller-retour : on paie le spread à l'entrée ET à la sortie.
     cout_spread_actif = 2 * spread
@@ -106,6 +139,7 @@ def couts(symbole: str, horizon: int = 20, levier: float | None = None,
         "levier": round(levier, 2),
         "horizon": horizon,
         "spread_aller_%": round(spread, 4),
+        "spread_source": spread_source,
         "cout_spread_%": round(cout_spread_actif, 4),
         "cout_financement_%": round(cout_financement_actif, 4),
         "seuil_actif_%": round(seuil_actif, 4),
