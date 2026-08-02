@@ -633,6 +633,13 @@ function PageTitre({ meta, symbole, setSymbole }) {
                          valeur={`${f.projection["proba_hausse_%"]} %`} />
                   <Tuile libelle={<Terme code="var">VaR 95 %</Terme>}
                valeur={`${f.projection["var_95_%"]} %`} />
+                  {/* L'ES était calculé depuis le premier jour du cône et
+                      affiché nulle part — la réponse à « et dans les 5 cas
+                      restants ? » dormait dans le JSON. */}
+                  {f.projection["perte_moyenne_pire_5_%"] != null && (
+                    <Tuile libelle={<Terme code="es">Pire 5 % (ES)</Terme>}
+                           valeur={`${f.projection["perte_moyenne_pire_5_%"]} %`} />
+                  )}
                 </div>
                 <GraphiqueCone projection={f.projection}
                                historique={f.historique} />

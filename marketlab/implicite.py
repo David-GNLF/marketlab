@@ -237,11 +237,15 @@ def prime_variance_vix(jours: int = 1500) -> dict:
     from marketlab.data import get_ohlcv
     try:
         vix = get_ohlcv("^VIX", lookback_days=jours)["close"]
-        spx = get_ohlcv("^GSPC", lookback_days=jours)["close"]
+        spx_df = get_ohlcv("^GSPC", lookback_days=jours)
     except Exception as exc:
         return {"mesurable": False, "raison": f"données absentes : {exc}"}
 
-    realise = vol_cloture(spx)
+    # Réalisé sur l'OHLC complet (GKYZ) : même cible que les clôtures seules,
+    # estimation nettement plus serrée — le bruit d'estimation se lisait
+    # comme de la prime.
+    from marketlab import vol_ohlc
+    realise = vol_ohlc.vol_future(spx_df)
     cadre = pd.DataFrame({"vix": vix, "realise": realise}).dropna()
     if len(cadre) < 100:
         return {"mesurable": False, "raison": f"{len(cadre)} jours exploitables"}
@@ -302,7 +306,15 @@ def synthese_titre(symbole: str, df: pd.DataFrame | None = None) -> dict | None:
     if df is not None and "close" in df.columns and len(df) > 60:
         closes = pd.to_numeric(df["close"], errors="coerce").dropna()
         r = np.log(closes).diff().dropna()
-        realise = float(r.tail(SEANCES_REALISE).std() * np.sqrt(PERIODES_AN) * 100)
+        from marketlab import vol_ohlc
+        yz = vol_ohlc.vol_yang_zhang(df, SEANCES_REALISE)
+        if yz is not None:
+            realise, estimateur = yz, "yang-zhang"
+        else:
+            realise = float(r.tail(SEANCES_REALISE).std()
+                            * np.sqrt(PERIODES_AN) * 100)
+            estimateur = "clôtures seules"
+        sortie["estimateur_realise"] = estimateur
         from marketlab import forecast
         ewma = float(forecast.volatilite_ewma(r) * np.sqrt(PERIODES_AN) * 100)
         sortie["realise_21s_pct"] = round(realise, 1)
@@ -346,11 +358,12 @@ def comparer_previsionnistes(seances_min: int = 15) -> dict:
     duels = []
     for symbole, part in releve.groupby("symbole"):
         try:
-            closes = get_ohlcv(symbole, lookback_days=400)["close"]
+            df_sym = get_ohlcv(symbole, lookback_days=400)
         except Exception:
             continue
-        closes = pd.to_numeric(closes, errors="coerce").dropna()
-        realise = vol_cloture(closes)
+        from marketlab import vol_ohlc
+        realise = vol_ohlc.vol_future(df_sym)
+        closes = pd.to_numeric(df_sym["close"], errors="coerce").dropna()
         r = np.log(closes).diff()
         for _, ligne in part.iterrows():
             date = pd.Timestamp(ligne["date"])

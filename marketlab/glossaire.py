@@ -164,7 +164,18 @@ TERMES: dict[str, dict] = {
         "court": "Perte que l'on ne dépasse que dans 5 % des scénarios.",
         "long": "Une VaR de −8 % signifie : dans 95 cas sur 100 la perte reste "
                 "sous 8 %. Elle ne dit RIEN de ce qui se passe dans les 5 cas "
-                "restants, qui peuvent être bien pires.",
+                "restants — c'est la perte extrême moyenne qui y répond.",
+        "categorie": "Mesure",
+    },
+    "es": {
+        "libelle": "Perte extrême moyenne (ES)",
+        "court": "Quand la perte dépasse la VaR, voilà ce qu'elle vaut en "
+                 "moyenne.",
+        "long": "L'Expected Shortfall répond à la question que la VaR laisse "
+                "ouverte : dans les 5 pires cas sur 100, combien perd-on ? "
+                "C'est la mesure que les régulateurs bancaires ont adoptée "
+                "quand la VaR a montré ses angles morts — et elle est toujours "
+                "au moins aussi sévère qu'elle.",
         "categorie": "Mesure",
     },
     "quantile": {
