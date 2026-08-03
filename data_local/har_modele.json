@@ -5,28 +5,28 @@
       "horizon": 1,
       "scores": {
         "har": {
-          "qlike": 0.30793,
-          "rmse_log": 0.5824
+          "qlike": 0.30796,
+          "rmse_log": 0.583
         },
         "hasard": {
-          "qlike": 0.28227,
-          "rmse_log": 0.60578
+          "qlike": 0.2927,
+          "rmse_log": 0.61338
         },
         "ewma": {
-          "qlike": 0.35016,
-          "rmse_log": 0.65949
+          "qlike": 0.39527,
+          "rmse_log": 0.68758
         }
       },
       "gagnant": "hasard",
       "gagnant_rmse": "har",
       "har_retenu": false,
-      "n_entrainement": 643,
-      "n_test": 714,
+      "n_entrainement": 701,
+      "n_test": 661,
       "n_titres": 58,
-      "coupe": "2026-07-15",
+      "coupe": "2026-07-16",
       "periode": [
         "2026-06-21",
-        "2026-07-31"
+        "2026-08-01"
       ],
       "modele": null
     },
@@ -35,28 +35,28 @@
       "horizon": 20,
       "scores": {
         "har": {
-          "qlike": 0.10563,
-          "rmse_log": 0.50205
+          "qlike": 0.10124,
+          "rmse_log": 0.4908
         },
         "hasard": {
-          "qlike": 0.14312,
-          "rmse_log": 0.59961
+          "qlike": 0.14709,
+          "rmse_log": 0.60727
         },
         "ewma": {
-          "qlike": 0.09231,
-          "rmse_log": 0.48354
+          "qlike": 0.09317,
+          "rmse_log": 0.48528
         }
       },
       "gagnant": "ewma",
       "gagnant_rmse": "ewma",
       "har_retenu": false,
       "n_entrainement": 210,
-      "n_test": 45,
+      "n_test": 50,
       "n_titres": 58,
       "coupe": "2026-07-04",
       "periode": [
         "2026-06-21",
-        "2026-07-12"
+        "2026-07-13"
       ],
       "modele": null
     }
