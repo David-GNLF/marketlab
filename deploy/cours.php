@@ -28,10 +28,17 @@ echo json_encode([
     'cours' => $cours,
     'genere_le' => date('Y-m-d H:i:s'),
     'ttl_s' => ML_COURS_TTL,
-    'note' => 'crypto en temps réel (Binance) ; forex à la minute ; actions '
-            . 'actions américaines et indices en temps réel, forex sous '
-            . '2 min, matières premières différées de 10 min (mesuré le '
-            . '31/07/2026, marchés ouverts). ' 
-            . 'aux sources gratuites. « age_s » donne l\'âge réel de chaque '
-            . 'cotation ; source « publié » = repli sur l\'instantané du site.',
+    // Valeurs MESURÉES le 31/07/2026 en séance, sur deux relevés espacés
+    // de 90 s. La date fait partie de l'affirmation : une promesse de
+    // fraîcheur sans date de mesure redevient fausse toute seule.
+    // Chaîne à guillemets DOUBLES : le texte contient des apostrophes
+    // françaises (« l'âge », « c'est »). En guillemets simples il faudrait
+    // les échapper une à une, et un seul oubli casse la page entière — ce
+    // qui vient d'arriver en écrivant ce commentaire.
+    'note' => "mesuré le 31/07/2026, marchés ouverts : actions américaines, "
+            . "indices et crypto en temps réel ; forex sous 2 min ; matières "
+            . "premières différées de 10 min (différé du CME). « age_s » "
+            . "donne l'âge réel de chaque cotation — c'est lui qui fait foi, "
+            . "pas cette phrase générale ; source « publié » = repli sur "
+            . "l'instantané du site.",
 ], JSON_UNESCAPED_UNICODE);
