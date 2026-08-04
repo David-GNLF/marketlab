@@ -56,6 +56,14 @@ ROBOTS = {
     # actions ou les matières — d'où un levier ×5 contre ×2.
     "claudefx": {"cle": "dossiers", "horizon": 20, "classes": ["Forex"],
                  "libelle": "forex uniquement, 20 séances"},
+    # Même chose que « claude » en tout point, SAUF qu'il obéit à la
+    # suspension de régime. La seule variable est donc l'obéissance au veto,
+    # et l'écart avec « claude » mesure ce que l'abstention a coûté ou
+    # rapporté. Sans lui, on suspendrait sans jamais savoir si on a bien fait.
+    "claudeprudent": {"cle": "dossiers", "horizon": 20, "classes": None,
+                      "respecte_suspension": True,
+                      "libelle": "tous marchés, 20 séances, respecte "
+                                 "l'abstention de régime"},
 }
 SPREAD_PCT = 0.05
 MAX_POSITIONS = 4
@@ -265,7 +273,20 @@ def _equite(compte: dict) -> float:
 
 # ------------------------------------------------------------------- le robot
 
-def decisions_robot(compte: dict, verdicts: list[dict]) -> list[str]:
+def _lecture(d: dict, respecte_suspension: bool) -> tuple[str, float]:
+    """Avis et taille vus par ce robot : avec ou sans la suspension.
+
+    Le site, lui, montre toujours l'avis suspendu — c'est le conseil, et
+    il reste prudent. Ce qui est séparé ici, c'est la MESURE.
+    """
+    if respecte_suspension or "avis_hors_suspension" not in d:
+        return d["avis"], float(d.get("taille_multiplicateur", 0) or 0)
+    return (d["avis_hors_suspension"],
+            float(d.get("taille_hors_suspension", 0) or 0))
+
+
+def decisions_robot(compte: dict, verdicts: list[dict],
+                    respecte_suspension: bool = False) -> list[str]:
     journal = []
     par_symbole = {d["symbole"]: d for d in verdicts if "erreur" not in d}
 
@@ -273,7 +294,8 @@ def decisions_robot(compte: dict, verdicts: list[dict]) -> list[str]:
     restantes = []
     for p in compte["positions"]:
         d = par_symbole.get(p["symbole"])
-        if d and d["avis"] in ("Défavorable", "S'abstenir"):
+        avis_vu = _lecture(d, respecte_suspension)[0] if d else None
+        if avis_vu in ("Défavorable", "S'abstenir"):
             try:
                 prix = float(get_ohlcv(p["symbole"],
                                        lookback_days=30)["close"].iloc[-1])
@@ -289,8 +311,8 @@ def decisions_robot(compte: dict, verdicts: list[dict]) -> list[str]:
                 "levier": p["levier"], "entree": p["prix_entree"],
                 "sortie": round(prix, 4), "pnl": round(pnl, 2),
                 "ouvert_le": p["ouvert_le"], "ferme_le": _maintenant(),
-                "motif": f"verdict retombé à « {d['avis']} »"})
-            journal.append(f"FERMÉ {p['symbole']} (verdict « {d['avis']} ») : "
+                "motif": f"verdict retombé à « {avis_vu} »"})
+            journal.append(f"FERMÉ {p['symbole']} (verdict « {avis_vu} ») : "
                            f"P&L {pnl:+.2f} $")
         else:
             restantes.append(p)
@@ -300,8 +322,9 @@ def decisions_robot(compte: dict, verdicts: list[dict]) -> list[str]:
     detenues = {p["symbole"] for p in compte["positions"]}
     candidats = sorted(
         [d for d in verdicts if "erreur" not in d
-         and d["avis"] == "Favorable" and d.get("plan")
-         and d.get("taille_multiplicateur", 0) > 0
+         and _lecture(d, respecte_suspension)[0] == "Favorable"
+         and d.get("plan")
+         and _lecture(d, respecte_suspension)[1] > 0
          and d["symbole"] not in detenues],
         key=lambda d: -d["note_globale"])
 
@@ -312,7 +335,8 @@ def decisions_robot(compte: dict, verdicts: list[dict]) -> list[str]:
                            "positions déjà ouvertes")
             continue
         equite = _equite(compte)
-        mise = round(equite * PART_EQUITE * d["taille_multiplicateur"], 2)
+        mise = round(equite * PART_EQUITE
+                     * _lecture(d, respecte_suspension)[1], 2)
         levier = LEVIERS.get(d.get("classe", "Actions"), 2)
 
         # RISQUE D'ENSEMBLE. Jusqu'ici chaque position était dimensionnée
@@ -439,7 +463,10 @@ def main() -> int:
             if est_robot:
                 v = verdicts_par_robot.get(compte["nom"]) or []
                 if v:
-                    evenements += decisions_robot(compte, v)
+                    evenements += decisions_robot(
+                        compte, v,
+                        respecte_suspension=ROBOTS[compte["nom"]]
+                        .get("respecte_suspension", False))
                 else:
                     evenements.append("aucun verdict disponible pour cet "
                                       "horizon : robot en attente")
@@ -512,16 +539,22 @@ def main() -> int:
         "robots": [{"nom": n, "horizon": c["horizon"],
                     "specialite": c.get("libelle")}
                    for n, c in ROBOTS.items()],
-        "experience": ("Trois robots suivent EXACTEMENT les mêmes règles et ne "
-                       "diffèrent que par un paramètre chacun. « claude » "
-                       "(tous marchés, 20 séances) est la référence. "
-                       "« claude5 » n'en diffère que par l'HORIZON "
-                       "(5 séances) : l'écart mesure ce que vaut "
-                       "l'horizon. « claudefx » n'en diffère que par "
-                       "l'UNIVERS (forex uniquement) : l'écart mesure ce "
-                       "que vaut la spécialisation. Une variable à la "
-                       "fois, sinon on ne saurait pas à quoi attribuer "
-                       "la différence."),
+        "experience": ("Quatre robots, mêmes règles, UNE variable chacun par "
+                       "rapport à la référence. « claude » (tous marchés, "
+                       "20 séances) est la référence. « claude5 » n'en diffère "
+                       "que par l'HORIZON (5 séances). « claudefx » que par "
+                       "l'UNIVERS (forex seul). « claudeprudent » que par "
+                       "l'OBÉISSANCE au veto de régime : il s'abstient quand "
+                       "le site s'abstient, là où les trois autres continuent "
+                       "d'appliquer le verdict brut. "
+                       "POURQUOI CETTE DERNIÈRE VARIABLE. Le site s'abstient "
+                       "désormais dans la plupart des régimes, par prudence. "
+                       "Mais les robots sont l'appareil de mesure : les faire "
+                       "taire refermerait la boucle qui pourrait un jour "
+                       "justifier de lever le silence. Ils continuent donc de "
+                       "trader en argent virtuel — où s'abstenir ne protège "
+                       "rien — et l'écart avec « claudeprudent » mesurera ce "
+                       "que l'abstention aura coûté ou rapporté."),
         "avertissement": "Argent virtuel — l'environnement mesure la "
                          "fiabilité de l'outil, il ne constitue pas un "
                          "conseil en investissement.",

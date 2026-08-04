@@ -299,6 +299,7 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
     # La note retournée est journalisée comme CANDIDATE : si elle fait ses
     # preuves sur des données fraîches, elle gagnera sa place.
     suspension = None
+    taille_hors_suspension = taille
     try:
         # Import TARDIF, et c'est nécessaire : `regimes` importe `decision`
         # pour réutiliser sa mesure de compétence. Un import croisé en tête de
@@ -333,6 +334,7 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
                 f"que l'avis vaille quelque chose, et s'abstenir ne coûte "
                 f"qu'une occasion manquée là où suivre coûte le spread, le "
                 f"portage et le risque. Ce n'est PAS une inversion démontrée.")
+        taille_hors_suspension = taille
         taille = 0.0
         candidats["note_retournee"] = round(-float(note_globale), 1)
 
@@ -352,14 +354,16 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
         taille_risque = {"retenue": False, "erreur": str(exc)[:80]}
 
     # --- avis final ---
-    if taille == 0.0:
-        avis = "S'abstenir"
-    elif note_globale >= 30:
-        avis = "Favorable"
-    elif note_globale <= -30:
-        avis = "Défavorable"
-    else:
-        avis = "Neutre"
+    def _avis(t: float) -> str:
+        if t == 0.0:
+            return "S'abstenir"
+        if note_globale >= 30:
+            return "Favorable"
+        if note_globale <= -30:
+            return "Défavorable"
+        return "Neutre"
+
+    avis = _avis(taille)
 
     signes = [np.sign(c["note"]) for c in composantes.values()
               if abs(c["note"]) >= 5]
@@ -415,6 +419,21 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
         "horizon": horizon,
         "note_globale": round(float(note_globale), 1),
         "avis": avis,
+        # CE QUE L'AVIS SERAIT SANS LA SUSPENSION DE RÉGIME. Le site
+        # affiche `avis` — il s'abstient, c'est la posture retenue. Mais
+        # les robots sont l'APPAREIL DE MESURE : c'est leur activité qui
+        # accumule les épisodes indépendants dont on a besoin pour un jour
+        # prouver, ou réfuter, un avantage. Les faire taire refermerait la
+        # boucle qui pourrait justifier de lever le silence : l'outil
+        # s'interdirait de trader jusqu'à avoir prouvé qu'il sait trader,
+        # sans plus jamais produire la preuve.
+        #
+        # Ces deux champs n'apparaissent QUE lorsqu'une suspension a
+        # effectivement joué : leur présence signale l'écart, leur absence
+        # dit qu'il n'y en a pas.
+        **({"avis_hors_suspension": _avis(taille_hors_suspension),
+            "taille_hors_suspension": taille_hors_suspension}
+           if suspension else {}),
         "conclusion": conclusion,
         "concordance_%": round(concordance, 0),
         "taille_multiplicateur": taille,
