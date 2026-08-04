@@ -150,12 +150,24 @@ def sonder(quand: pd.Timestamp | None = None) -> dict:
             "problemes": problemes, "sain": not problemes}
 
 
-def verifier_et_alerter() -> dict:
+def verifier_et_alerter(quand=None) -> dict:
     """Sonde, compare à l'état précédent, alerte SUR TRANSITION seulement.
 
     Ne lève jamais : une sonde qui casse la veille protégerait la panne.
+
+    `quand` — instant de référence, pour la fraîcheur de l'instantané. En
+    production on le laisse à None : c'est maintenant. Il existe parce que
+    sans lui cette fonction est INTESTABLE : elle lisait l'horloge réelle,
+    donc un jeu d'essai figé vieillissait tout seul et le test finissait par
+    tomber sans que rien n'ait changé dans le code. C'est exactement ce qui
+    s'est produit le 2026-08-04 : deux tests écrits le 2 août ont bloqué la
+    publication 48 h plus tard, quand leur instantané simulé a franchi le
+    plafond de péremption.
+
+    Une fonction dont le comportement dépend d'une horloge cachée n'est pas
+    seulement pénible à tester : elle est impossible à démontrer correcte.
     """
-    etat = sonder()
+    etat = sonder(quand)
     try:
         precedents = _lire_distants([ETAT_DISTANT]).get(ETAT_DISTANT)
         avant = json.loads(precedents.decode("utf-8")) if precedents else {}

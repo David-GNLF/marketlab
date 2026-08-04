@@ -109,27 +109,68 @@ def test_panne_nouvelle_alerte_urgente_une_fois(monkeypatch):
     envois = _canaux(monkeypatch)
     _etat_precedent(monkeypatch, [])
     monkeypatch.setattr(ss, "_http_etat", lambda: None)
-    r = ss.verifier_et_alerter()
+    r = ss.verifier_et_alerter(QUAND)
     assert r["transitions"] == 1
     assert envois and envois[0][1] is True               # urgent
+
+
+# AUCUN de ces tests ne doit toucher le réseau. Ils vérifient une LOGIQUE DE
+# TRANSITION — « une panne inchangée reste muette », « un rétablissement se
+# signale une fois » — et cette logique ne dépend pas de l'état du serveur au
+# moment où la suite tourne. Deux d'entre eux appelaient pourtant le vrai site
+# et ont bloqué la publication du 2026-08-04 : `verifier_et_alerter` faisait
+# une requête HTTP réelle, et `sonder` une lecture FTPS réelle, si bien que le
+# problème mémorisé n'était pas celui recalculé juste après.
+#
+# Un test qui interroge le réseau depuis une barrière bloquante ne mesure plus
+# le code : il mesure la météo.
 
 
 def test_panne_inchangee_reste_muette(monkeypatch):
     envois = _canaux(monkeypatch)
     monkeypatch.setattr(ss, "_http_etat", lambda: None)
+    # Les fichiers distants sont stubbés AVANT le premier sondage : sans cela,
+    # `probleme` venait d'une lecture réelle et différait de ce que
+    # `verifier_et_alerter` recalculait ensuite — d'où une transition fantôme.
+    monkeypatch.setattr(ss, "_lire_distants",
+                        lambda chemins: {c: _fichiers_sains().get(c)
+                                         for c in chemins})
     probleme = ss.sonder(QUAND)["problemes"][0]
     _etat_precedent(monkeypatch, [probleme])
-    r = ss.verifier_et_alerter()
+    r = ss.verifier_et_alerter(QUAND)
     assert r["transitions"] == 0 and envois == []
 
 
 def test_retablissement_signale_sans_urgence(monkeypatch):
     envois = _canaux(monkeypatch)
+    # 401 : le serveur RÉPOND, le site est simplement protégé par mot de passe.
+    # C'est l'état sain nominal de ce site, et il doit être simulé — sinon le
+    # test échoue dès que la connexion du poste de travail hoquette.
+    monkeypatch.setattr(ss, "_http_etat", lambda: 401)
     _etat_precedent(monkeypatch, ["site injoignable en HTTP (délai ou "
                                   "connexion refusée)"])
-    r = ss.verifier_et_alerter()
+    r = ss.verifier_et_alerter(QUAND)
     assert r["sain"] and r["transitions"] == 1
     assert envois[0][1] is False and "rétabli" in envois[0][0]
+
+
+def test_aucun_test_de_ce_fichier_ne_touche_au_reseau(monkeypatch):
+    """Garde-fou du garde-fou.
+
+    Si `_http_etat` ou `_lire_distants` reprenaient le chemin réel, l'échec
+    serait intermittent et on le mettrait sur le compte du réseau pendant des
+    semaines. Ici on les rend explosifs et l'on vérifie que la sonde stubbée
+    fonctionne quand même de bout en bout.
+    """
+    def _interdit(*a, **k):
+        raise AssertionError("ce test a tenté un accès réseau")
+
+    monkeypatch.setattr(ss.urllib.request, "urlopen", _interdit)
+    monkeypatch.setattr(ss, "_http_etat", lambda: 401)
+    monkeypatch.setattr(ss, "_lire_distants",
+                        lambda chemins: {c: _fichiers_sains().get(c)
+                                         for c in chemins})
+    assert ss.sonder(QUAND)["sain"]
 
 
 def test_la_sonde_en_panne_ne_casse_jamais_la_veille(monkeypatch):
@@ -139,5 +180,5 @@ def test_la_sonde_en_panne_ne_casse_jamais_la_veille(monkeypatch):
         raise RuntimeError("FTPS en panne")
     monkeypatch.setattr(ss, "_lire_distants", _casse)
     monkeypatch.setattr(ss, "_ecrire_distant", _casse)
-    r = ss.verifier_et_alerter()                          # ne lève pas
+    r = ss.verifier_et_alerter(QUAND)                          # ne lève pas
     assert not r["sain"]
