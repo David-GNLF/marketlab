@@ -309,14 +309,30 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
     except Exception:
         suspension = None      # garde-fou muet plutôt que publication bloquée
     if suspension:
-        vetos.append(
-            f"VETO DE RÉGIME : en "
-            f"{regimes.ETIQUETTES.get(suspension['regime'], suspension['regime'])}, "
-            f"le classement de cet outil a été mesuré INVERSÉ "
-            f"(IC {suspension.get('ic_purge')}, confirmé par "
-            f"{suspension.get('part_concluante_%')} % des découpages sans "
-            f"recouvrement). L'avis directionnel est suspendu — il n'est pas "
-            f"retourné, l'effet reposant sur trop peu d'épisodes distincts.")
+        # DEUX PHRASES, PARCE QU'IL Y A DEUX MOTIFS. La formulation unique
+        # affirmait « mesuré INVERSÉ … confirmé par X % des découpages » — et
+        # publiait, pour une suspension prudentielle, « confirmé par 0,0 % ».
+        # Une phrase qui se contredit dans sa propre parenthèse est pire qu'un
+        # silence : elle apprend au lecteur à ne plus lire les vetos.
+        etiquette = regimes.ETIQUETTES.get(suspension["regime"],
+                                           suspension["regime"])
+        if suspension.get("motif") == "démontré":
+            vetos.append(
+                f"VETO DE RÉGIME : en {etiquette}, le classement de cet outil "
+                f"a été mesuré INVERSÉ (IC {suspension.get('ic_purge')}, "
+                f"confirmé par {suspension.get('part_concluante_%')} % des "
+                f"découpages sans recouvrement). L'avis directionnel est "
+                f"suspendu — il n'est pas retourné, l'effet reposant sur trop "
+                f"peu d'épisodes distincts.")
+        else:
+            vetos.append(
+                f"ABSTENTION PRUDENTIELLE : en {etiquette}, la mesure penche "
+                f"du mauvais côté (IC {suspension.get('ic_purge')}) sans le "
+                f"démontrer — {suspension.get('part_concluante_%')} % des "
+                f"découpages sans recouvrement concluent. Rien n'établit donc "
+                f"que l'avis vaille quelque chose, et s'abstenir ne coûte "
+                f"qu'une occasion manquée là où suivre coûte le spread, le "
+                f"portage et le risque. Ce n'est PAS une inversion démontrée.")
         taille = 0.0
         candidats["note_retournee"] = round(-float(note_globale), 1)
 
