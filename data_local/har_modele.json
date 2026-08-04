@@ -5,28 +5,28 @@
       "horizon": 1,
       "scores": {
         "har": {
-          "qlike": 0.30796,
-          "rmse_log": 0.583
+          "qlike": 0.2933,
+          "rmse_log": 0.57791
         },
         "hasard": {
-          "qlike": 0.2927,
-          "rmse_log": 0.61338
+          "qlike": 0.28371,
+          "rmse_log": 0.61976
         },
         "ewma": {
-          "qlike": 0.39527,
-          "rmse_log": 0.68758
+          "qlike": 0.37703,
+          "rmse_log": 0.68602
         }
       },
       "gagnant": "hasard",
       "gagnant_rmse": "har",
       "har_retenu": false,
       "n_entrainement": 701,
-      "n_test": 661,
+      "n_test": 720,
       "n_titres": 58,
       "coupe": "2026-07-16",
       "periode": [
         "2026-06-21",
-        "2026-08-01"
+        "2026-08-02"
       ],
       "modele": null
     },
@@ -35,31 +35,39 @@
       "horizon": 20,
       "scores": {
         "har": {
-          "qlike": 0.10124,
-          "rmse_log": 0.4908
+          "qlike": 0.0947,
+          "rmse_log": 0.44164
         },
         "hasard": {
-          "qlike": 0.14709,
-          "rmse_log": 0.60727
+          "qlike": 0.19892,
+          "rmse_log": 0.65115
         },
         "ewma": {
-          "qlike": 0.09317,
-          "rmse_log": 0.48528
+          "qlike": 0.1638,
+          "rmse_log": 0.57918
         }
       },
-      "gagnant": "ewma",
-      "gagnant_rmse": "ewma",
-      "har_retenu": false,
-      "n_entrainement": 210,
-      "n_test": 50,
+      "gagnant": "har",
+      "gagnant_rmse": "har",
+      "har_retenu": true,
+      "n_entrainement": 223,
+      "n_test": 96,
       "n_titres": 58,
-      "coupe": "2026-07-04",
+      "coupe": "2026-07-05",
       "periode": [
         "2026-06-21",
-        "2026-07-13"
+        "2026-07-14"
       ],
-      "modele": null
+      "modele": {
+        "b0": -0.8416305506312274,
+        "b_jour": 0.030249035495179544,
+        "b_semaine": 0.45828134003275434,
+        "b_mois": 0.4309385283251974,
+        "somme_pentes": 0.9194689038531313,
+        "n_obs": 319,
+        "r2": 0.9216155315780634
+      }
     }
   },
-  "retenu": false
+  "retenu": true
 }
