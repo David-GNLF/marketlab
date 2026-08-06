@@ -1629,6 +1629,21 @@ function PageConcours() {
                                        paddingLeft: 10 }}>
             <strong>Expérience en cours</strong> — {donnees.experience}</p>
         )}
+        {/* Le témoin affiche les MÊMES positions que la référence tant
+            qu'aucun régime n'est suspendu. Sans cette mention, le lecteur
+            conclut à une duplication — conclusion fausse tirée d'une
+            observation juste. La bordure change de couleur selon que l'écart
+            est en train de se mesurer ou non. */}
+        {donnees.temoin?.lecture && (
+          <p className="note"
+             style={{ borderLeft: "3px solid "
+                        + (donnees.temoin.actif ? "var(--good)" : "var(--baseline)"),
+                      paddingLeft: 10 }}>
+            <strong>{donnees.temoin.actif
+              ? "Le témoin se distingue en ce moment"
+              : "Le témoin est identique à « claude » aujourd'hui"}</strong>
+            {" "}— {donnees.temoin.lecture}</p>
+        )}
         <Table lignes={donnees.comptes?.map((c, i) => ({
           "#": i + 1,
           compte: "" + c.nom,

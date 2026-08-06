@@ -537,8 +537,17 @@ def main() -> int:
                          "positions max ; stop/objectif du plan ; clôture si "
                          "le verdict se retourne ; tout est journalisé."),
         "robots": [{"nom": n, "horizon": c["horizon"],
-                    "specialite": c.get("libelle")}
+                    "specialite": c.get("libelle"),
+                    "respecte_suspension": c.get("respecte_suspension", False)}
                    for n, c in ROBOTS.items()],
+        # ÉTAT DU TÉMOIN, publié pour être affiché. Sans cette mention, la page
+        # montre deux comptes aux positions rigoureusement identiques et le
+        # lecteur conclut — à juste titre — que l'un duplique l'autre. Il n'en
+        # est rien : ils décident séparément et aboutissent au même résultat
+        # parce qu'il n'y a rien à quoi obéir. Une page qui laisse tirer une
+        # conclusion fausse d'une observation juste doit fournir le chaînon
+        # manquant, pas compter sur la mémoire du lecteur.
+        "temoin": _etat_temoin(),
         "experience": ("Quatre robots, mêmes règles, UNE variable chacun par "
                        "rapport à la référence. « claude » (tous marchés, "
                        "20 séances) est la référence. « claude5 » n'en diffère "
@@ -584,6 +593,54 @@ def main() -> int:
 
     notifier_mouvements(mouvements)
     return 0
+
+
+def _etat_temoin() -> dict:
+    """Le robot témoin est-il actuellement distinguable de la référence ?
+
+    « claudeprudent » ne diffère de « claude » que par l'obéissance au veto de
+    régime. Tant qu'aucun régime n'est suspendu, il n'a rien à quoi obéir : les
+    deux comptes prennent les mêmes décisions et affichent les mêmes positions.
+    C'est voulu, et c'est même verrouillé par un test — mais vu de la page, cela
+    ressemble à une duplication, et la conclusion est alors fausse pour une
+    observation juste.
+    """
+    try:
+        from marketlab import regimes
+        courant = regimes.regime_courant()
+        suspendus = regimes.charger_verdict().get("suspendus") or []
+    except Exception as exc:
+        return {"actif": None,
+                "lecture": "État du régime indisponible "
+                           f"({type(exc).__name__}) : impossible de dire si le "
+                           "témoin se distingue aujourd'hui."}
+
+    etiquette = regimes.ETIQUETTES.get(courant, courant)
+    autres = [regimes.ETIQUETTES.get(r, r) for r in suspendus]
+    actif = courant in suspendus
+
+    if actif:
+        lecture = (
+            f"Nous sommes en {etiquette}, où l'avis directionnel est "
+            "suspendu : « claudeprudent » s'abstient là où « claude » applique "
+            "le verdict brut. C'est à partir de maintenant que l'écart entre "
+            "les deux mesure ce que l'abstention coûte ou rapporte.")
+    elif autres:
+        lecture = (
+            f"Nous sommes en {etiquette}, qui n'est pas suspendu : "
+            "« claudeprudent » n'a rien à quoi obéir et prend donc exactement "
+            "les mêmes décisions que « claude ». Les deux comptes sont "
+            "identiques PAR CONSTRUCTION — ils décident séparément et "
+            "aboutissent au même résultat, ce n'est pas une duplication. Leur "
+            "écart n'apparaîtra qu'en " + " ou en ".join(autres) + ".")
+    else:
+        lecture = (
+            f"Nous sommes en {etiquette}, et aucun régime n'est actuellement "
+            "suspendu : « claudeprudent » se comporte exactement comme "
+            "« claude ». Il ne s'en distinguera que le jour où une suspension "
+            "sera active.")
+    return {"actif": actif, "regime": courant, "suspendus": suspendus,
+            "lecture": lecture}
 
 
 def bilan_trades(compte: dict) -> dict:
