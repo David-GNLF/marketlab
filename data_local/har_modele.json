@@ -5,67 +5,75 @@
       "horizon": 1,
       "scores": {
         "har": {
-          "qlike": 0.29172,
-          "rmse_log": 0.5726
+          "qlike": 0.27226,
+          "rmse_log": 0.57064
         },
         "hasard": {
-          "qlike": 0.28845,
-          "rmse_log": 0.62207
+          "qlike": 0.27615,
+          "rmse_log": 0.62086
         },
         "ewma": {
-          "qlike": 0.37244,
-          "rmse_log": 0.64186
+          "qlike": 0.33111,
+          "rmse_log": 0.66654
         }
       },
-      "gagnant": "hasard",
+      "gagnant": "har",
       "gagnant_rmse": "har",
-      "har_retenu": false,
-      "n_entrainement": 815,
-      "n_test": 722,
+      "har_retenu": true,
+      "n_entrainement": 825,
+      "n_test": 837,
       "n_titres": 58,
-      "coupe": "2026-07-18",
+      "coupe": "2026-07-20",
       "periode": [
         "2026-06-21",
-        "2026-08-04"
+        "2026-08-08"
       ],
-      "modele": null
+      "modele": {
+        "b0": -0.12588916275661,
+        "b_jour": 0.41386018595018914,
+        "b_semaine": 0.11405736438613884,
+        "b_mois": 0.45992553466221364,
+        "somme_pentes": 0.9878430849985417,
+        "n_obs": 1662,
+        "r2": 0.8680811831490187
+      }
     },
     "20": {
       "suffisant": true,
       "horizon": 20,
       "scores": {
         "har": {
-          "qlike": 0.08523,
-          "rmse_log": 0.39761
+          "qlike": 0.06102,
+          "rmse_log": 0.35222
         },
         "hasard": {
-          "qlike": 0.14886,
-          "rmse_log": 0.55745
+          "qlike": 0.14286,
+          "rmse_log": 0.51576
         },
         "ewma": {
-          "qlike": 0.25692,
-          "rmse_log": 0.76593
+          "qlike": 0.10814,
+          "rmse_log": 0.47402
         }
       },
       "gagnant": "har",
       "gagnant_rmse": "har",
       "har_retenu": true,
-      "n_entrainement": 228,
-      "n_test": 207,
+      "n_entrainement": 402,
+      "n_test": 158,
       "n_titres": 58,
-      "coupe": "2026-07-06",
+      "coupe": "2026-07-09",
       "periode": [
         "2026-06-21",
-        "2026-07-16"
+        "2026-07-20"
       ],
       "modele": {
-        "b0": -0.6445773361672141,
-        "b_jour": 0.06921867636218759,
-        "b_semaine": 0.47087818921097546,
-        "b_mois": 0.3978628305502827,
-        "somme_pentes": 0.9379596961234458,
-        "n_obs": 435,
-        "r2": 0.9244822990212114
+        "b0": -0.5914258047681318,
+        "b_jour": 0.07179807667894234,
+        "b_semaine": 0.4813015383229761,
+        "b_mois": 0.38856518654460204,
+        "somme_pentes": 0.9416648015465205,
+        "n_obs": 560,
+        "r2": 0.9293440869664631
       }
     }
   },
