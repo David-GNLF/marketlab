@@ -164,7 +164,19 @@ jobs:
       # n'a pas été mis à jour alors que les verdicts étaient déjà calculés.
       # Un robot muet est préférable à un site figé : l'échec reste visible
       # dans Actions, et le prochain passage rattrape les comptes.
+      #
+      # if: always() — LA TENUE EST UNE FONCTION DE SÉCURITÉ. Les nuits des
+      # 07-09/08/2026, un test de graphique PHP qui pourrissait avec
+      # l'horloge a mis la batterie en rouge, la publication s'est arrêtée
+      # aux tests… et les stops de 12 positions ouvertes n'ont plus été
+      # confrontés aux séances pendant trois nuits. Un test rouge ailleurs
+      # ne doit jamais geler les protections des comptes. L'étape ne dépend
+      # donc plus de la batterie globale : elle rejoue d'abord LES tests du
+      # moteur de trading (les seuls dont dépend la justesse de la tenue) et
+      # ne tient les comptes que s'ils sont verts — chaque fonction gardée
+      # par SES tests, pas par ceux des autres.
       - name: Robot de trading virtuel
+        if: always()
         continue-on-error: true
         env:
           MARKETLAB_FTP_HOTE: ${{ secrets.MARKETLAB_FTP_HOTE }}
@@ -174,7 +186,9 @@ jobs:
           # sans ce canal, le robot continuerait d'agir en silence : c'est
           # exactement ce qu'on vient de corriger
           MARKETLAB_NTFY_TOPIC: ${{ secrets.MARKETLAB_NTFY_TOPIC }}
-        run: python scripts/robot_trading.py
+        run: |
+          python -m pytest tests/test_trading.py tests/test_invariant_equite.py -q
+          python scripts/robot_trading.py
 
       # Le rapport hebdomadaire de gestion : l'outil rend compte au lieu
       # d'attendre d'être visité. L'étape tourne chaque nuit mais le module

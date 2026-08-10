@@ -298,8 +298,18 @@ def test_filtrer_sur_tout_ne_retire_rien():
 
 
 def test_filtrer_ecarte_les_points_trop_anciens():
+    """INCIDENT DES 07-09/08/2026 : ce test portait une date EN DUR
+    (« 2026-07-30 ») face à un filtre « 7 derniers jours » calculé sur
+    l'horloge RÉELLE. Écrit le 30 juillet, il était condamné à mourir le
+    7 août — et comme les tests verrouillent la publication, il a gelé le
+    site ET la tenue des comptes trois nuits de suite. Troisième incident
+    de la même famille en une semaine : face à une fenêtre sur l'horloge
+    réelle, le point « récent » se calcule depuis MAINTENANT, jamais depuis
+    le jour où le test fut écrit."""
+    from datetime import datetime, timedelta
+    recent = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M")
     serie = [{"t": "2020-01-01 22:00", "v": 1000.0},
-             {"t": "2026-07-30 22:00", "v": 1100.0}]
+             {"t": recent, "v": 1100.0}]
     garde = _appeler("ml_filtrer_serie($serie, 7)", None, serie)
     assert len(garde) == 1 and garde[0]["v"] == 1100.0
 

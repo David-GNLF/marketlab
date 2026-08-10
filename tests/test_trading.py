@@ -157,3 +157,80 @@ def test_equite_compte_marge_et_pnl_des_positions():
 
 def test_equite_dun_compte_vierge_vaut_le_capital():
     assert rt._equite(_compte(solde=1000.0)) == pytest.approx(1000.0)
+
+
+# --- rattrapage des séances manquées -----------------------------------------
+#
+# INCIDENT DES 07-09/08/2026 : trois nuits sans tenue (publication en panne),
+# et l'ancienne tenue n'aurait confronté les stops qu'à la DERNIÈRE séance au
+# retour — un stop franchi jeudi serait resté ouvert comme si de rien n'était.
+# La tenue rejoue désormais chaque séance manquée, dans l'ordre chronologique.
+
+def _calendrier(monkeypatch, seances):
+    """Un vrai calendrier de séances : {date: (haut, bas, clôture)}."""
+    df = pd.DataFrame(
+        [{"high": h, "low": b, "close": c} for (h, b, c) in seances.values()],
+        index=pd.to_datetime(list(seances)))
+    monkeypatch.setattr(rt, "get_ohlcv", lambda s, lookback_days=30: df)
+
+
+def test_un_stop_franchi_pendant_la_panne_est_rattrape(monkeypatch):
+    _calendrier(monkeypatch, {
+        "2026-08-06": (105.0, 99.0, 100.0),
+        "2026-08-07": (105.0, 93.0, 100.0),   # le stop passe PENDANT la panne
+        "2026-08-08": (105.0, 99.0, 100.0),
+    })
+    c = _compte(positions=[_position(stop=96.0)],
+                equity=[["2026-08-06 22:30", 1000.0]])   # dernière tenue : le 6
+    evenements = rt.tenir_compte(c)
+    assert "stop touché" in evenements[0]
+    assert c["historique"][0]["sortie"] == 96.0
+
+
+def test_la_premiere_seance_touchee_gagne_chronologiquement(monkeypatch):
+    # objectif atteint le 7, stop franchi le 8 : la tenue rejouée sort à
+    # l'OBJECTIF — comme si elle avait eu lieu le soir du 7
+    _calendrier(monkeypatch, {
+        "2026-08-07": (104.5, 99.0, 104.0),
+        "2026-08-08": (100.0, 93.0, 95.0),
+    })
+    c = _compte(positions=[_position(stop=96.0, objectif=104.0)],
+                equity=[["2026-08-06 22:30", 1000.0]])
+    assert "objectif atteint" in rt.tenir_compte(c)[0]
+
+
+def test_une_position_nee_apres_la_panne_ignore_l_avant(monkeypatch):
+    _calendrier(monkeypatch, {
+        "2026-08-07": (105.0, 93.0, 100.0),   # aurait franchi le stop…
+        "2026-08-09": (105.0, 99.0, 100.0),
+    })
+    c = _compte(positions=[_position(stop=96.0, ouvert_le="2026-08-09 10:00")],
+                equity=[["2026-08-06 22:30", 1000.0]])
+    assert rt.tenir_compte(c) == []           # …mais avant sa naissance
+
+
+def test_un_ordre_touche_pendant_la_panne_sexecute(monkeypatch):
+    _calendrier(monkeypatch, {
+        "2026-08-07": (105.0, 89.5, 100.0),   # l'achat limite 90 est touché
+        "2026-08-08": (105.0, 99.0, 100.0),
+    })
+    c = _compte(ordres=[_ordre("long", "limite", 90.0,
+                               expire_le="2027-01-01")],
+                equity=[["2026-08-06 22:30", 1000.0]])
+    assert "exécuté" in rt.executer_ordres(c)[0]
+
+
+# --- la tenue ne dépend pas de la génération ---------------------------------
+
+def test_verdicts_absents_donnent_tenue_seule(tmp_path, monkeypatch):
+    """Avant, verdicts.json absent arrêtait TOUT le script : trois nuits de
+    publication en panne ont donc aussi gelé les stops de tous les comptes."""
+    monkeypatch.setattr(rt, "VERDICTS_LOCAL", tmp_path / "absent.json")
+    assert rt.charger_verdicts_publies() == {}
+
+
+def test_verdicts_illisibles_donnent_tenue_seule(tmp_path, monkeypatch):
+    f = tmp_path / "verdicts.json"
+    f.write_text("{cassé", encoding="utf-8")
+    monkeypatch.setattr(rt, "VERDICTS_LOCAL", f)
+    assert rt.charger_verdicts_publies() == {}

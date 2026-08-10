@@ -107,16 +107,58 @@ def _televerser(session, base: str, nom_fichier: str, compte: dict) -> None:
 
 # --------------------------------------------------------------- tenue du jour
 
+def _seances_a_confronter(compte: dict, debut, df) -> list:
+    """Toutes les séances MANQUÉES depuis la dernière tenue, pas juste la dernière.
+
+    INCIDENT DES 07-09/08/2026. La publication est tombée trois nuits de
+    suite (un test qui pourrissait avec l'horloge) et la tenue avec elle.
+    Au retour, l'ancienne tenue n'aurait confronté les stops qu'à la DERNIÈRE
+    séance : les extrêmes de jeudi et vendredi seraient passés à la trappe,
+    et un stop touché jeudi serait resté ouvert comme si de rien n'était.
+
+    La borne est le plus tardif de : la dernière tenue (horodatage du dernier
+    point d'équité — il n'est ajouté qu'après une tenue réussie) et
+    l'ouverture de la position ou de l'ordre (`debut`) — une position ouverte
+    aujourd'hui ne doit pas être jugée sur des extrêmes d'avant sa naissance.
+    Sans index daté ou sans repère : la dernière séance seule, l'exact
+    comportement d'avant (re-confronter une séance déjà tenue est inoffensif,
+    le résultat est déterministe sur les mêmes extrêmes).
+    """
+    if not isinstance(df.index, pd.DatetimeIndex):
+        return [df.iloc[-1]]
+    borne = None
+    try:
+        equity = compte.get("equity") or []
+        borne = pd.Timestamp(str(equity[-1][0])[:10])
+    except Exception:
+        borne = None
+    try:
+        naissance = pd.Timestamp(str(debut)[:10])
+        borne = naissance if borne is None else max(borne, naissance)
+    except Exception:
+        pass
+    if borne is None:
+        return [df.iloc[-1]]
+    fenetre = df[df.index.normalize() > borne]
+    if fenetre.empty:
+        return [df.iloc[-1]]
+    return [ligne for _, ligne in fenetre.iterrows()]
+
+
 def tenir_compte(compte: dict) -> list[str]:
-    """Stops, objectifs et liquidations sur les extrêmes de séance."""
+    """Stops, objectifs et liquidations sur les extrêmes de séance.
+
+    Chaque séance manquée est rejouée dans l'ordre CHRONOLOGIQUE : la
+    première protection touchée gagne, comme si la tenue avait eu lieu le
+    soir même. À l'intérieur d'une séance, l'ordre prudent reste
+    liquidation puis stop puis objectif.
+    """
     evenements = []
     restantes = []
     for p in compte.get("positions", []):
         try:
             df = get_ohlcv(p["symbole"], lookback_days=30)
-            jour = df.iloc[-1]
-            haut, bas, clot = float(jour["high"]), float(jour["low"]), \
-                float(jour["close"])
+            seances = _seances_a_confronter(compte, p.get("ouvert_le"), df)
         except Exception:
             restantes.append(p)
             continue
@@ -125,16 +167,23 @@ def tenir_compte(compte: dict) -> list[str]:
             / max(p["levier"], 1)
 
         sortie, motif = None, None
-        # ordre prudent : liquidation puis stop puis objectif
-        if (sens == 1 and bas <= prix_liquidation) or \
-           (sens == -1 and haut >= prix_liquidation):
-            sortie, motif = prix_liquidation, "LIQUIDATION (marge épuisée)"
-        elif p.get("stop") and ((sens == 1 and bas <= p["stop"])
-                                or (sens == -1 and haut >= p["stop"])):
-            sortie, motif = float(p["stop"]), "stop touché"
-        elif p.get("objectif") and ((sens == 1 and haut >= p["objectif"])
-                                    or (sens == -1 and bas <= p["objectif"])):
-            sortie, motif = float(p["objectif"]), "objectif atteint"
+        for jour in seances:
+            try:
+                haut, bas = float(jour["high"]), float(jour["low"])
+            except Exception:
+                continue
+            # ordre prudent : liquidation puis stop puis objectif
+            if (sens == 1 and bas <= prix_liquidation) or \
+               (sens == -1 and haut >= prix_liquidation):
+                sortie, motif = prix_liquidation, "LIQUIDATION (marge épuisée)"
+            elif p.get("stop") and ((sens == 1 and bas <= p["stop"])
+                                    or (sens == -1 and haut >= p["stop"])):
+                sortie, motif = float(p["stop"]), "stop touché"
+            elif p.get("objectif") and ((sens == 1 and haut >= p["objectif"])
+                                        or (sens == -1 and bas <= p["objectif"])):
+                sortie, motif = float(p["objectif"]), "objectif atteint"
+            if sortie is not None:
+                break
 
         if sortie is not None:
             pnl = (sortie - p["prix_entree"]) * p["quantite"] * sens
@@ -173,18 +222,27 @@ def executer_ordres(compte: dict) -> list[str]:
             continue
         try:
             df = get_ohlcv(o["symbole"], lookback_days=30)
-            jour = df.iloc[-1]
-            haut, bas = float(jour["high"]), float(jour["low"])
+            seances = _seances_a_confronter(compte, o.get("cree_le"), df)
         except Exception:
             restants.append(o)
             continue
         sens = 1 if o["sens"] == "long" else -1
         # achat limite / vente stop : le marché descend au prix (bas) ;
-        # achat stop / vente limite : le marché monte au prix (haut)
-        if (o["sens"] == "long") == (o["type"] == "limite"):
-            touche = bas <= float(o["prix"])
-        else:
-            touche = haut >= float(o["prix"])
+        # achat stop / vente limite : le marché monte au prix (haut).
+        # Chaque séance manquée compte : un déclenchement raté jeudi ne doit
+        # pas attendre qu'un NOUVEAU jour retouche le prix.
+        touche = False
+        for jour in seances:
+            try:
+                haut, bas = float(jour["high"]), float(jour["low"])
+            except Exception:
+                continue
+            if (o["sens"] == "long") == (o["type"] == "limite"):
+                touche = bas <= float(o["prix"])
+            else:
+                touche = haut >= float(o["prix"])
+            if touche:
+                break
         if not touche:
             restants.append(o)
             continue
@@ -392,11 +450,29 @@ def decisions_robot(compte: dict, verdicts: list[dict],
 
 # ---------------------------------------------------------------------- main
 
-def main() -> int:
+def charger_verdicts_publies() -> dict:
+    """Les verdicts du jour s'ils existent et se lisent — {} sinon.
+
+    LA TENUE NE DÉPEND PAS DE LA GÉNÉRATION. Avant, un verdicts.json absent
+    arrêtait tout le script : trois nuits de publication en panne (07-09/08)
+    ont donc aussi gelé stops, objectifs, ordres et portage de TOUS les
+    comptes — un test de graphique PHP qui pourrit et ce sont les protections
+    des positions qui cessent d'être honorées. Sans verdicts, le robot ne
+    prend simplement aucune décision NOUVELLE ; la tenue, elle, a lieu.
+    """
     if not VERDICTS_LOCAL.exists():
-        print("verdicts.json absent : lancer la génération d'abord")
-        return 1
-    publie = json.loads(VERDICTS_LOCAL.read_text(encoding="utf-8"))
+        print("verdicts.json absent : TENUE SEULE — stops, objectifs, ordres "
+              "et portage restent honorés ; aucune décision nouvelle du robot")
+        return {}
+    try:
+        return json.loads(VERDICTS_LOCAL.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"verdicts.json illisible ({type(exc).__name__}) : TENUE SEULE")
+        return {}
+
+
+def main() -> int:
+    publie = charger_verdicts_publies()
     verdicts_par_robot = {}
     for nom, cfg_robot in ROBOTS.items():
         v = publie.get(cfg_robot["cle"]) or []
