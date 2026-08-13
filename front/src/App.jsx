@@ -1526,7 +1526,17 @@ function PositionsVivantes({ positions }) {
             return (
               <tr key={i}>
                 <td><strong>{p.symbole}</strong>
-                  <div className="note">{p.sens} ×{p.levier}</div></td>
+                  {/* « long » tout court avait été lu comme une information
+                      manquante : le sens se dit en français, l'anglicisme
+                      reste entre parenthèses pour faire le pont avec le
+                      vocabulaire des brokers. */}
+                  <div className="note">
+                    <span style={{ fontWeight: 600,
+                      color: p.sens === "long" ? "var(--good)"
+                                               : "var(--critical)" }}>
+                      {p.sens === "long" ? "Achat" : "Vente"}
+                    </span> ({p.sens}) · levier ×{p.levier}
+                  </div></td>
                 <td>{nb(marge)} $</td>
                 <td>{nb(p.prix_entree)}</td>
                 <td>{prix == null ? "—" : nb(prix)}</td>
@@ -1564,9 +1574,10 @@ function PositionsVivantes({ positions }) {
         </tbody>
       </table>
       <p className="note">Suivi en lecture seule, rafraîchi avec les cours —
-        aucune intervention sur les positions du robot. Le pourcentage « de la
-        mise » est la vraie mesure du risque : le levier amplifie l'écart du
-        cours.</p>
+        aucune intervention sur les positions du robot. « Achat (long) » :
+        le pari gagne si le cours monte ; « Vente (short) » : s'il baisse.
+        Le pourcentage « de la mise » est la vraie mesure du risque : le
+        levier amplifie l'écart du cours.</p>
     </div>
   );
 }

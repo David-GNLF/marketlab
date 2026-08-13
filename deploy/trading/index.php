@@ -877,7 +877,8 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
           <?php if (($p['source'] ?? '') === 'ordre'): ?>
             <span class="note" title="issue d'un ordre en attente">(ordre)</span>
           <?php endif; ?></td>
-        <td><?= $p['sens'] === 'long' ? 'long' : 'short' ?></td>
+        <td class="<?= $p['sens'] === 'long' ? 'avis-achat' : 'avis-vente' ?>">
+          <?= $p['sens'] === 'long' ? 'Achat (long)' : 'Vente (short)' ?></td>
         <td>×<?= (int)$p['levier'] ?></td>
         <td><?= montant($p['marge'], 0) ?> $</td>
         <td><?= round($p['prix_entree'], 4) ?></td>
@@ -937,7 +938,8 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
             $c = dernier_cours($o['symbole']); ?>
       <tr>
         <td><strong><?= h($o['symbole']) ?></strong></td>
-        <td><?= $o['sens'] === 'long' ? 'long' : 'short' ?></td>
+        <td class="<?= $o['sens'] === 'long' ? 'avis-achat' : 'avis-vente' ?>">
+          <?= $o['sens'] === 'long' ? 'Achat (long)' : 'Vente (short)' ?></td>
         <td><?= h($o['type']) ?></td>
         <td><?= round($o['prix'], 4) ?></td>
         <td data-prix="<?= h($o['symbole']) ?>">
@@ -984,7 +986,8 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
       <?php foreach (array_reverse($hist) as $t): ?>
       <tr>
         <td><?= h($t['symbole']) ?></td>
-        <td><?= $t['sens'] ?></td>
+        <td class="<?= $t['sens'] === 'long' ? 'avis-achat' : 'avis-vente' ?>">
+          <?= $t['sens'] === 'long' ? 'Achat (long)' : 'Vente (short)' ?></td>
         <td>×<?= (int)$t['levier'] ?></td>
         <td><?= round($t['entree'], 4) ?></td>
         <td><?= round($t['sortie'], 4) ?></td>
