@@ -29,7 +29,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from marketlab import correlations, microstructure, regimes, risque_portefeuille
+from marketlab import (correlations, implicite, microstructure, regimes,
+                       risque_portefeuille)
 
 # Au-dessus de cette part de variance venue des sauts, le stop ne protège
 # plus vraiment : l'exécution se fait de l'autre côté. Plus haut que le seuil
@@ -41,6 +42,15 @@ SEUIL_PART_SAUT = 0.20
 PALIERS_PORTAGE_PCT = (1.0, 2.0, 5.0)
 
 HORIZON_DEFAUT = 20
+
+# Pression VENDEUSE lue dans les options — ce que le marché price, pas ce que
+# nous prédisons. Un skew qui se creuse = les puts s'enchérissent, le marché
+# achète de la protection contre la baisse ; une IV qui bondit = il price un
+# mouvement violent. Seuils depuis la RÉFÉRENCE prise à la première
+# surveillance de la position : c'est le CHANGEMENT depuis votre entrée qui
+# surprend, pas le niveau.
+SEUIL_SKEW_PTS = 5.0
+SEUIL_IV_RATIO = 1.5
 
 
 def _etat(p: dict) -> dict:
@@ -143,6 +153,70 @@ def _garde_horizon(p: dict, horizon: int) -> list[str]:
             f"Reconduire est une décision, pas un défaut."]
 
 
+def _implicite_du_titre(symbole: str) -> dict | None:
+    """Dernier relevé d'options du titre (IV à la monnaie, skew), ou None.
+
+    Seules les actions US ont des chaînes d'options relevées : pour les
+    autres, ce garde s'efface sans bruit.
+    """
+    releve = implicite.charger_releve()
+    if releve is None or releve.empty:
+        return None
+    du_titre = releve[releve["symbole"] == symbole]
+    if du_titre.empty:
+        return None
+    derniere = du_titre.sort_values("date").iloc[-1]
+    iv, skew = derniere.get("iv_atm_pct"), derniere.get("skew_pts")
+    if pd.isna(iv) or pd.isna(skew):
+        return None
+    return {"iv": float(iv), "skew": float(skew)}
+
+
+def _garde_pression_vendeuse(p: dict) -> list[str]:
+    """Le marché des options s'est-il mis à pricer la baisse depuis l'entrée ?
+
+    On ne prédit rien — le signal directionnel de l'outil a échoué à tous
+    ses arbitrages. On lit ce que LE MARCHÉ paie : la référence (IV, skew)
+    est prise à la première surveillance de la position, et c'est le
+    creusement DEPUIS cette référence qui alerte. Une fois par franchissement,
+    réarmé si la pression retombe.
+    """
+    mesure = _implicite_du_titre(p.get("symbole", ""))
+    etat = _etat(p)
+    if mesure is None:
+        return []
+    if "iv_ref" not in etat:
+        etat["iv_ref"] = mesure["iv"]
+        etat["skew_ref"] = mesure["skew"]
+        return []
+    alertes = []
+
+    creusement = mesure["skew"] - float(etat["skew_ref"])
+    if creusement >= SEUIL_SKEW_PTS and not etat.get("skew_signale"):
+        etat["skew_signale"] = True
+        alertes.append(
+            f"surveillance {p['symbole']} : le skew des options s'est creusé "
+            f"de {creusement:.1f} pts depuis votre entrée — le marché paie sa "
+            f"protection contre la baisse nettement plus cher qu'avant. Ce "
+            f"n'est pas une prédiction, c'est le prix de l'assurance qui "
+            f"monte.")
+    elif creusement < SEUIL_SKEW_PTS:
+        etat.pop("skew_signale", None)
+
+    ratio = mesure["iv"] / float(etat["iv_ref"]) if etat["iv_ref"] else None
+    if ratio and ratio >= SEUIL_IV_RATIO and not etat.get("iv_signale"):
+        etat["iv_signale"] = True
+        alertes.append(
+            f"surveillance {p['symbole']} : la volatilité implicite a bondi "
+            f"de {(ratio - 1) * 100:.0f} % depuis votre entrée "
+            f"({etat['iv_ref']:.0f} % → {mesure['iv']:.0f} %) — le marché "
+            f"price un mouvement bien plus violent qu'à l'ouverture de la "
+            f"position. Le stop protège de la dérive, pas d'un écart.")
+    elif ratio and ratio < SEUIL_IV_RATIO:
+        etat.pop("iv_signale", None)
+    return alertes
+
+
 # ------------------------------------------------------- garde entre détenues
 
 def _garde_concentration(compte: dict) -> list[str]:
@@ -226,7 +300,8 @@ def examiner(compte: dict) -> list[str]:
     alertes: list[str] = []
     horizon = int(compte.get("horizon") or HORIZON_DEFAUT)
     for p in compte.get("positions", []):
-        for garde in (_garde_regime, _garde_sauts, _garde_portage):
+        for garde in (_garde_regime, _garde_sauts, _garde_portage,
+                      _garde_pression_vendeuse):
             try:
                 alertes += garde(p)
             except Exception:

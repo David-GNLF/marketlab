@@ -181,6 +181,11 @@ def bloc_jalons() -> dict:
         sortie["regimes_suspendus"] = suspendus
     except Exception:
         sortie["regimes_suspendus"] = None
+    try:
+        from marketlab import banc_ventes
+        sortie["cote_vente"] = banc_ventes.bilan().get("lecture")
+    except Exception:
+        sortie["cote_vente"] = None
     return sortie
 
 
@@ -254,6 +259,8 @@ def texte(rapport: dict) -> str:
         lignes.append("Avis directionnel suspendu en : "
                       + (", ".join(j["regimes_suspendus"])
                          if j["regimes_suspendus"] else "aucun régime") + ".")
+    if j.get("cote_vente"):
+        lignes.append(f"Côté vente : {j['cote_vente']}")
     return "\n".join(lignes)
 
 

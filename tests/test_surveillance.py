@@ -23,6 +23,9 @@ def _sans_monde_exterieur(monkeypatch):
     monkeypatch.setattr(sv.correlations, "rendements",
                         lambda *a, **k: (_ for _ in ()).throw(
                             RuntimeError("réseau interdit dans les tests")))
+    # le relevé d'options COMMITÉ changerait le comportement des tests : la
+    # pression vendeuse est neutralisée par défaut, réactivée test par test
+    monkeypatch.setattr(sv, "_implicite_du_titre", lambda s: None)
 
 
 def _position(symbole="AAPL", **extra):
@@ -169,6 +172,40 @@ def test_co_chute_prend_le_relais_quand_la_correlation_se_tait(monkeypatch):
     compte = _compte(_position("AAPL"), _position("NVDA"))
     premieres = sv.examiner(compte)
     assert len(premieres) == 1 and "co-chute" in premieres[0]
+
+
+# -------------------------------------------------------- pression vendeuse
+
+def test_pression_vendeuse_prend_sa_reference_puis_alerte_sur_creusement(
+        monkeypatch):
+    mesures = {"v": {"iv": 30.0, "skew": 1.0}}
+    monkeypatch.setattr(sv, "_implicite_du_titre", lambda s: mesures["v"])
+    compte = _compte(_position("NVDA"))
+    assert sv.examiner(compte) == []          # 1er passage : référence prise
+    mesures["v"] = {"iv": 32.0, "skew": 7.0}  # skew +6 pts depuis l'entrée
+    premieres = sv.examiner(compte)
+    assert len(premieres) == 1 and "skew" in premieres[0]
+    assert sv.examiner(compte) == []          # déjà signalé : silence
+    mesures["v"] = {"iv": 32.0, "skew": 2.0}  # la pression retombe
+    assert sv.examiner(compte) == []          # ...et l'état se réarme
+    mesures["v"] = {"iv": 32.0, "skew": 8.0}
+    assert len(sv.examiner(compte)) == 1      # nouveau creusement : re-signalé
+
+
+def test_pression_vendeuse_iv_qui_bondit(monkeypatch):
+    mesures = {"v": {"iv": 20.0, "skew": 0.0}}
+    monkeypatch.setattr(sv, "_implicite_du_titre", lambda s: mesures["v"])
+    compte = _compte(_position("NVDA"))
+    sv.examiner(compte)                       # référence : IV 20 %
+    mesures["v"] = {"iv": 32.0, "skew": 0.0}  # ×1,6 : le marché price violent
+    premieres = sv.examiner(compte)
+    assert len(premieres) == 1 and "volatilité implicite" in premieres[0]
+
+
+def test_titre_sans_options_reste_muet():
+    # la fixture renvoie None (pas de chaînes d'options relevées) : silence
+    compte = _compte(_position("EURUSD=X"))
+    assert sv.examiner(compte) == []
 
 
 # ------------------------------------------------------------------ pannes

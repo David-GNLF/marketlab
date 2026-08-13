@@ -56,6 +56,10 @@ data_local/*
 # filtre FALSIFIABLE — a l'echeance, les ecartees sont rejouees contre
 # les retenues, net des couts connus au moment de decider.
 !data_local/journal_chaine.csv
+# Le banc d'essai du cote VENTE : shorts hypothetiques journalises chaque
+# nuit, juges a l'echeance. C'est ce qui permettra de voir venir le jour
+# ou vendre paiera, au lieu de le decouvrir en subissant.
+!data_local/banc_ventes.csv
 # Marqueur du rapport hebdomadaire : la derniere semaine ISO servie. Sans
 # lui, chaque runner ephemere croirait n'avoir jamais envoye le rapport
 # et le vendredi partirait en double au premier re-run.

@@ -52,6 +52,10 @@ def _sans_reseau(monkeypatch):
     monkeypatch.setattr(journal_chaine, "bilan",
                         lambda *a, **k: {"suivis": 0, "murs": 0,
                                          "lecture": "neutralisé en test"})
+    from marketlab import banc_ventes
+    monkeypatch.setattr(banc_ventes, "bilan",
+                        lambda *a, **k: {"suivis": 0, "murs": 0,
+                                         "lecture": "neutralisé en test"})
 
 # Noms de champ qui trahiraient une valeur transportée par erreur.
 CHAMPS_INTERDITS = [

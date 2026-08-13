@@ -306,6 +306,19 @@ def bloc_verdicts() -> dict:
         print(f"journal de la chaîne non consigné (non bloquant) : "
               f"{type(exc).__name__}: {str(exc)[:80]}")
 
+    # Le banc d'essai du côté VENTE : les candidats vendeurs du jour reçoivent
+    # un plan de short hypothétique, jamais exécuté, jugé à l'échéance. C'est
+    # ce qui permettra de voir VENIR le jour où vendre paiera — au lieu de le
+    # découvrir en subissant. Non bloquant, comme toute trace.
+    try:
+        from marketlab import banc_ventes
+        n = banc_ventes.journaliser(dossiers + courts)
+        if n:
+            print(f"banc des ventes : {n} short(s) hypothétique(s) consigné(s)")
+    except Exception as exc:
+        print(f"banc des ventes non consigné (non bloquant) : "
+              f"{type(exc).__name__}: {str(exc)[:80]}")
+
     # Décomposition de la note en apports de chaque composante : la somme
     # redonne exactement la note publiée, donc l'explication est vérifiable et
     # non illustrative. Attachée au dossier pour que la fiche n'ait rien à

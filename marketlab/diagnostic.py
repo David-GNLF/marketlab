@@ -190,6 +190,13 @@ def _chaine_dimensionnement() -> dict:
     return journal_chaine.bilan()
 
 
+def _banc_ventes() -> dict:
+    """Le jour où vendre paiera doit se voir VENIR : shorts hypothétiques
+    jugés à l'échéance, net des coûts — jamais exécutés."""
+    from marketlab import banc_ventes
+    return banc_ventes.bilan()
+
+
 SONDES = {
     "volatilite_realisee": _volatilite,
     "modele_volatilite": _modele_volatilite,
@@ -205,6 +212,10 @@ SONDES = {
     # coûts connus au moment de décider. Tant que trop peu de verdicts sont
     # mûrs, la sonde le dit — même contrat que les duels de volatilité.
     "chaine_dimensionnement": _chaine_dimensionnement,
+    # Le banc du côté VENTE : la règle « long uniquement » des robots est
+    # mesurée, pas éternelle — cette sonde accumule la preuve qui la
+    # confirmera ou la fera tomber, avant d'être surpris.
+    "banc_ventes": _banc_ventes,
 }
 
 
@@ -263,6 +274,13 @@ def _resumer(rapport: dict) -> list[dict]:
                        "texte": f"Prévision de volatilité : {duel.get('gagnant')} "
                                 f"gagne le duel sur {duel.get('n_duels')} "
                                 f"fenêtres mûres."})
+
+    banc = rapport.get("banc_ventes") or {}
+    if isinstance(banc, dict) \
+            and str(banc.get("lecture", "")).startswith("SIGNAL"):
+        # Le côté vente se met à payer : c'est l'anticipation demandée —
+        # elle se lit en tête de page, pas au fond d'un tableau.
+        points.append({"niveau": "attention", "texte": banc["lecture"]})
 
     chaine = rapport.get("chaine_dimensionnement") or {}
     if isinstance(chaine, dict) \
