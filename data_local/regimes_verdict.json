@@ -19,7 +19,7 @@
       "mesurable": true,
       "inverse": false,
       "motif": "prudentiel",
-      "ic_purge": -0.0416,
+      "ic_purge": -0.042,
       "part_concluante_%": 0.0,
       "obs_independantes": 18
     },
