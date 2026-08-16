@@ -215,3 +215,91 @@ date,devise,evenement,impact,prevision,precedent
 2026-08-14,USD,Prelim UoM Consumer Sentiment,Medium,54.4,54.4
 2026-08-14,USD,Prelim UoM Inflation Expectations,Medium,,4.2
 2026-08-14,USD,Retail Sales m/m,Medium,0.1,0.2
+2026-08-16,NZD,BusinessNZ Services Index,Low,,50.6
+2026-08-16,NZD,FPI m/m,Low,,0.6
+2026-08-17,CAD,CPI m/m,High,0.4,-0.4
+2026-08-17,CAD,Common CPI y/y,Medium,2.5,2.6
+2026-08-17,CAD,Core CPI m/m,Low,,0.1
+2026-08-17,CAD,Foreign Securities Purchases,Low,1.5e+10,7900000000
+2026-08-17,CAD,Median CPI y/y,High,2,1.9
+2026-08-17,CAD,Trimmed CPI y/y,High,1.8,1.8
+2026-08-17,CNY,Fixed Asset Investment ytd/y,Low,-6.2,-5.7
+2026-08-17,CNY,Foreign Direct Investment ytd/y,Low,,-5
+2026-08-17,CNY,Industrial Production y/y,Low,5,5.3
+2026-08-17,CNY,New Home Prices m/m,Low,,-0.15
+2026-08-17,CNY,Retail Sales y/y,Low,1.5,1
+2026-08-17,CNY,Unemployment Rate,Low,5.1,5
+2026-08-17,GBP,Rightmove HPI m/m,Low,,-1
+2026-08-17,JPY,Prelim GDP Price Index y/y,Low,2.3,3.4
+2026-08-17,JPY,Prelim GDP q/q,Low,0.5,0.5
+2026-08-17,JPY,Revised Industrial Production m/m,Low,1.3,1.3
+2026-08-17,JPY,Tertiary Industry Activity m/m,Low,-0.9,1.1
+2026-08-17,USD,Empire State Manufacturing Index,Low,10.6,15.6
+2026-08-17,USD,NAHB Housing Market Index,Low,33,34
+2026-08-17,USD,TIC Long-Term Purchases,Low,1.514e+11,2.327e+11
+2026-08-18,AUD,Westpac Consumer Sentiment,Low,,4.1
+2026-08-18,CAD,Housing Starts,Low,249000,239000
+2026-08-18,EUR,German ZEW Economic Sentiment,Low,30,26.3
+2026-08-18,EUR,ZEW Economic Sentiment,Low,25.4,23.4
+2026-08-18,GBP,Average Earnings Index 3m/y,Medium,4,4.3
+2026-08-18,GBP,Claimant Count Change,High,11200,6700
+2026-08-18,GBP,Unemployment Rate,Low,4.8,4.9
+2026-08-18,NZD,GDT Price Index,Low,,0.1
+2026-08-18,NZD,PPI Input q/q,Low,0.5,1.4
+2026-08-18,NZD,PPI Output q/q,Low,0.4,0.8
+2026-08-18,USD,ADP Weekly Employment Change,Low,,8300
+2026-08-18,USD,Building Permits,Low,1370000,1370000
+2026-08-18,USD,Capacity Utilization Rate,Low,76.3,76.1
+2026-08-18,USD,Housing Starts,Low,1350000,1430000
+2026-08-18,USD,Import Prices m/m,Low,0.1,0.3
+2026-08-18,USD,Industrial Production m/m,Low,0.3,0.1
+2026-08-18,USD,Pending Home Sales m/m,Low,0.1,-5.4
+2026-08-19,AUD,Wage Price Index q/q,Medium,0.8,0.8
+2026-08-19,EUR,Current Account,Low,2.21e+10,2.51e+10
+2026-08-19,EUR,Final CPI y/y,Low,2.9,2.9
+2026-08-19,EUR,Final Core CPI y/y,Low,2.5,2.5
+2026-08-19,GBP,CPI y/y,High,2.9,2.6
+2026-08-19,GBP,Core CPI y/y,Low,2.5,2.6
+2026-08-19,GBP,HPI y/y,Low,2.5,2.7
+2026-08-19,GBP,PPI Input m/m,Low,-0.5,-2
+2026-08-19,GBP,PPI Output m/m,Low,0.3,0
+2026-08-19,GBP,RPI y/y,Low,3.3,3
+2026-08-19,JPY,Core Machinery Orders m/m,Low,7.6,-12.4
+2026-08-19,USD,Crude Oil Inventories,Low,,17400000
+2026-08-20,AUD,Employment Change,High,11400,76300
+2026-08-20,AUD,MI Inflation Expectations,Low,,4.7
+2026-08-20,AUD,Unemployment Rate,High,4.4,4.4
+2026-08-20,CAD,IPPI m/m,Low,,-1.4
+2026-08-20,CAD,NHPI m/m,Low,,-0.1
+2026-08-20,CAD,RMPI m/m,Low,,-6.9
+2026-08-20,CNY,1-y Loan Prime Rate,Low,3,3
+2026-08-20,CNY,5-y Loan Prime Rate,Low,3.5,3.5
+2026-08-20,EUR,German PPI m/m,Low,0.5,-0.3
+2026-08-20,GBP,CBI Industrial Order Expectations,Low,-40,-45
+2026-08-20,JPY,Trade Balance,Low,-4.4e+11,-8.8e+11
+2026-08-20,NZD,Trade Balance,Low,320000000,23000000
+2026-08-20,USD,CB Leading Index m/m,Low,0.1,-0.2
+2026-08-20,USD,Natural Gas Storage,Low,,3.6e+10
+2026-08-20,USD,Philly Fed Manufacturing Index,Medium,24.3,41.4
+2026-08-20,USD,Unemployment Claims,Medium,210000,209000
+2026-08-21,AUD,Flash Manufacturing PMI,Low,,51.7
+2026-08-21,AUD,Flash Services PMI,Low,,53
+2026-08-21,CAD,Core Retail Sales m/m,Low,0,1.2
+2026-08-21,CAD,Retail Sales m/m,Low,0.4,1
+2026-08-21,EUR,Consumer Confidence,Low,-16,-16
+2026-08-21,EUR,Flash Manufacturing PMI,Low,51.8,52
+2026-08-21,EUR,Flash Services PMI,Low,51.5,51.6
+2026-08-21,EUR,French Flash Manufacturing PMI,Medium,50.1,50
+2026-08-21,EUR,French Flash Services PMI,Medium,49.4,49.8
+2026-08-21,EUR,German Flash Manufacturing PMI,Medium,52,52.2
+2026-08-21,EUR,German Flash Services PMI,Medium,50.2,49.6
+2026-08-21,GBP,Flash Manufacturing PMI,Medium,51.6,52.8
+2026-08-21,GBP,Flash Services PMI,Medium,51.9,51.8
+2026-08-21,GBP,GfK Consumer Confidence,Low,-17,-17
+2026-08-21,GBP,Public Sector Net Borrowing,Low,-100000000,1.6e+10
+2026-08-21,GBP,Retail Sales m/m,Medium,-0.4,1
+2026-08-21,JPY,Flash Manufacturing PMI,Low,55.1,54.7
+2026-08-21,JPY,National Core CPI y/y,Low,1.8,1.6
+2026-08-21,NZD,Credit Card Spending y/y,Low,,3.1
+2026-08-21,USD,Flash Manufacturing PMI,Low,54,53.8
+2026-08-21,USD,Flash Services PMI,Low,53.9,53.6
