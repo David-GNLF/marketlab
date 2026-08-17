@@ -23,10 +23,15 @@ SERIES = (config.ROOT / "front" / "src" / "series.js").as_uri()
 
 def _node(corps: str):
     """Exécute un fragment ESM qui importe series.js et imprime du JSON."""
-    script = f'import {{ enBougies, fusionner, precision }} ' \
+    script = f'import {{ enBougies, fusionner, noteDerniereSeance, precision }} ' \
              f'from "{SERIES}";\n{corps}'
     r = subprocess.run([node, "--input-type=module", "-e", script],
-                       capture_output=True, text=True, timeout=60)
+                       capture_output=True, text=True, timeout=60,
+                       # cp1252 par defaut sous Windows : les
+                       # sorties accentuees deviendraient du
+                       # mojibake et les assertions tomberaient
+                       # ici tout en passant en CI Linux
+                       encoding="utf-8")
     assert r.returncode == 0, r.stderr
     return json.loads(r.stdout)
 
@@ -92,3 +97,55 @@ def test_precision_suit_l_ordre_de_grandeur():
       console.log(JSON.stringify([0.6543, 1.0854, 145.32, 33500].map(precision)));
     ''')
     assert out == [6, 4, 2, 2]
+
+
+def test_week_end_est_dit_marche_ferme():
+    """INCIDENT ×2 (10/08 et 17/08) : un graphique arrêté au vendredi a été lu
+    comme une panne, parce que rien à l'écran ne disait que le marché était
+    simplement fermé. La date « maintenant » est TOUJOURS passée en argument —
+    un test qui lit l'horloge réelle pourrit (leçon déjà payée deux fois)."""
+    out = _node('''
+      console.log(JSON.stringify([
+        noteDerniereSeance("2026-08-14", new Date("2026-08-16T01:00:00Z")),
+        noteDerniereSeance("2026-08-14", new Date("2026-08-15T12:00:00Z")),
+      ]));
+    ''')
+    assert all("marché fermé (week-end)" in n for n in out)
+    assert all("vendredi 14 août" in n for n in out)
+
+
+def test_bougie_du_jour_ne_dit_rien():
+    out = _node('''
+      console.log(JSON.stringify([
+        noteDerniereSeance("2026-08-14", new Date("2026-08-14T22:00:00Z")),
+        noteDerniereSeance(null),
+      ]));
+    ''')
+    assert out == [None, None]
+
+
+def test_semaine_donne_la_date_sans_crier():
+    # lundi avant la publication du soir : la bougie de vendredi est normale
+    out = _node('''
+      console.log(JSON.stringify(
+        noteDerniereSeance("2026-08-14", new Date("2026-08-17T10:00:00Z"))));
+    ''')
+    assert "dernière séance : vendredi 14 août" in out
+    assert "week-end" not in out and "aucune donnée" not in out
+
+
+def test_au_dela_de_trois_jours_c_est_une_vraie_anomalie():
+    out = _node('''
+      console.log(JSON.stringify(
+        noteDerniereSeance("2026-08-14", new Date("2026-08-20T10:00:00Z"))));
+    ''')
+    assert "aucune donnée plus récente" in out
+
+
+def test_epoch_en_secondes_accepte():
+    # les socles intrajournaliers portent des epochs : la règle doit les lire
+    out = _node('''
+      console.log(JSON.stringify(
+        noteDerniereSeance(1786752000, new Date("2026-08-16T01:00:00Z"))));
+    ''')
+    assert out is None or "séance" in out

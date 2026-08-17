@@ -1456,9 +1456,12 @@ const ML = {
       soclesDispo = e.socles || {};
       legende.textContent = e.symbole + ' · une bougie = ' + e.pas;
       ecrireOhlc(e.derniere, false);
+      // Un graphique arrêté doit dire POURQUOI : deux week-ends de suite,
+      // la bougie du vendredi a été lue comme une panne.
       etat.textContent = e.fraiche
         ? 'Barres de la séance en cours, rafraîchies chaque minute.'
-        : 'Molette pour zoomer, glisser pour se déplacer. '
+        : (e.note_seance ? e.note_seance + ' · ' : '')
+          + 'Molette pour zoomer, glisser pour se déplacer. '
           + 'Les niveaux du ticket sont tracés sur le prix.';
       dessinerBoutons();
     },

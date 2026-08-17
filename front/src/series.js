@@ -25,6 +25,40 @@ export function enBougies(bloc) {
   return out;
 }
 
+/** Pourquoi la dernière bougie quotidienne DATE — dit en clair, ou null.
+ *
+ *  Deux week-ends de suite, un graphique arrêté au vendredi a été lu comme
+ *  une PANNE : rien à l'écran ne disait que le marché était simplement
+ *  fermé. La règle vit ici, pas dans une page : le site et l'espace de
+ *  trading doivent donner la même explication.
+ *
+ *  - dernière bougie aujourd'hui → null (rien à expliquer) ;
+ *  - écart de 1 à 3 jours ET on est samedi/dimanche → « marché fermé
+ *    (week-end) » ;
+ *  - écart de 1 à 3 jours en semaine → la date seule (séance en cours,
+ *    la bougie arrive à la prochaine publication) ;
+ *  - au-delà de 3 jours → « aucune donnée plus récente », qui est cette
+ *    fois une VRAIE anomalie à signaler.
+ */
+export function noteDerniereSeance(time, maintenant = new Date()) {
+  if (time == null) return null;
+  const d = typeof time === "number" ? new Date(time * 1000)
+    : new Date(`${String(time).slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(+d)) return null;
+  const ecartJours = Math.floor((maintenant - d) / 86400000);
+  if (ecartJours < 1) return null;
+  const libelle = d.toLocaleDateString("fr-FR", {
+    weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+  if (ecartJours > 3) {
+    return `dernière séance : ${libelle} — aucune donnée plus récente`;
+  }
+  const jour = maintenant.getDay();          // 0 dimanche, 6 samedi
+  if (jour === 0 || jour === 6) {
+    return `marché fermé (week-end) — dernière séance : ${libelle}`;
+  }
+  return `dernière séance : ${libelle}`;
+}
+
 export function enLigne(bloc, colonne = "c") {
   if (!bloc?.t?.length) return [];
   const col = bloc[colonne];

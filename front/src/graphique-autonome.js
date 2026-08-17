@@ -5,7 +5,8 @@
 // se rafraîchir. La page PHP n'a alors qu'une ligne à écrire, et surtout : les
 // règles de lecture des séries restent au même endroit que pour le site.
 
-import { PAS, agreger, fusionner, precision, socle } from "./series";
+import { PAS, agreger, fusionner, noteDerniereSeance, precision,
+         socle } from "./series";
 import { TYPES_TRACE, creerGraphique } from "./terminal-chart";
 
 // Le relais et les séries sont à la racine du site ; l'espace de trading vit
@@ -92,6 +93,10 @@ export function monter(conteneur, options = {}) {
       derniere: pilote.derniereBougie(),
       decimales: pilote.decimales(),
       fraiche: Boolean(fraiche) && c.base === "intraday",
+      // « marché fermé (week-end) » ou « aucune donnée plus récente » : un
+      // graphique arrêté doit dire POURQUOI, sinon il a l'air en panne —
+      // c'est arrivé deux week-ends de suite
+      note_seance: noteDerniereSeance(socles.quotidien?.t?.at(-1)),
       socles: {
         intraday: Boolean(socles.intraday?.t?.length),
         horaire: Boolean(socles.horaire?.t?.length),

@@ -6,7 +6,7 @@ import { Contributions, ParCategorie, ParDevise } from "./synthese";
 import { GraphiqueCone } from "./charts";
 import {
   GardeGraphique, GraphiqueTerminal, PAS, TYPES, agreger, enBougies,
-  fusionner, precision, socle,
+  fusionner, noteDerniereSeance, precision, socle,
 } from "./graphique";
 
 const pct = (v, signe = false) =>
@@ -411,7 +411,7 @@ function BarreOutils({ pas, setPas, type, setType,
 
 /** Lecture OHLC sous le réticule. Un graphique de trading sans cette ligne
  *  oblige à deviner les valeurs à l'œil sur l'axe. */
-function LectureOHLC({ point, derniere, dec }) {
+function LectureOHLC({ point, derniere, dec, noteSeance }) {
   const b = point ?? derniere;
   if (!b) return null;
   const f = (v) => v == null ? "—"
@@ -432,8 +432,15 @@ function LectureOHLC({ point, derniere, dec }) {
       )}
       {b.volume ? <span className="note">vol {Number(b.volume)
         .toLocaleString("fr-FR")}</span> : null}
-      {!point && <span className="note">dernière bougie — survolez le
-        graphique pour lire une autre séance</span>}
+      {/* un graphique arrêté doit dire POURQUOI : deux week-ends de suite,
+          la bougie du vendredi a été lue comme une panne. La note vient du
+          socle QUOTIDIEN brut, jamais de la bougie agrégée — sur un pas
+          hebdomadaire, la dernière bougie date du début de semaine et
+          crierait à tort. */}
+      {!point && (noteSeance
+        ? <span className="note"><strong>{noteSeance}</strong></span>
+        : <span className="note">dernière bougie — survolez le
+            graphique pour lire une autre séance</span>)}
     </div>
   );
 }
@@ -521,7 +528,9 @@ function PageTitre({ meta, symbole, setSymbole }) {
                            type={type} setType={setType}
                            surcouches={surcouches} setSurcouches={setSurcouches}
                            log={log} setLog={setLog} dispo={soclesDispo} />
-              <LectureOHLC point={survol} derniere={derniere} dec={dec} />
+              <LectureOHLC point={survol} derniere={derniere} dec={dec}
+                           noteSeance={noteDerniereSeance(
+                             series.quotidien?.t?.at(-1))} />
               {bloc?.t?.length ? (
                 <GardeGraphique key={`${actif}-${type}-${pas}`}>
                   <GraphiqueTerminal
