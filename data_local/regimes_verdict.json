@@ -19,7 +19,7 @@
       "mesurable": true,
       "inverse": false,
       "motif": "prudentiel",
-      "ic_purge": -0.0447,
+      "ic_purge": -0.0259,
       "part_concluante_%": 0.0,
       "obs_independantes": 19
     },
@@ -29,11 +29,11 @@
       "inverse": false,
       "motif": "prudentiel",
       "ic_purge": -0.1383,
-      "part_concluante_%": 8.7,
+      "part_concluante_%": 4.3,
       "obs_independantes": 12
     }
   },
   "mesurable": true,
-  "ic_global": -0.0873,
+  "ic_global": -0.0841,
   "lecture": "Dans marché ordinaire, marché tendu, la mesure penche du mauvais côté sans le démontrer. L'avis y est suspendu par PRUDENCE, pas par démonstration : s'abstenir ne coûte qu'une occasion manquée, tandis que suivre un avis dont rien n'établit la valeur coûte le spread, le portage et le risque."
 }
