@@ -5,28 +5,28 @@
       "horizon": 1,
       "scores": {
         "har": {
-          "qlike": 0.26287,
-          "rmse_log": 0.57998
+          "qlike": 0.26224,
+          "rmse_log": 0.57947
         },
         "hasard": {
-          "qlike": 0.24332,
-          "rmse_log": 0.6053
+          "qlike": 0.24374,
+          "rmse_log": 0.60763
         },
         "ewma": {
-          "qlike": 0.40877,
-          "rmse_log": 0.83265
+          "qlike": 0.40787,
+          "rmse_log": 0.83165
         }
       },
       "gagnant": "hasard",
       "gagnant_rmse": "har",
       "har_retenu": false,
       "n_entrainement": 1179,
-      "n_test": 1072,
+      "n_test": 1077,
       "n_titres": 58,
       "coupe": "2026-07-28",
       "periode": [
         "2026-06-21",
-        "2026-08-21"
+        "2026-08-22"
       ],
       "modele": null
     },
@@ -35,37 +35,37 @@
       "horizon": 20,
       "scores": {
         "har": {
-          "qlike": 0.04748,
-          "rmse_log": 0.31244
+          "qlike": 0.04738,
+          "rmse_log": 0.31102
         },
         "hasard": {
-          "qlike": 0.1659,
-          "rmse_log": 0.60249
+          "qlike": 0.16986,
+          "rmse_log": 0.60575
         },
         "ewma": {
-          "qlike": 0.14008,
-          "rmse_log": 0.58331
+          "qlike": 0.143,
+          "rmse_log": 0.56707
         }
       },
       "gagnant": "har",
       "gagnant_rmse": "har",
       "har_retenu": true,
-      "n_entrainement": 701,
-      "n_test": 448,
+      "n_entrainement": 759,
+      "n_test": 395,
       "n_titres": 58,
-      "coupe": "2026-07-16",
+      "coupe": "2026-07-17",
       "periode": [
         "2026-06-21",
-        "2026-08-02"
+        "2026-08-03"
       ],
       "modele": {
-        "b0": -0.5305117782280114,
-        "b_jour": 0.057105442998539035,
-        "b_semaine": 0.35410939936309405,
-        "b_mois": 0.5417154151068534,
-        "somme_pentes": 0.9529302574684865,
-        "n_obs": 1149,
-        "r2": 0.9416387459547944
+        "b0": -0.5272999556497757,
+        "b_jour": 0.057235900967055664,
+        "b_semaine": 0.3523238841078801,
+        "b_mois": 0.5436266075203827,
+        "somme_pentes": 0.9531863925953186,
+        "n_obs": 1154,
+        "r2": 0.9413619273506735
       }
     }
   },
