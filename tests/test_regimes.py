@@ -228,14 +228,17 @@ def test_un_effet_CORRECT_nest_pas_suspendu(monkeypatch, tmp_path):
     assert regimes.calibrer()["suspendus"] == []
 
 
-def test_un_effet_FRAGILE_suspend_PAR_PRUDENCE(monkeypatch, tmp_path):
-    """« Fragile » n'est pas « démontré » — mais on s'abstient quand même.
+def test_un_effet_FRAGILE_mais_MATERIEL_suspend_PAR_PRUDENCE(monkeypatch,
+                                                             tmp_path):
+    """« Fragile » n'est pas « démontré » — mais on s'abstient quand même,
+    À CONDITION que la mesure penche vraiment.
 
-    C'est un choix de POSTURE, arrêté le 2026-07-31 : s'abstenir ne coûte
-    qu'une occasion manquée, tandis que suivre un avis dont rien n'établit la
-    valeur coûte le spread, le portage et le risque. Le motif doit rester
-    distinct de « démontré » — présenter une prudence comme une démonstration
-    serait exactement l'affirmation non vérifiée que ce projet s'interdit.
+    Posture arrêtée le 2026-07-31, AMENDÉE le 2026-08-27 (décision
+    utilisateur au jalon de reconfirmation) : la prudence suspendait dès que
+    l'IC passait sous zéro, et le marché ORDINAIRE s'est retrouvé suspendu
+    sur un IC de −0,006 — un zéro de bruit qui ne protège de rien et coûte
+    toutes les occasions. Elle exige désormais une inclinaison MATÉRIELLE
+    (SEUIL_PRUDENTIEL_IC). Le motif reste distinct de « démontré ».
     """
     monkeypatch.setattr(regimes, "VERDICT_PATH", tmp_path / "v.json")
     monkeypatch.setattr(regimes, "_MEMO", {})
@@ -243,7 +246,7 @@ def test_un_effet_FRAGILE_suspend_PAR_PRUDENCE(monkeypatch, tmp_path):
         "mesurable": True,
         "par_regime": {"normal": {"purge": {"mesurable": True,
                                             "verdict": "fragile",
-                                            "ic_moyen": -0.03,
+                                            "ic_moyen": -0.10,
                                             "part_concluante_%": 21.7,
                                             "obs_par_echantillonnage": 21}}}})
     v = regimes.calibrer()
@@ -252,6 +255,44 @@ def test_un_effet_FRAGILE_suspend_PAR_PRUDENCE(monkeypatch, tmp_path):
     assert v["detail"]["normal"]["inverse"] is False, (
         "une prudence ne doit jamais etre presentee comme une inversion "
         "demontree")
+
+
+def test_un_ic_dans_la_bande_de_bruit_ne_suspend_plus(monkeypatch, tmp_path):
+    """LE CAS RÉEL du 2026-08-27 : marché ordinaire à IC −0,006, suspendu au
+    seul motif du SIGNE. Sous le seuil de matérialité, un zéro de bruit rend
+    la parole aux analyses — et si le régime replonge vraiment, l'arbitrage
+    nocturne le re-suspendra tout seul au passage suivant."""
+    monkeypatch.setattr(regimes, "VERDICT_PATH", tmp_path / "v.json")
+    monkeypatch.setattr(regimes, "_MEMO", {})
+    monkeypatch.setattr(regimes, "analyser", lambda **k: {
+        "mesurable": True,
+        "par_regime": {"normal": {"purge": {"mesurable": True,
+                                            "verdict": "fragile",
+                                            "ic_moyen": -0.006,
+                                            "part_concluante_%": 0.0,
+                                            "obs_par_echantillonnage": 18}}}})
+    v = regimes.calibrer()
+    assert v["suspendus"] == []
+    assert v["detail"]["normal"]["motif"] is None
+
+
+def test_une_inversion_DEMONTREE_suspend_quelle_que_soit_l_amplitude(
+        monkeypatch, tmp_path):
+    """Le seuil de matérialité ne s'applique QU'À la prudence : une preuve
+    n'a pas de seuil. Une inversion confirmée par la purge suspend même à
+    −0,02 — sinon le seuil affaiblirait la seule suspension démontrée."""
+    monkeypatch.setattr(regimes, "VERDICT_PATH", tmp_path / "v.json")
+    monkeypatch.setattr(regimes, "_MEMO", {})
+    monkeypatch.setattr(regimes, "analyser", lambda **k: {
+        "mesurable": True,
+        "par_regime": {"tendu": {"purge": {"mesurable": True,
+                                           "verdict": "effet inversé confirmé",
+                                           "ic_moyen": -0.02,
+                                           "part_concluante_%": 80.0,
+                                           "obs_par_echantillonnage": 25}}}})
+    v = regimes.calibrer()
+    assert v["suspendus"] == ["tendu"]
+    assert v["detail"]["tendu"]["motif"] == "démontré"
 
 
 def test_un_ic_POSITIF_mais_fragile_ne_suspend_rien(monkeypatch, tmp_path):

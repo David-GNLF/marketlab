@@ -288,6 +288,19 @@ def regime_courant() -> str:
 # lecteur, pas au code — d'où une constante nommée plutôt qu'un choix enfoui.
 REPLI_SUR_MESURE_GLOBALE = False
 
+# SEUIL DE MATÉRIALITÉ de la suspension prudentielle — décision utilisateur du
+# 2026-08-27, au jalon de reconfirmation. La prudence suspendait dès que l'IC
+# passait SOUS ZÉRO ; or en marché ordinaire — le régime le plus fréquent —
+# l'IC est retombé à −0,006 sur 18 observations indépendantes : un zéro de
+# bruit. Suspendre là-dessus ne protégeait de rien et coûtait TOUTES les
+# occasions. La prudence exige désormais une inclinaison MATÉRIELLE : sous une
+# vingtaine d'observations indépendantes, un |IC| inférieur à 0,05 est
+# indiscernable de zéro. Le chemin DÉMONTRÉ (inversion confirmée par la purge)
+# reste inchangé, quelle que soit l'amplitude — une preuve n'a pas de seuil.
+# Auto-réversible : si l'ordinaire replonge sous ce seuil, il se re-suspend
+# tout seul à l'arbitrage suivant.
+SEUIL_PRUDENTIEL_IC = -0.05
+
 
 def calibrer(horizon: int = 20, ecrire: bool = True) -> dict:
     """Décide, régime par régime, si le verdict directionnel doit être suspendu.
@@ -297,13 +310,14 @@ def calibrer(horizon: int = 20, ecrire: bool = True) -> dict:
     1. DÉMONTRÉ — la mesure purgée établit que le classement est inversé dans
        ce régime. C'est une preuve, au sens statistique du terme.
 
-    2. PRUDENTIEL — l'IC mesuré est négatif mais la preuve n'est pas faite.
-       On suspend quand même, et c'est un choix de POSTURE, pas une conclusion
-       de mesure. Il repose sur une asymétrie simple : s'abstenir ne coûte
-       qu'une occasion manquée, tandis que suivre un avis dont rien n'établit
-       la valeur coûte le spread, le portage et le risque. Quand la mesure
-       penche du mauvais côté sans trancher, l'abstention est le pari le moins
-       cher.
+    2. PRUDENTIEL — l'IC mesuré penche MATÉRIELLEMENT du mauvais côté
+       (sous `SEUIL_PRUDENTIEL_IC`) sans que la preuve soit faite. On suspend
+       quand même, et c'est un choix de POSTURE, pas une conclusion de
+       mesure : s'abstenir ne coûte qu'une occasion manquée, suivre un avis
+       dont rien n'établit la valeur coûte le spread, le portage et le
+       risque. Mais un IC dans la bande de bruit autour de zéro ne penche
+       pas : il ne dit rien, et « rien » ne justifie plus une suspension
+       (décision du 2026-08-27, voir le seuil).
 
     Les deux motifs sont écrits dans la sortie et distingués à l'affichage :
     présenter une prudence comme une démonstration serait exactement le genre
@@ -346,9 +360,11 @@ def calibrer(horizon: int = 20, ecrire: bool = True) -> dict:
         mesurable = ic is not None
         confirme = str(purge.get("verdict", "")).endswith("confirmé")
         demontre = confirme and mesurable and float(ic) < 0
-        # Prudence : la mesure penche du mauvais côté sans trancher. On
-        # s'abstient, mais on ne prétend pas avoir démontré quoi que ce soit.
-        prudentiel = mesurable and not demontre and float(ic) < 0
+        # Prudence : la mesure penche MATÉRIELLEMENT du mauvais côté sans
+        # trancher. On s'abstient, sans prétendre avoir démontré quoi que ce
+        # soit — et un IC dans la bande de bruit ne suspend plus rien.
+        prudentiel = mesurable and not demontre \
+            and float(ic) <= SEUIL_PRUDENTIEL_IC
         if REPLI_SUR_MESURE_GLOBALE and not mesurable and globale_defavorable:
             prudentiel = True
         verdict["detail"][nom] = {
