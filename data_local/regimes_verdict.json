@@ -19,18 +19,18 @@
       "mesurable": true,
       "inverse": false,
       "motif": "prudentiel",
-      "ic_purge": -0.0259,
+      "ic_purge": -0.0059,
       "part_concluante_%": 0.0,
-      "obs_independantes": 19
+      "obs_independantes": 18
     },
     "tendu": {
       "confirme": false,
       "mesurable": true,
       "inverse": false,
       "motif": "prudentiel",
-      "ic_purge": -0.1418,
-      "part_concluante_%": 8.7,
-      "obs_independantes": 13
+      "ic_purge": -0.1667,
+      "part_concluante_%": 26.1,
+      "obs_independantes": 14
     }
   },
   "mesurable": true,
