@@ -188,7 +188,8 @@ def _composante_sentiment(symbole: str) -> dict:
 
 # --- Verdict -----------------------------------------------------------------
 
-def _regle_ecole(df: pd.DataFrame, symbole: str) -> float | None:
+def _regle_ecole(df: pd.DataFrame, symbole: str,
+                 qualite_classe: float | None = None) -> float | None:
     """La « règle d'école » du swing trading — CANDIDATE, pas vérité.
 
     Demandée par l'utilisateur (2026-08-27) à partir des manuels : tendance
@@ -228,8 +229,12 @@ def _regle_ecole(df: pd.DataFrame, symbole: str) -> float | None:
         note += 35
     elif r.iloc[-1] <= 70 and bool((r.iloc[-6:-1] > 70).any()):
         note -= 35
-    # le filtre qualité ne s'applique qu'aux notes acheteuses : on n'achète
-    # pas une entreprise fragile sur un signal graphique
+    # Le filtre qualité ne s'applique qu'aux notes ACHETEUSES : on n'achète
+    # pas un actif que son propre filtre de sélection désavoue — mais la
+    # faiblesse d'un actif ne rend pas un signal vendeur plus vrai.
+    # Chaque classe a le sien : les actions leurs fondamentaux (ici), les
+    # devises et matières premières la note de LEUR filtre, passée par
+    # l'appelant (`qualite_classe` : surprise macro ou saisonnalité).
     if note > 0:
         try:
             p = fundamentals.profil(symbole)
@@ -240,6 +245,8 @@ def _regle_ecole(df: pd.DataFrame, symbole: str) -> float | None:
                 note *= 0.5
         except Exception:
             pass                    # pas une action, ou données absentes
+        if qualite_classe is not None and qualite_classe < -10:
+            note *= 0.5
     return round(note, 1)
 
 
@@ -283,14 +290,6 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
                 (cons["haussiers"] - cons["baissiers"]) / cons["total"] * 100, 1)
     except Exception:
         pass
-    # La « règle d'école » (EMA + RSI + filtre qualité) : journalisée pour
-    # être jugée, muette dans la note tant qu'elle n'a rien prouvé.
-    try:
-        ecole = _regle_ecole(df, symbole)
-        if ecole is not None:
-            candidats["regle_ecole"] = ecole
-    except Exception:
-        pass
     # Trois briques de CONTEXTE DE MARCHÉ, candidates elles aussi : filtre de
     # tendance du marché de rattachement, force relative contre son indice,
     # alignement des échelles hebdomadaire et quotidienne. Journalisées et
@@ -309,6 +308,25 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
             candidats["surprise"] = eco["note"]
     except Exception:
         pass  # brique candidate : elle s'absente, elle ne fait jamais échouer
+
+    # La « règle d'école » (EMA + RSI + filtre qualité), candidate — avec le
+    # filtre qualité de SA CLASSE, car on ne calcule pas le PER du pétrole :
+    # fondamentaux pour une action (dans le helper), SURPRISE MACRO pour une
+    # devise (taux, inflation, emploi — ce que la devise a pour elle),
+    # SAISONNALITÉ pour une matière première (le calendrier de l'offre et de
+    # la demande). « Permuter le filtre de sélection », demandé le 2026-09-01.
+    # Câblée APRÈS la surprise et les composantes : elle lit leurs notes.
+    try:
+        qualite = None
+        if symbole.endswith("=X"):
+            qualite = candidats.get("surprise")
+        elif symbole.endswith("=F"):
+            qualite = (composantes.get("saisonnalite") or {}).get("note")
+        ecole = _regle_ecole(df, symbole, qualite_classe=qualite)
+        if ecole is not None:
+            candidats["regle_ecole"] = ecole
+    except Exception:
+        pass
 
     poids, poids_meta = poids_effectifs()
     poids_total = sum(poids[c] for c in composantes)

@@ -77,3 +77,36 @@ def test_un_titre_sans_fondamentaux_garde_sa_note(monkeypatch):
         raise RuntimeError("pas une action")
     monkeypatch.setattr(fundamentals, "profil", _pas_une_action)
     assert decision._regle_ecole(_df(), "GC=F") == 90.0
+
+
+# ---------------------------------------------------------------------------
+# Le filtre qualité PERMUTE selon la classe : macro pour le forex,
+# saisonnalité pour les matières — on ne calcule pas le PER du pétrole
+# ---------------------------------------------------------------------------
+
+def test_une_devise_desavouee_par_la_macro_est_divisee(monkeypatch):
+    def _pas_une_action(s):
+        raise RuntimeError("pas une action")
+    monkeypatch.setattr(fundamentals, "profil", _pas_une_action)
+    # surprise macro franchement négative (< −10) : la note acheteuse ÷ 2
+    assert decision._regle_ecole(_df(), "EURUSD=X",
+                                 qualite_classe=-16.3) == 45.0
+
+
+def test_une_qualite_de_classe_neutre_ne_change_rien(monkeypatch):
+    def _pas_une_action(s):
+        raise RuntimeError("pas une action")
+    monkeypatch.setattr(fundamentals, "profil", _pas_une_action)
+    assert decision._regle_ecole(_df(), "GC=F", qualite_classe=-4.0) == 90.0
+    assert decision._regle_ecole(_df(), "GC=F", qualite_classe=None) == 90.0
+
+
+def test_le_filtre_de_classe_ignore_les_notes_vendeuses(monkeypatch):
+    def _pas_une_action(s):
+        raise RuntimeError("pas une action")
+    monkeypatch.setattr(fundamentals, "profil", _pas_une_action)
+    df = _df(e20=94.0, e50=95.0, e200=100.0,
+             closes_fin=(96.0, 96.0, 96.0, 94.0),
+             rsi_fin=(75.0, 74.0, 73.0, 72.0, 71.0, 65.0))
+    assert decision._regle_ecole(df, "EURUSD=X",
+                                 qualite_classe=-50.0) == -90.0

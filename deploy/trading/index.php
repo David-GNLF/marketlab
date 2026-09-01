@@ -1209,6 +1209,13 @@ const ML = {
       lignes.push(`Exposition : <strong>${fmt(notionnel)} $</strong>`
         + ` (mise ${fmt(mise)} $ × levier ${levier})`
         + ` ≈ ${fmt(qte, 4)} unité(s) @ ${fmt(ref, 4)}`);
+      // le forex se parle en LOTS chez les courtiers : la conversion rend le
+      // chiffre transposable tel quel sur un compte réel
+      if ($('t-symbole').value.endsWith('=X')) {
+        lignes.push(`Soit ≈ <strong>${fmt(notionnel / 100000, 2)} lot</strong>`
+          + ` standard (1 lot = 100 000 unités de la devise de base ;`
+          + ` 0,01 = micro-lot)`);
+      }
       lignes.push(`Liquidation approximative vers <strong>${fmt(liq, 4)}`
         + `</strong> (marge épuisée — perte = la mise)`);
       if (Number.isFinite(stop)) {
