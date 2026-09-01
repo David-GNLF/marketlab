@@ -234,3 +234,57 @@ def test_verdicts_illisibles_donnent_tenue_seule(tmp_path, monkeypatch):
     f.write_text("{cassé", encoding="utf-8")
     monkeypatch.setattr(rt, "VERDICTS_LOCAL", f)
     assert rt.charger_verdicts_publies() == {}
+
+
+# ---------------------------------------------------------------------------
+# Stop suiveur : opt-in, resserre seulement, jamais l'inverse
+# ---------------------------------------------------------------------------
+
+def _pos_suiveur(**extra):
+    base = {"symbole": "TEST", "sens": "long", "marge": 50.0, "levier": 2,
+            "quantite": 1.0, "prix_entree": 100.0, "stop": 90.0,
+            "objectif": None, "ouvert_le": "2026-08-01 10:00",
+            "suiveur": True, "suiveur_distance_pct": 6.0}
+    base.update(extra)
+    return base
+
+
+def test_stop_suiveur_resserre_apres_une_seance_survivante():
+    # clôture 100, écart gardé 6 % : le stop monte de 90 à 94
+    c = _compte(positions=[_pos_suiveur()])
+    evenements = rt.tenir_compte(c)
+    assert c["positions"][0]["stop"] == pytest.approx(94.0)
+    assert any("suiveur" in e for e in evenements)
+
+
+def test_stop_suiveur_ne_recule_jamais():
+    # stop déjà à 95 : le candidat (94) est PLUS BAS — rien ne bouge
+    c = _compte(positions=[_pos_suiveur(stop=94.5)])
+    evenements = rt.tenir_compte(c)
+    assert c["positions"][0]["stop"] == pytest.approx(94.5)
+    assert not any("suiveur" in e for e in evenements)
+
+
+def test_stop_suiveur_short_descend():
+    # pour un vendeur, « resserrer » = descendre : 106 → 104 (clôture 100 + 4 %)
+    c = _compte(positions=[_pos_suiveur(sens="short", stop=106.0,
+                                        suiveur_distance_pct=4.0)])
+    rt.tenir_compte(c)
+    assert c["positions"][0]["stop"] == pytest.approx(104.0)
+
+
+def test_sans_drapeau_suiveur_le_stop_ne_bouge_pas():
+    # les robots ne posent jamais ce drapeau : leurs règles d'expérience
+    # restent intactes
+    c = _compte(positions=[_pos_suiveur(suiveur=False)])
+    rt.tenir_compte(c)
+    assert c["positions"][0]["stop"] == pytest.approx(90.0)
+
+
+def test_un_stop_touche_prime_sur_le_suiveur():
+    # bas de séance 95 : le stop à 96 est touché, la position se ferme —
+    # le suiveur n'a rien à resserrer sur une position morte
+    c = _compte(positions=[_pos_suiveur(stop=96.0)])
+    evenements = rt.tenir_compte(c)
+    assert c["positions"] == []
+    assert any("stop touché" in e for e in evenements)

@@ -197,9 +197,39 @@ def tenir_compte(compte: dict) -> list[str]:
             evenements.append(f"{p['symbole']} {p['sens']} : {motif} "
                               f"(P&L {pnl:+.2f} $)")
         else:
+            # STOP SUIVEUR (opt-in au placement, jamais imposé) : la position
+            # a survécu à la séance, le stop remonte pour conserver l'ÉCART
+            # INITIAL par rapport au dernier cours de clôture. Il ne descend
+            # JAMAIS — un stop suiveur qui recule n'est plus une protection.
+            # Les robots ne posent pas ce drapeau : leurs règles d'expérience
+            # restent intactes.
+            try:
+                evenements += _suivre_stop(p, seances)
+            except Exception:
+                pass                     # le suiveur en panne s'efface
             restantes.append(p)
     compte["positions"] = restantes
     return evenements
+
+
+def _suivre_stop(p: dict, seances: list) -> list[str]:
+    """Remonte le stop d'une position marquée `suiveur`. Liste des événements."""
+    distance = float(p.get("suiveur_distance_pct") or 0) / 100
+    if not p.get("suiveur") or not p.get("stop") or distance <= 0 or not seances:
+        return []
+    try:
+        cloture = float(seances[-1]["close"])
+    except Exception:
+        return []
+    sens = 1 if p["sens"] == "long" else -1
+    candidat = cloture * (1 - sens * distance)
+    ancien = float(p["stop"])
+    if (sens == 1 and candidat > ancien) or (sens == -1 and candidat < ancien):
+        p["stop"] = round(candidat, 4)
+        return [f"{p['symbole']} : stop suiveur resserré {ancien:.4f} → "
+                f"{p['stop']:.4f} (clôture {cloture:.4f}, écart gardé "
+                f"{distance * 100:.2f} %)"]
+    return []
 
 
 def executer_ordres(compte: dict) -> list[str]:
@@ -254,6 +284,9 @@ def executer_ordres(compte: dict) -> list[str]:
             "notionnel": round(notionnel, 2),
             "quantite": notionnel / prix, "prix_entree": prix,
             "stop": o.get("stop"), "objectif": o.get("objectif"),
+            # le stop suiveur choisi au placement de l'ordre suit la position
+            "suiveur": o.get("suiveur"),
+            "suiveur_distance_pct": o.get("suiveur_distance_pct"),
             "ouvert_le": _maintenant(), "source": "ordre"})
         evenements.append(f"{o['symbole']} : ordre {o['type']} {o['sens']} "
                           f"exécuté @ {prix:.4f} (la séance a touché "

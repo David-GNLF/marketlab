@@ -188,6 +188,61 @@ def _composante_sentiment(symbole: str) -> dict:
 
 # --- Verdict -----------------------------------------------------------------
 
+def _regle_ecole(df: pd.DataFrame, symbole: str) -> float | None:
+    """La « règle d'école » du swing trading — CANDIDATE, pas vérité.
+
+    Demandée par l'utilisateur (2026-08-27) à partir des manuels : tendance
+    EMA50 > EMA200, confirmation EMA20 > EMA50, déclencheur « le RSI se
+    redresse en sortant de la zone basse (< 40) et le cours repasse sa
+    MM50 » ; côté négatif symétrique (surachat qui retombe, perte de la
+    MM50). Filtre qualité fondamental : une note ACHETEUSE est divisée par
+    deux si la croissance est faible ou l'endettement lourd — « le
+    fondamental filtre quoi, la technique dit quand ».
+
+    POURQUOI candidate et pas composante : chaque brique prédictive de ce
+    projet a dû gagner sa place, et la composante technique existante a un
+    IC mesuré NÉGATIF (retour à la moyenne). Cette règle est donc journalisée
+    (colonne c_regle_ecole), son IC se mesurera comme celui des autres, et
+    l'apprentissage des pondérations la promouvra si — et seulement si —
+    elle classe mieux que le bruit. None si l'historique ne couvre pas
+    l'EMA200 : pas de note inventée.
+    """
+    if len(df) < 210:
+        return None
+    c, r = df["close"], df["rsi14"]
+    e20, e50, e200 = df["ema20"], df["ema50"], df["ema200"]
+    if pd.isna(e200.iloc[-1]) or pd.isna(r.iloc[-1]):
+        return None
+    note = 0.0
+    # tendance de fond, puis confirmation courte
+    note += 20 if e50.iloc[-1] > e200.iloc[-1] else -20
+    note += 10 if e20.iloc[-1] > e50.iloc[-1] else -10
+    # croisement RÉCENT de la MM50 (3 dernières séances) — l'événement, pas l'état
+    au_dessus = (c > e50).iloc[-4:]
+    if bool(au_dessus.iloc[-1]) and not bool(au_dessus.iloc[:-1].all()):
+        note += 25
+    elif not bool(au_dessus.iloc[-1]) and bool(au_dessus.iloc[:-1].any()):
+        note -= 25
+    # redressement du momentum : le RSI SORT de sa zone (fenêtre 5 séances)
+    if r.iloc[-1] >= 40 and bool((r.iloc[-6:-1] < 40).any()):
+        note += 35
+    elif r.iloc[-1] <= 70 and bool((r.iloc[-6:-1] > 70).any()):
+        note -= 35
+    # le filtre qualité ne s'applique qu'aux notes acheteuses : on n'achète
+    # pas une entreprise fragile sur un signal graphique
+    if note > 0:
+        try:
+            p = fundamentals.profil(symbole)
+            croissance = p.get("croissance_ca")
+            dette = p.get("dette_sur_capitaux")     # yfinance : en %
+            if (croissance is not None and croissance < 0.05) \
+                    or (dette is not None and dette > 200):
+                note *= 0.5
+        except Exception:
+            pass                    # pas une action, ou données absentes
+    return round(note, 1)
+
+
 def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
             lookback_days: int = 1825) -> dict:
     """Dossier de décision complet pour un titre."""
@@ -226,6 +281,14 @@ def dossier(symbole: str, horizon: int = 20, capital: float = 10_000.0,
         if cons.get("total"):
             candidats["brokers"] = round(
                 (cons["haussiers"] - cons["baissiers"]) / cons["total"] * 100, 1)
+    except Exception:
+        pass
+    # La « règle d'école » (EMA + RSI + filtre qualité) : journalisée pour
+    # être jugée, muette dans la note tant qu'elle n'a rien prouvé.
+    try:
+        ecole = _regle_ecole(df, symbole)
+        if ecole is not None:
+            candidats["regle_ecole"] = ecole
     except Exception:
         pass
     # Trois briques de CONTEXTE DE MARCHÉ, candidates elles aussi : filtre de

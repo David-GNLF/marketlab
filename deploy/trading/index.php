@@ -317,6 +317,10 @@ if ($connecte && in_array($action, $actions_protegees, true)) {
             $objectif = (float)($_POST['objectif'] ?? 0) ?: null;
             $prix_ordre = (float)($_POST['prix_ordre'] ?? 0) ?: null;
             $validite = max(1, min(365, (int)($_POST['validite'] ?? 30)));
+            // Stop SUIVEUR (opt-in) : l'écart initial stop↔entrée est figé au
+            // placement ; la tenue nocturne resserre ensuite le stop pour le
+            // conserver par rapport à la clôture — jamais dans l'autre sens.
+            $suiveur = !empty($_POST['suiveur']);
             $cours = dernier_cours($symbole);
             $s = $sens === 'long' ? 1 : -1;
             // pour un ordre en attente, stop/objectif se jugent par rapport
@@ -366,6 +370,9 @@ if ($connecte && in_array($action, $actions_protegees, true)) {
                     'symbole' => $symbole, 'sens' => $sens, 'type' => $type,
                     'prix' => $prix_ordre, 'marge' => $mise, 'levier' => $levier,
                     'stop' => $stop, 'objectif' => $objectif,
+                    'suiveur' => $suiveur && $stop !== null,
+                    'suiveur_distance_pct' => ($suiveur && $stop !== null && $ref > 0)
+                        ? round(abs($ref - $stop) / $ref * 100, 4) : null,
                     'cree_le' => date('Y-m-d H:i'), 'source' => 'manuel',
                     // sans échéance, un ordre jamais touché gèlerait sa marge
                     // indéfiniment : on borne, comme un courtier
@@ -392,6 +399,9 @@ if ($connecte && in_array($action, $actions_protegees, true)) {
                     'quantite' => $notionnel / $prix,
                     'prix_entree' => $prix,
                     'stop' => $stop, 'objectif' => $objectif,
+                    'suiveur' => $suiveur && $stop !== null,
+                    'suiveur_distance_pct' => ($suiveur && $stop !== null && $prix > 0)
+                        ? round(abs($prix - $stop) / $prix * 100, 4) : null,
                     'ouvert_le' => date('Y-m-d H:i'),
                     'source' => 'manuel',
                     'base_prix' => $cours['source'],
@@ -842,6 +852,11 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
           <input name="stop" id="t-stop" type="number" step="any"></div>
         <div><label><?= ml_terme('objectif', 'Objectif (optionnel)') ?></label>
           <input name="objectif" id="t-objectif" type="number" step="any"></div>
+        <div><label>Stop suiveur</label>
+          <label style="font-weight:400;font-size:13px;opacity:1">
+            <input type="checkbox" name="suiveur" value="1" id="t-suiveur">
+            resserrer le stop quand le cours avance (écart initial conservé,
+            vérifié chaque soir — le stop ne recule jamais)</label></div>
       </div>
       <div id="recap-ticket"></div>
       <div id="chaine-ticket"></div>
@@ -887,7 +902,9 @@ if (!in_array($symbole_choisi, $actifs, true)) $symbole_choisi = '';
         <td class="<?= $pnl >= 0 ? 'pos' : 'neg' ?>" data-pnl>
           <?= $pnl === null ? '—' : ($pnl >= 0 ? '+' : '')
               . montant($pnl, 2) ?> $</td>
-        <td><?= $p['stop'] ?? '—' ?></td>
+        <td><?= $p['stop'] ?? '—' ?><?= !empty($p['suiveur'])
+            ? ' <span class="note" title="stop suiveur : resserré chaque soir '
+              . 'avec le cours, ne recule jamais">(suiveur)</span>' : '' ?></td>
         <td><?= $p['objectif'] ?? '—' ?></td>
         <td class="note"><?= round(prix_liquidation($p), 4) ?></td>
         <td style="white-space:nowrap">

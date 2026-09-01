@@ -63,6 +63,11 @@ def enrich(df: pd.DataFrame) -> pd.DataFrame:
     out["sma20"] = sma(c, 20)
     out["sma50"] = sma(c, 50)
     out["sma200"] = sma(c, 200)
+    # Variantes exponentielles des mêmes fenêtres : plus réactives — c'est
+    # sur elles que la candidate « règle d'école » se juge.
+    out["ema20"] = ema(c, 20)
+    out["ema50"] = ema(c, 50)
+    out["ema200"] = ema(c, 200)
     out["rsi14"] = rsi(c)
     out = out.join(macd(c))
     out = out.join(bollinger(c))
