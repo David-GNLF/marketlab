@@ -94,10 +94,15 @@
    "ic": null,
    "n": 9,
    "note": "pas encore assez de verdicts évalués"
+  },
+  "regle_ecole": {
+   "ic": null,
+   "n": 0,
+   "note": "pas encore assez de verdicts évalués"
   }
  },
  "statut": "aucune composante n'a démontré de pouvoir prédictif sur 4538 verdicts (aucun IC significativement positif à 95 %) : pondérations de base conservées",
- "date": "2026-09-01 21:45",
+ "date": "2026-09-01 22:01",
  "poids_base": {
   "technique": 0.25,
   "prevision": 0.2,
