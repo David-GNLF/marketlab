@@ -449,3 +449,65 @@ date,devise,evenement,impact,prevision,precedent
 2026-09-04,USD,Average Hourly Earnings m/m,High,0.3,0.1
 2026-09-04,USD,Non-Farm Employment Change,High,58000,-23000
 2026-09-04,USD,Unemployment Rate,High,4.1,4.1
+2026-09-07,AUD,ANZ Job Advertisements m/m,Low,,0.8
+2026-09-07,CHF,Foreign Currency Reserves,Low,,7.68e+11
+2026-09-07,CHF,Unemployment Rate,Low,3.1,3.1
+2026-09-07,EUR,Final Employment Change q/q,Low,0.1,0.1
+2026-09-07,EUR,German Industrial Production m/m,Low,0.1,0.2
+2026-09-07,EUR,Revised GDP q/q,Low,0.4,0.4
+2026-09-07,EUR,Sentix Investor Confidence,Low,2.1,0.9
+2026-09-07,GBP,Lloyds HPI m/m,Low,0.2,0
+2026-09-07,JPY,Leading Indicators,Low,117.9,116.4
+2026-09-07,NZD,Manufacturing Sales q/q,Low,,2.8
+2026-09-08,AUD,NAB Business Confidence,Low,,-6
+2026-09-08,AUD,Westpac Consumer Sentiment,Low,,6
+2026-09-08,CNY,Trade Balance,Low,7.95e+11,7.67e+11
+2026-09-08,CNY,USD-Denominated Trade Balance,Low,1.201e+11,1.125e+11
+2026-09-08,EUR,French Trade Balance,Low,-6000000000,-5800000000
+2026-09-08,EUR,German Trade Balance,Low,1.65e+10,1.54e+10
+2026-09-08,GBP,BRC Retail Sales Monitor y/y,Low,1.2,1
+2026-09-08,JPY,Average Cash Earnings y/y,Low,3.9,3.4
+2026-09-08,JPY,Bank Lending y/y,Low,5.5,5.4
+2026-09-08,JPY,Current Account,Low,2.46e+12,1.4e+12
+2026-09-08,JPY,Economy Watchers Sentiment,Low,46.3,45.7
+2026-09-08,JPY,Final GDP Price Index y/y,Low,2.6,2.6
+2026-09-08,JPY,Final GDP q/q,Low,0.4,0.3
+2026-09-08,USD,Consumer Credit m/m,Low,1.32e+10,1.42e+10
+2026-09-08,USD,NFIB Small Business Index,Low,99.2,99.8
+2026-09-09,CNY,CPI y/y,Low,0.9,0.5
+2026-09-09,CNY,PPI y/y,Low,3.6,3.5
+2026-09-09,EUR,French Industrial Production m/m,Low,0.1,0.1
+2026-09-09,JPY,M2 Money Stock y/y,Low,2.2,2.2
+2026-09-09,JPY,Prelim Machine Tool Orders y/y,Low,,50.4
+2026-09-09,USD,ADP Weekly Employment Change,Low,,11800
+2026-09-10,AUD,MI Inflation Expectations,Low,,4.9
+2026-09-10,EUR,German Final CPI m/m,Low,0.2,0.2
+2026-09-10,EUR,Italian Industrial Production m/m,Low,0.3,-1
+2026-09-10,EUR,Main Refinancing Rate,High,2.65,2.4
+2026-09-10,GBP,RICS House Price Balance,Low,-31,-30
+2026-09-10,NZD,BusinessNZ Manufacturing Index,Low,,54.3
+2026-09-10,USD,Core PPI m/m,High,0.3,0.2
+2026-09-10,USD,Crude Oil Inventories,Low,,-4500000
+2026-09-10,USD,Existing Home Sales,Low,3980000,4060000
+2026-09-10,USD,Final Wholesale Inventories m/m,Low,1.3,1.3
+2026-09-10,USD,Natural Gas Storage,Low,,3e+10
+2026-09-10,USD,PPI m/m,High,0.4,0
+2026-09-10,USD,Unemployment Claims,Medium,205000,206000
+2026-09-11,CHF,SECO Consumer Climate,Low,-32,-35
+2026-09-11,EUR,Italian Quarterly Unemployment Rate,Low,5.3,5.3
+2026-09-11,GBP,Construction Output m/m,Low,0.1,-0.1
+2026-09-11,GBP,Consumer Inflation Expectations,Low,,4
+2026-09-11,GBP,GDP m/m,High,0,0.3
+2026-09-11,GBP,Goods Trade Balance,Low,-2.24e+10,-2.3e+10
+2026-09-11,GBP,Index of Services 3m/3m,Low,0.5,0.5
+2026-09-11,GBP,Industrial Production m/m,Low,-0.1,-0.2
+2026-09-11,GBP,Manufacturing Production m/m,Low,0.2,-0.5
+2026-09-11,JPY,BSI Manufacturing Index,Low,2.5,-1.8
+2026-09-11,JPY,PPI y/y,Low,7.4,7.2
+2026-09-11,USD,CPI m/m,High,0.4,0.1
+2026-09-11,USD,CPI y/y,High,3.4,3.4
+2026-09-11,USD,Core CPI m/m,High,0.2,0.2
+2026-09-11,USD,Core CPI y/y,High,2.4,2.5
+2026-09-11,USD,Federal Budget Balance,Low,-2.024e+11,-4.323e+11
+2026-09-11,USD,Prelim UoM Consumer Sentiment,Medium,51,51
+2026-09-11,USD,Prelim UoM Inflation Expectations,Medium,,4.3
