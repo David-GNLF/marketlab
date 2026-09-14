@@ -511,3 +511,83 @@ date,devise,evenement,impact,prevision,precedent
 2026-09-11,USD,Federal Budget Balance,Low,-2.024e+11,-4.323e+11
 2026-09-11,USD,Prelim UoM Consumer Sentiment,Medium,51,51
 2026-09-11,USD,Prelim UoM Inflation Expectations,Medium,,4.3
+2026-09-13,NZD,BusinessNZ Services Index,Low,,50.6
+2026-09-13,NZD,Visitor Arrivals m/m,Low,,-0.1
+2026-09-14,CAD,CPI m/m,High,-0.1,0.5
+2026-09-14,CAD,Common CPI y/y,Medium,2.7,2.7
+2026-09-14,CAD,Core CPI m/m,Low,0.2,0.2
+2026-09-14,CAD,Manufacturing Sales m/m,Low,-0.2,0.1
+2026-09-14,CAD,Median CPI y/y,High,2,2
+2026-09-14,CAD,Trimmed CPI y/y,High,1.9,1.9
+2026-09-14,CHF,PPI m/m,Low,0,-0.1
+2026-09-14,CNY,M2 Money Supply y/y,Low,7.6,7.7
+2026-09-14,CNY,New Loans,Low,4.8e+11,-3.4e+11
+2026-09-14,GBP,CB Leading Index m/m,Low,,-0.4
+2026-09-14,JPY,Revised Industrial Production m/m,Low,0.1,0.1
+2026-09-15,CAD,Wholesale Sales m/m,Low,-0.5,2.8
+2026-09-15,CNY,Fixed Asset Investment ytd/y,Low,-7,-6.7
+2026-09-15,CNY,Foreign Direct Investment ytd/y,Low,,-6.2
+2026-09-15,CNY,Industrial Production y/y,Low,4.8,4.5
+2026-09-15,CNY,New Home Prices m/m,Low,,-0.18
+2026-09-15,CNY,Retail Sales y/y,Low,0.8,0.6
+2026-09-15,CNY,Unemployment Rate,Low,5.2,5.2
+2026-09-15,EUR,French Final CPI m/m,Low,0.7,0.7
+2026-09-15,EUR,German WPI m/m,Low,0.1,0.2
+2026-09-15,EUR,German ZEW Economic Sentiment,Low,42.7,34.2
+2026-09-15,EUR,Italian Trade Balance,Low,4770000000,4230000000
+2026-09-15,EUR,Trade Balance,Low,3700000000,1800000000
+2026-09-15,EUR,ZEW Economic Sentiment,Low,39.9,31.4
+2026-09-15,GBP,Average Earnings Index 3m/y,Medium,3.9,4.1
+2026-09-15,GBP,Claimant Count Change,High,8300,-11000
+2026-09-15,GBP,Unemployment Rate,Low,4.9,4.9
+2026-09-15,JPY,Tertiary Industry Activity m/m,Low,0.3,-0.2
+2026-09-15,NZD,Current Account,Low,-2370000000,-1010000000
+2026-09-15,NZD,GDT Price Index,Low,,0.9
+2026-09-15,NZD,Westpac Consumer Sentiment,Low,,80.4
+2026-09-15,USD,ADP Weekly Employment Change,Low,,12000
+2026-09-15,USD,Empire State Manufacturing Index,Low,14.1,20.6
+2026-09-16,AUD,MI Leading Index m/m,Low,,0
+2026-09-16,CAD,Building Permits m/m,Low,-5.8,18.5
+2026-09-16,CAD,Housing Starts,Low,239000,229000
+2026-09-16,EUR,Industrial Production m/m,Low,-0.5,0
+2026-09-16,GBP,CPI y/y,High,3.1,2.9
+2026-09-16,GBP,Core CPI y/y,Low,2.6,2.6
+2026-09-16,GBP,HPI y/y,Low,2.1,2
+2026-09-16,GBP,PPI Input m/m,Low,-0.6,-1.7
+2026-09-16,GBP,PPI Output m/m,Low,0.1,0.2
+2026-09-16,GBP,RPI y/y,Low,3.5,3.2
+2026-09-16,JPY,Core Machinery Orders m/m,Low,-1.1,9.7
+2026-09-16,JPY,Trade Balance,Low,-9.8e+11,-6.9e+11
+2026-09-16,NZD,GDP q/q,High,0.1,0.8
+2026-09-16,USD,Business Inventories m/m,Low,0.3,0
+2026-09-16,USD,Core Retail Sales m/m,Medium,0.5,-0.3
+2026-09-16,USD,Crude Oil Inventories,Low,,-400000
+2026-09-16,USD,Federal Funds Rate,High,4,3.75
+2026-09-16,USD,Import Prices m/m,Low,0,-0.4
+2026-09-16,USD,NAHB Housing Market Index,Low,34,35
+2026-09-16,USD,Retail Sales m/m,Medium,0.8,-0.6
+2026-09-16,USD,TIC Long-Term Purchases,Low,1.463e+11,1.727e+11
+2026-09-17,AUD,CB Leading Index m/m,Low,,0.3
+2026-09-17,CAD,Foreign Securities Purchases,Low,2.864e+10,4.083e+10
+2026-09-17,CAD,IPPI m/m,Low,0.3,0.6
+2026-09-17,CAD,RMPI m/m,Low,-0.8,-2.2
+2026-09-17,EUR,Final CPI y/y,Low,3.3,3.3
+2026-09-17,EUR,Final Core CPI y/y,Low,2.4,2.4
+2026-09-17,GBP,Official Bank Rate,High,3.75,3.75
+2026-09-17,NZD,FPI m/m,Low,,0.1
+2026-09-17,NZD,Trade Balance,Low,-1275000000,-1949000000
+2026-09-17,USD,Building Permits,Low,1400000,1440000
+2026-09-17,USD,Housing Starts,Low,1320000,1240000
+2026-09-17,USD,Natural Gas Storage,Low,,4e+10
+2026-09-17,USD,Pending Home Sales m/m,Low,0.3,-2.3
+2026-09-17,USD,Philly Fed Manufacturing Index,Medium,28.9,47.4
+2026-09-17,USD,Unemployment Claims,Medium,209000,206000
+2026-09-18,EUR,Current Account,Low,3.07e+10,3.51e+10
+2026-09-18,EUR,German PPI m/m,Low,0.6,1.1
+2026-09-18,GBP,GfK Consumer Confidence,Low,-16,-14
+2026-09-18,GBP,Retail Sales m/m,Medium,-0.2,-0.5
+2026-09-18,JPY,BOJ Policy Rate,High,1.25,1
+2026-09-18,JPY,National Core CPI y/y,Low,1.8,1.8
+2026-09-18,USD,CB Leading Index m/m,Low,0.2,0.2
+2026-09-18,USD,Capacity Utilization Rate,Low,76.4,76.3
+2026-09-18,USD,Industrial Production m/m,Low,0.1,0.2
