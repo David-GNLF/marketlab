@@ -288,3 +288,86 @@ def test_un_stop_touche_prime_sur_le_suiveur():
     evenements = rt.tenir_compte(c)
     assert c["positions"] == []
     assert any("stop touché" in e for e in evenements)
+
+
+# ---------------------------------------------------------------------------
+# Le compte dérive : porter, pas prédire
+# ---------------------------------------------------------------------------
+
+LUNDI = pd.Timestamp("2026-09-21")
+SAMEDI = pd.Timestamp("2026-09-19")
+
+
+def _panier(monkeypatch, titres, qualite=lambda s: True):
+    monkeypatch.setattr(rt, "univers_derive", lambda: list(titres))
+    monkeypatch.setattr(rt, "qualite_ok", qualite)
+
+
+def test_derive_deploie_le_panier_equipondere(monkeypatch):
+    _panier(monkeypatch, ["A", "B", "C"])
+    c = _compte(solde=1000.0)
+    rt.decisions_derive(c, quand=LUNDI)
+    assert len(c["positions"]) == 3
+    # 60 % de 1 000 $ sur 3 titres = 200 $ chacun, levier 1, SANS stop :
+    # on porte la dérive, on ne la découpe pas
+    for p in c["positions"]:
+        assert p["marge"] == pytest.approx(200.0, abs=1)
+        assert p["levier"] == 1 and p["stop"] is None and p["objectif"] is None
+    assert c["dernier_reequilibrage"] == "2026-09-21"
+
+
+def test_derive_un_seul_passage_par_mois(monkeypatch):
+    _panier(monkeypatch, ["A"])
+    c = _compte(solde=1000.0)
+    rt.decisions_derive(c, quand=LUNDI)
+    n = len(c["positions"])
+    assert rt.decisions_derive(c, quand=LUNDI + pd.Timedelta(days=3)) == []
+    assert len(c["positions"]) == n
+
+
+def test_derive_ne_fait_rien_le_week_end(monkeypatch):
+    _panier(monkeypatch, ["A"])
+    c = _compte(solde=1000.0)
+    assert rt.decisions_derive(c, quand=SAMEDI) == []
+    assert "dernier_reequilibrage" not in c   # le mois n'est pas consommé
+
+
+def test_derive_sort_ce_que_la_qualite_desavoue(monkeypatch):
+    _panier(monkeypatch, ["A", "D"], qualite=lambda s: s != "D")
+    c = _compte(solde=400.0, positions=[{
+        "id": "dv0", "symbole": "D", "sens": "long", "marge": 300.0,
+        "levier": 1, "notionnel": 300.0, "quantite": 3.0,
+        "prix_entree": 100.0, "stop": None, "objectif": None,
+        "ouvert_le": "2026-08-03 22:00", "source": "derive"}])
+    journal = rt.decisions_derive(c, quand=LUNDI)
+    assert any("sorti du filtre qualité" in e for e in journal)
+    assert all(p["symbole"] != "D" for p in c["positions"])
+    assert c["historique"][0]["symbole"] == "D"
+
+
+def test_derive_ne_touche_pas_une_ligne_dans_la_tolerance(monkeypatch):
+    # équité 1 000, 2 éligibles → cible 300 ; A vaut exactement 300 : intacte
+    _panier(monkeypatch, ["A", "B"])
+    position_a = {"id": "dv0", "symbole": "A", "sens": "long", "marge": 300.0,
+                  "levier": 1, "notionnel": 300.0, "quantite": 3.0,
+                  "prix_entree": 100.0, "stop": None, "objectif": None,
+                  "ouvert_le": "2026-08-03 22:00", "source": "derive"}
+    c = _compte(solde=700.0, positions=[position_a])
+    rt.decisions_derive(c, quand=LUNDI)
+    assert c["positions"][0] is position_a      # pas fermée/rouverte
+    assert c["historique"] == []                # aucun spread payé sur A
+    assert {p["symbole"] for p in c["positions"]} == {"A", "B"}
+
+
+def test_derive_reequilibre_au_dela_de_la_tolerance(monkeypatch):
+    # A vaut 500 pour une cible de 300 (+67 % > 25 %) : fermée puis rouverte
+    _panier(monkeypatch, ["A", "B"])
+    c = _compte(solde=500.0, positions=[{
+        "id": "dv0", "symbole": "A", "sens": "long", "marge": 500.0,
+        "levier": 1, "notionnel": 500.0, "quantite": 5.0,
+        "prix_entree": 100.0, "stop": None, "objectif": None,
+        "ouvert_le": "2026-08-03 22:00", "source": "derive"}])
+    journal = rt.decisions_derive(c, quand=LUNDI)
+    assert any("rééquilibrage mensuel" in e for e in journal)
+    a = [p for p in c["positions"] if p["symbole"] == "A"][0]
+    assert a["marge"] == pytest.approx(300.0, abs=2)

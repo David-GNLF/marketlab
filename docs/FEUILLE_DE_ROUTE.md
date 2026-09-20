@@ -37,6 +37,7 @@ Format : `- [x] Titre — précision`.
 - [x] Surveillance nocturne des positions ouvertes (régime, sauts, portage, horizon, concentration)
 - [x] Journal du filtre : les écartées rejouées contre les retenues à l'échéance, net des coûts
 - [x] Le ticket d'ordre montre le verdict de la chaîne au moment d'agir
+- [x] Compte « porteur de dérive » : 60 % équipondéré qualité, levier 1, rééquilibrage mensuel — la seule stratégie mesurée gagnante du projet
 - [ ] Bascule du robot au dimensionnement par le risque — attend le verdict du journal
 
 ## Robots
