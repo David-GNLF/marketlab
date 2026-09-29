@@ -5,68 +5,68 @@
       "horizon": 1,
       "scores": {
         "har": {
-          "qlike": 0.19024,
-          "rmse_log": 0.53162
+          "qlike": 0.16543,
+          "rmse_log": 0.51656
         },
         "hasard": {
-          "qlike": 0.21157,
-          "rmse_log": 0.60404
+          "qlike": 0.19055,
+          "rmse_log": 0.59298
         },
         "ewma": {
-          "qlike": 0.23518,
-          "rmse_log": 0.60543
+          "qlike": 0.16434,
+          "rmse_log": 0.60778
         }
       },
-      "gagnant": "har",
+      "gagnant": "ewma",
       "gagnant_rmse": "har",
-      "har_retenu": true,
-      "n_entrainement": 2072,
-      "n_test": 1642,
+      "har_retenu": false,
+      "n_entrainement": 2130,
+      "n_test": 1641,
       "n_titres": 58,
-      "coupe": "2026-08-18",
+      "coupe": "2026-08-19",
       "periode": [
         "2026-06-21",
-        "2026-09-26"
+        "2026-09-27"
       ],
-      "modele": {
-        "b0": -0.20377842306376073,
-        "b_jour": 0.4086900923059962,
-        "b_semaine": 0.2708794968011413,
-        "b_mois": 0.30051966748302045,
-        "somme_pentes": 0.980089256590158,
-        "n_obs": 3714,
-        "r2": 0.868109185474333
-      }
+      "modele": null
     },
     "20": {
       "suffisant": true,
       "horizon": 20,
       "scores": {
         "har": {
-          "qlike": 0.16948,
-          "rmse_log": 0.49287
+          "qlike": 0.17183,
+          "rmse_log": 0.49193
         },
         "hasard": {
-          "qlike": 0.32447,
-          "rmse_log": 0.64823
+          "qlike": 0.32855,
+          "rmse_log": 0.64394
         },
         "ewma": {
-          "qlike": 0.16096,
-          "rmse_log": 0.59748
+          "qlike": 0.28462,
+          "rmse_log": 0.60992
         }
       },
-      "gagnant": "ewma",
+      "gagnant": "har",
       "gagnant_rmse": "har",
-      "har_retenu": false,
-      "n_entrainement": 1652,
-      "n_test": 960,
+      "har_retenu": true,
+      "n_entrainement": 1710,
+      "n_test": 959,
       "n_titres": 58,
-      "coupe": "2026-08-07",
+      "coupe": "2026-08-08",
       "periode": [
         "2026-06-21",
-        "2026-09-07"
+        "2026-09-08"
       ],
-      "modele": null
+      "modele": {
+        "b0": -0.7501600901306564,
+        "b_jour": 0.13520359780884983,
+        "b_semaine": 0.15712520609956815,
+        "b_mois": 0.6399386378332124,
+        "somme_pentes": 0.9322674417416303,
+        "n_obs": 2669,
+        "r2": 0.9086025000775323
+      }
     }
   },
   "retenu": true
