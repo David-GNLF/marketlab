@@ -724,3 +724,56 @@ date,devise,evenement,impact,prevision,precedent
 2026-10-02,USD,Factory Orders m/m,Low,-0.1,0.9
 2026-10-02,USD,Non-Farm Employment Change,High,98000,162000
 2026-10-02,USD,Unemployment Rate,High,4.1,4.1
+2026-10-05,AUD,MI Inflation Gauge m/m,Low,,0.5
+2026-10-05,EUR,Final Services PMI,Low,53,53
+2026-10-05,EUR,French Final Services PMI,Low,51.4,51.4
+2026-10-05,EUR,German Final Services PMI,Low,52.9,52.9
+2026-10-05,EUR,Italian Services PMI,Low,54.6,55.2
+2026-10-05,EUR,PPI m/m,Low,1.9,1.6
+2026-10-05,EUR,Sentix Investor Confidence,Low,4.5,5.1
+2026-10-05,EUR,Spanish Services PMI,Low,57.1,57.8
+2026-10-05,GBP,Final Services PMI,Low,51.7,51.7
+2026-10-05,JPY,Consumer Confidence,Low,35.3,35.5
+2026-10-05,NZD,ANZ Commodity Prices m/m,Low,,-0.4
+2026-10-05,NZD,NZIER Business Confidence,Low,,8
+2026-10-05,USD,Final Services PMI,Low,58.7,58.7
+2026-10-05,USD,ISM Services PMI,Medium,55.1,55.4
+2026-10-06,AUD,ANZ Job Advertisements m/m,Low,,2.5
+2026-10-06,AUD,Westpac Consumer Sentiment,Low,,-5.2
+2026-10-06,CAD,Ivey PMI,Medium,65.2,64.3
+2026-10-06,CAD,Trade Balance,Low,1300000000,800000000
+2026-10-06,CHF,Unemployment Rate,Low,3.1,3.1
+2026-10-06,EUR,French Gov Budget Balance,Low,,-1.459e+11
+2026-10-06,EUR,French Industrial Production m/m,Low,0.2,-0.4
+2026-10-06,EUR,German Factory Orders m/m,Low,-1,2.5
+2026-10-06,EUR,Retail Sales m/m,Low,0.3,-0.6
+2026-10-06,GBP,Construction PMI,Low,45,44.3
+2026-10-06,GBP,Housing Equity Withdrawal q/q,Low,-1.19e+10,-1.26e+10
+2026-10-06,NZD,GDT Price Index,Low,,-1.1
+2026-10-06,USD,ADP Weekly Employment Change,Low,,20000
+2026-10-06,USD,RCM/TIPP Economic Optimism,Low,44.5,45.6
+2026-10-06,USD,Trade Balance,Low,-9.52e+10,-8.86e+10
+2026-10-07,CHF,Foreign Currency Reserves,Low,,7.7e+11
+2026-10-07,EUR,French Trade Balance,Low,-6500000000,-6700000000
+2026-10-07,EUR,German Industrial Production m/m,Low,0.5,-1.1
+2026-10-07,GBP,Lloyds HPI m/m,Low,0.2,-0.2
+2026-10-07,JPY,Average Cash Earnings y/y,Low,3.7,4.7
+2026-10-07,JPY,Leading Indicators,Low,118.1,117.9
+2026-10-07,USD,Consumer Credit m/m,Low,1.54e+10,1.81e+10
+2026-10-07,USD,Crude Oil Inventories,Low,,900000
+2026-10-08,AUD,MI Inflation Expectations,Low,,4.9
+2026-10-08,EUR,German Trade Balance,Low,1.89e+10,2.13e+10
+2026-10-08,GBP,RICS House Price Balance,Low,-30,-28
+2026-10-08,JPY,Current Account,Low,2.1e+12,2.52e+12
+2026-10-08,JPY,Economy Watchers Sentiment,Low,46.6,46.4
+2026-10-08,USD,Final Wholesale Inventories m/m,Low,0.7,0.7
+2026-10-08,USD,Natural Gas Storage,Low,,6.4e+10
+2026-10-08,USD,Unemployment Claims,Medium,200000,197000
+2026-10-09,CAD,Employment Change,High,9000,-41700
+2026-10-09,CAD,Unemployment Rate,High,6.5,6.4
+2026-10-09,CHF,SECO Consumer Climate,Low,-32,-33
+2026-10-09,EUR,Italian Industrial Production m/m,Low,0,0.7
+2026-10-09,JPY,Household Spending y/y,Low,-3.5,-3.6
+2026-10-09,JPY,Prelim Machine Tool Orders y/y,Low,,64.7
+2026-10-09,USD,Prelim UoM Consumer Sentiment,Medium,47.6,47.8
+2026-10-09,USD,Prelim UoM Inflation Expectations,Medium,,4.6

@@ -1,26 +1,32 @@
 {
- "n": 6455,
- "n_effectif": 322,
- "taux_de_base_%": 53.2,
+ "n": 6493,
+ "n_effectif": 324,
+ "taux_de_base_%": 53.0,
  "paliers": [
   {
    "note_min": -58.5,
+   "note_max": -40.8,
+   "proba": 50.8,
+   "n": 61
+  },
+  {
+   "note_min": -40.7,
    "note_max": -28.9,
-   "proba": 50.4,
-   "n": 244
+   "proba": 50.8,
+   "n": 183
   },
   {
    "note_min": -28.9,
    "note_max": 81.3,
-   "proba": 53.3,
-   "n": 6211
+   "proba": 53.1,
+   "n": 6249
   }
  ],
- "brier_avant": 0.2928,
- "brier_calibre": 0.249,
- "brier_taux_de_base": 0.249,
- "gain_sur_taux_de_base": 2.5e-05,
- "t": 0.08,
+ "brier_avant": 0.2929,
+ "brier_calibre": 0.2491,
+ "brier_taux_de_base": 0.2491,
+ "gain_sur_taux_de_base": 2.3e-05,
+ "t": 0.09,
  "apporte_quelque_chose": false,
  "statut": "la note n'apporte rien de démontrable : la courbe calibrée ne fait pas mieux que d'annoncer le taux de base à tout le monde. Les probabilités affichées sont donc ramenées près de ce taux — c'est honnête, et déjà bien plus juste que les 83 % annoncés auparavant, qui étaient pires qu'un tirage à pile ou face.",
  "methode": "régression isotone sur le journal : on n'invente aucune forme, on suit la fréquence de hausse réellement observée par tranche de note. Comparaison au score de Brier."
