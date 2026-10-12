@@ -25,12 +25,12 @@
       "mesurable": true,
       "inverse": false,
       "motif": null,
-      "ic_purge": -0.0399,
+      "ic_purge": -0.0401,
       "part_concluante_%": 0.0,
       "obs_independantes": 14
     }
   },
   "mesurable": true,
-  "ic_global": -0.002,
+  "ic_global": -0.0024,
   "lecture": "Aucun régime ne justifie de suspendre l'avis directionnel."
 }
