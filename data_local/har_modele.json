@@ -5,37 +5,37 @@
       "horizon": 1,
       "scores": {
         "har": {
-          "qlike": 0.14299,
-          "rmse_log": 0.51418
+          "qlike": 0.1481,
+          "rmse_log": 0.51734
         },
         "hasard": {
-          "qlike": 0.19029,
-          "rmse_log": 0.60236
+          "qlike": 0.19778,
+          "rmse_log": 0.60502
         },
         "ewma": {
-          "qlike": 0.17108,
-          "rmse_log": 0.59553
+          "qlike": 0.18045,
+          "rmse_log": 0.60817
         }
       },
       "gagnant": "har",
       "gagnant_rmse": "har",
       "har_retenu": true,
-      "n_entrainement": 2488,
+      "n_entrainement": 2546,
       "n_test": 1871,
       "n_titres": 58,
-      "coupe": "2026-08-27",
+      "coupe": "2026-08-28",
       "periode": [
         "2026-06-21",
-        "2026-10-11"
+        "2026-10-12"
       ],
       "modele": {
-        "b0": -0.22533116470832054,
-        "b_jour": 0.4092146756844818,
-        "b_semaine": 0.2561951498625596,
-        "b_mois": 0.3128423921410441,
-        "somme_pentes": 0.9782522176880855,
-        "n_obs": 4359,
-        "r2": 0.8652942547334757
+        "b0": -0.22326118918692103,
+        "b_jour": 0.4121826571616327,
+        "b_semaine": 0.2527493971415748,
+        "b_mois": 0.31323277542259736,
+        "somme_pentes": 0.978164829725805,
+        "n_obs": 4417,
+        "r2": 0.8649409500871909
       }
     },
     "20": {
@@ -43,38 +43,30 @@
       "horizon": 20,
       "scores": {
         "har": {
-          "qlike": 0.12784,
-          "rmse_log": 0.43361
+          "qlike": 0.11373,
+          "rmse_log": 0.41708
         },
         "hasard": {
-          "qlike": 0.21612,
-          "rmse_log": 0.58256
+          "qlike": 0.18318,
+          "rmse_log": 0.56228
         },
         "ewma": {
-          "qlike": 0.18187,
-          "rmse_log": 0.49467
+          "qlike": 0.10712,
+          "rmse_log": 0.43958
         }
       },
-      "gagnant": "har",
+      "gagnant": "ewma",
       "gagnant_rmse": "har",
-      "har_retenu": true,
-      "n_entrainement": 2011,
-      "n_test": 1246,
+      "har_retenu": false,
+      "n_entrainement": 2016,
+      "n_test": 1299,
       "n_titres": 58,
-      "coupe": "2026-08-16",
+      "coupe": "2026-08-17",
       "periode": [
         "2026-06-21",
-        "2026-09-22"
+        "2026-09-23"
       ],
-      "modele": {
-        "b0": -0.8052403065996895,
-        "b_jour": 0.13452305663867703,
-        "b_semaine": 0.20003058533871707,
-        "b_mois": 0.587572064576079,
-        "somme_pentes": 0.9221257065534731,
-        "n_obs": 3257,
-        "r2": 0.910290533199076
-      }
+      "modele": null
     }
   },
   "retenu": true
