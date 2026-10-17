@@ -1,7 +1,7 @@
 {
- "n": 7247,
- "n_effectif": 362,
- "taux_de_base_%": 52.3,
+ "n": 7355,
+ "n_effectif": 367,
+ "taux_de_base_%": 52.2,
  "paliers": [
   {
    "note_min": -58.5,
@@ -12,14 +12,14 @@
   {
    "note_min": -29.0,
    "note_max": 81.3,
-   "proba": 52.3,
-   "n": 7003
+   "proba": 52.2,
+   "n": 7111
   }
  ],
- "brier_avant": 0.2921,
+ "brier_avant": 0.2924,
  "brier_calibre": 0.2495,
  "brier_taux_de_base": 0.2495,
- "gain_sur_taux_de_base": 1.8e-05,
+ "gain_sur_taux_de_base": 1.6e-05,
  "t": 0.08,
  "apporte_quelque_chose": false,
  "statut": "la note n'apporte rien de démontrable : la courbe calibrée ne fait pas mieux que d'annoncer le taux de base à tout le monde. Les probabilités affichées sont donc ramenées près de ce taux — c'est honnête, et déjà bien plus juste que les 83 % annoncés auparavant, qui étaient pires qu'un tirage à pile ou face.",
