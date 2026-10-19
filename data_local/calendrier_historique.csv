@@ -842,3 +842,74 @@ date,devise,evenement,impact,prevision,precedent
 2026-10-16,USD,Import Prices m/m,Low,0.6,0.7
 2026-10-16,USD,Industrial Production m/m,Low,0.4,0
 2026-10-16,USD,TIC Long-Term Purchases,Low,1.257e+11,-2.79e+10
+2026-10-18,NZD,BusinessNZ Services Index,Low,,51.2
+2026-10-18,NZD,Trade Balance,Low,-775000000,-1349000000
+2026-10-19,CAD,CPI m/m,High,0.2,-0.1
+2026-10-19,CAD,Common CPI y/y,Medium,2.6,2.6
+2026-10-19,CAD,Core CPI m/m,Low,,0.1
+2026-10-19,CAD,Median CPI y/y,High,2,2
+2026-10-19,CAD,Trimmed CPI y/y,High,1.9,1.9
+2026-10-19,CNY,Fixed Asset Investment ytd/y,Low,-7.3,-7.2
+2026-10-19,CNY,Foreign Direct Investment ytd/y,Low,,-5.3
+2026-10-19,CNY,GDP q/y,Low,4.4,4.3
+2026-10-19,CNY,Industrial Production y/y,Low,5.4,5.2
+2026-10-19,CNY,New Home Prices m/m,Low,,-0.17
+2026-10-19,CNY,Retail Sales y/y,Low,0.5,0.4
+2026-10-19,CNY,Unemployment Rate,Low,5.3,5.3
+2026-10-19,GBP,Rightmove HPI m/m,Low,,0.7
+2026-10-19,JPY,Tertiary Industry Activity m/m,Low,-0.3,0.4
+2026-10-19,USD,NAHB Housing Market Index,Low,31,32
+2026-10-20,CNY,1-y Loan Prime Rate,Low,3,3
+2026-10-20,CNY,5-y Loan Prime Rate,Low,3.5,3.5
+2026-10-20,EUR,Current Account,Low,2.92e+10,2.76e+10
+2026-10-20,EUR,German PPI m/m,Low,1.5,1.1
+2026-10-20,EUR,German ZEW Economic Sentiment,Low,30.2,34.7
+2026-10-20,EUR,ZEW Economic Sentiment,Low,23.6,25.8
+2026-10-20,GBP,Average Earnings Index 3m/y,Medium,3.8,3.9
+2026-10-20,GBP,Claimant Count Change,Low,19400,27800
+2026-10-20,GBP,Unemployment Rate,Low,4.9,4.9
+2026-10-20,NZD,GDT Price Index,Low,,1.2
+2026-10-20,USD,ADP Weekly Employment Change,Low,,24800
+2026-10-20,USD,Building Permits,Low,1390000,1390000
+2026-10-20,USD,Housing Starts,Low,1300000,1280000
+2026-10-20,USD,Pending Home Sales m/m,Low,-0.4,0.3
+2026-10-21,GBP,CPI y/y,High,3.4,3.1
+2026-10-21,GBP,Core CPI y/y,Low,2.8,2.6
+2026-10-21,GBP,HPI y/y,Low,1.7,1.4
+2026-10-21,GBP,PPI Input m/m,Low,1.3,0.3
+2026-10-21,GBP,PPI Output m/m,Low,0.7,0.7
+2026-10-21,GBP,Public Sector Net Borrowing,Low,2.39e+10,1.83e+10
+2026-10-21,GBP,RPI y/y,Low,3.9,3.4
+2026-10-21,JPY,Trade Balance,Low,-2.1e+11,-8.4e+11
+2026-10-21,NZD,CPI q/q,High,0.8,1.5
+2026-10-21,NZD,Credit Card Spending y/y,Low,,3.5
+2026-10-21,USD,Crude Oil Inventories,Low,,-8600000
+2026-10-22,AUD,Flash Manufacturing PMI,Low,,49.3
+2026-10-22,AUD,Flash Services PMI,Low,,51.4
+2026-10-22,CAD,IPPI m/m,Low,0.7,1.3
+2026-10-22,CAD,NHPI m/m,Low,-0.1,-0.1
+2026-10-22,CAD,RMPI m/m,Low,0.1,3.1
+2026-10-22,EUR,Consumer Confidence,Low,-17,-17
+2026-10-22,GBP,CBI Industrial Order Expectations,Low,-20,-9
+2026-10-22,USD,CB Leading Index m/m,Low,-0.2,-0.1
+2026-10-22,USD,Natural Gas Storage,Low,,6.7e+10
+2026-10-22,USD,Unemployment Claims,Medium,200000,199000
+2026-10-23,CAD,Core Retail Sales m/m,Low,1.1,-0.7
+2026-10-23,CAD,Retail Sales m/m,Low,1.3,-0.7
+2026-10-23,EUR,Belgian NBB Business Climate,Low,-11.5,-12.1
+2026-10-23,EUR,Flash Manufacturing PMI,Low,52.7,52.7
+2026-10-23,EUR,Flash Services PMI,Low,52.6,53
+2026-10-23,EUR,French Flash Manufacturing PMI,Medium,50.6,50.3
+2026-10-23,EUR,French Flash Services PMI,Medium,50.8,51.4
+2026-10-23,EUR,German Flash Manufacturing PMI,Medium,53.5,53.8
+2026-10-23,EUR,German Flash Services PMI,Medium,52.6,52.9
+2026-10-23,GBP,Flash Manufacturing PMI,Medium,51.8,52
+2026-10-23,GBP,Flash Services PMI,Medium,51.8,51.7
+2026-10-23,GBP,GfK Consumer Confidence,Low,-14,-13
+2026-10-23,GBP,Retail Sales m/m,Medium,-0.2,0.5
+2026-10-23,JPY,Flash Manufacturing PMI,Low,54.5,54.1
+2026-10-23,JPY,National Core CPI y/y,Low,2.1,1.7
+2026-10-23,USD,Flash Manufacturing PMI,Medium,55.5,57
+2026-10-23,USD,Flash Services PMI,Medium,58,58.7
+2026-10-23,USD,Revised UoM Consumer Sentiment,Medium,46.3,46.3
+2026-10-23,USD,Revised UoM Inflation Expectations,Medium,,4.7
