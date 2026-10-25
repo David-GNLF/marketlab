@@ -1,6 +1,6 @@
 {
- "n": 7878,
- "n_effectif": 393,
+ "n": 7894,
+ "n_effectif": 394,
  "taux_de_base_%": 51.5,
  "paliers": [
   {
@@ -12,8 +12,8 @@
   {
    "note_min": -29.0,
    "note_max": 81.3,
-   "proba": 51.6,
-   "n": 7634
+   "proba": 51.5,
+   "n": 7650
   }
  ],
  "brier_avant": 0.2952,
