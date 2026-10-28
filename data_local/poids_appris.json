@@ -1,53 +1,53 @@
 {
- "n_evalues": 7948,
+ "n_evalues": 8022,
  "ic_par_composante": {
   "technique": {
    "ic": -0.097,
-   "n": 7916,
-   "n_effectif": 395,
-   "ic_borne_basse_95": -0.194,
+   "n": 7990,
+   "n_effectif": 399,
+   "ic_borne_basse_95": -0.193,
    "prouve": false
   },
   "prevision": {
    "ic": -0.08,
-   "n": 7916,
-   "n_effectif": 395,
+   "n": 7990,
+   "n_effectif": 399,
    "ic_borne_basse_95": -0.177,
    "prouve": false
   },
   "analogues": {
-   "ic": -0.05,
-   "n": 7916,
-   "n_effectif": 395,
-   "ic_borne_basse_95": -0.148,
+   "ic": -0.052,
+   "n": 7990,
+   "n_effectif": 399,
+   "ic_borne_basse_95": -0.149,
    "prouve": false
   },
   "fondamentaux": {
-   "ic": 0.017,
-   "n": 2045,
-   "n_effectif": 102,
-   "ic_borne_basse_95": -0.178,
+   "ic": 0.016,
+   "n": 2079,
+   "n_effectif": 103,
+   "ic_borne_basse_95": -0.177,
    "prouve": false
   },
   "moteurs": {
-   "ic": 0.065,
-   "n": 2991,
-   "n_effectif": 149,
-   "ic_borne_basse_95": -0.096,
+   "ic": 0.066,
+   "n": 3023,
+   "n_effectif": 151,
+   "ic_borne_basse_95": -0.095,
    "prouve": false
   },
   "saisonnalite": {
-   "ic": 0.051,
-   "n": 4684,
-   "n_effectif": 234,
-   "ic_borne_basse_95": -0.078,
+   "ic": 0.052,
+   "n": 4758,
+   "n_effectif": 237,
+   "ic_borne_basse_95": -0.076,
    "prouve": false
   },
   "sentiment": {
-   "ic": -0.064,
-   "n": 4684,
-   "n_effectif": 234,
-   "ic_borne_basse_95": -0.19,
+   "ic": -0.059,
+   "n": 4758,
+   "n_effectif": 237,
+   "ic_borne_basse_95": -0.185,
    "prouve": false
   }
  },
@@ -56,57 +56,57 @@
  "horizon_seances": 20,
  "candidats": {
   "brokers": {
-   "ic": -0.224,
-   "n": 4648,
-   "n_effectif": 232,
-   "ic_borne_basse_95": -0.343,
+   "ic": -0.221,
+   "n": 4722,
+   "n_effectif": 236,
+   "ic_borne_basse_95": -0.339,
    "prouve": false
   },
   "filtre_marche": {
    "ic": -0.149,
-   "n": 2240,
-   "n_effectif": 112,
-   "ic_borne_basse_95": -0.326,
+   "n": 2278,
+   "n_effectif": 113,
+   "ic_borne_basse_95": -0.325,
    "prouve": false
   },
   "force_relative": {
-   "ic": -0.097,
-   "n": 2240,
-   "n_effectif": 112,
-   "ic_borne_basse_95": -0.277,
+   "ic": -0.092,
+   "n": 2278,
+   "n_effectif": 113,
+   "ic_borne_basse_95": -0.271,
    "prouve": false
   },
   "alignement_horizons": {
-   "ic": -0.182,
-   "n": 4504,
-   "n_effectif": 225,
-   "ic_borne_basse_95": -0.305,
+   "ic": -0.18,
+   "n": 4578,
+   "n_effectif": 228,
+   "ic_borne_basse_95": -0.302,
    "prouve": false
   },
   "note_retournee": {
    "ic": 0.334,
-   "n": 504,
+   "n": 507,
    "n_effectif": 25,
-   "ic_borne_basse_95": -0.069,
+   "ic_borne_basse_95": -0.067,
    "prouve": false
   },
   "surprise": {
-   "ic": -0.117,
-   "n": 521,
+   "ic": -0.116,
+   "n": 535,
    "n_effectif": 26,
-   "ic_borne_basse_95": -0.482,
+   "ic_borne_basse_95": -0.477,
    "prouve": false
   },
   "regle_ecole": {
-   "ic": -0.114,
-   "n": 2488,
-   "n_effectif": 124,
-   "ic_borne_basse_95": -0.284,
+   "ic": -0.11,
+   "n": 2562,
+   "n_effectif": 128,
+   "ic_borne_basse_95": -0.279,
    "prouve": false
   }
  },
- "statut": "aucune composante n'a démontré de pouvoir prédictif sur 7948 verdicts (aucun IC significativement positif à 95 %) : pondérations de base conservées",
- "date": "2026-10-27 01:13",
+ "statut": "aucune composante n'a démontré de pouvoir prédictif sur 8022 verdicts (aucun IC significativement positif à 95 %) : pondérations de base conservées",
+ "date": "2026-10-28 01:01",
  "poids_base": {
   "technique": 0.25,
   "prevision": 0.2,
