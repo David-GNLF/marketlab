@@ -371,3 +371,35 @@ def test_derive_reequilibre_au_dela_de_la_tolerance(monkeypatch):
     assert any("rééquilibrage mensuel" in e for e in journal)
     a = [p for p in c["positions"] if p["symbole"] == "A"][0]
     assert a["marge"] == pytest.approx(300.0, abs=2)
+
+
+def test_porteur_a_levier_double_l_exposition(monkeypatch):
+    _panier(monkeypatch, ["A", "B"])
+    c = _compte(solde=1000.0)
+    rt.decisions_derive(c, rt.LEVIER2, quand=LUNDI)
+    # expo 100 % sur 2 titres = 500 $ de MARGE chacun ; à levier 2,
+    # l'exposition de marché vaut le double — et la part empruntée (qui
+    # paiera le portage chaque nuit) est exactement la marge
+    assert len(c["positions"]) == 2
+    for p in c["positions"]:
+        assert p["marge"] == pytest.approx(500.0, abs=2)
+        assert p["levier"] == 2
+        assert p["notionnel"] == pytest.approx(1000.0, abs=4)
+        assert p["stop"] is None and p["objectif"] is None
+
+
+def test_levier_la_tolerance_se_juge_sur_l_exposition(monkeypatch):
+    # équité 1 000, 1 éligible → cible 1 000 $ de marge soit 2 000 $
+    # d'exposition ; la ligne n'en porte que 1 000 (écart 50 % > 25 %) :
+    # elle est rééquilibrée — le même chiffre à levier 1 serait resté intact
+    _panier(monkeypatch, ["A"])
+    c = _compte(solde=500.0, positions=[{
+        "id": "dv0", "symbole": "A", "sens": "long", "marge": 500.0,
+        "levier": 2, "notionnel": 1000.0, "quantite": 10.0,
+        "prix_entree": 100.0, "stop": None, "objectif": None,
+        "ouvert_le": "2026-10-05 22:00", "source": "derive"}])
+    journal = rt.decisions_derive(c, rt.LEVIER2, quand=LUNDI)
+    assert any("rééquilibrage mensuel" in e for e in journal)
+    a = c["positions"][0]
+    assert a["marge"] == pytest.approx(1000.0, abs=5)
+    assert a["notionnel"] == pytest.approx(2000.0, abs=10)

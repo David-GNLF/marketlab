@@ -1643,8 +1643,8 @@ function Trajectoire({ robot, meilleurPredicteur }) {
   // annualiser moins de deux semaines projetterait du bruit en %/an
   const annualise = jours >= 14 && ratio > 0
     ? (Math.pow(ratio, 365 / jours) - 1) * 100 : null;
-  const estDerive = robot.nom === "claudederive";
-  const ecart = estDerive && meilleurPredicteur != null
+  const estPorteur = !robot.horizon;      // un porteur n'a pas d'horizon de verdict
+  const ecart = estPorteur && meilleurPredicteur != null
     ? robot["perf_%"] - meilleurPredicteur : null;
   return (
     <>
@@ -1677,7 +1677,7 @@ function PageConcours() {
   if (!donnees) return <Chargement erreur={erreur} />;
   const robots = donnees.comptes?.filter((c) => c.est_robot) ?? [];
   // le repère de la course : la meilleure performance parmi ceux qui PRÉDISENT
-  const predicteurs = robots.filter((c) => c.nom !== "claudederive");
+  const predicteurs = robots.filter((c) => c.horizon);
   const meilleurPredicteur = predicteurs.length
     ? Math.max(...predicteurs.map((c) => c["perf_%"])) : null;
   return (
@@ -1727,12 +1727,13 @@ function PageConcours() {
             ? `horizon ${robot.horizon} séances`
             : (robot.specialite ?? "règles propres")},
             en transparence totale</h3>
-          <p className="note">{robot.nom === "claudederive"
-            ? "Il ne lit aucun verdict : il PORTE. Panier équipondéré "
-              + "d'actions passées au filtre qualité, levier 1, ni stop ni "
-              + "objectif, rééquilibrage mensuel au-delà de 25 % d'écart. "
-              + "C'est le bras de contrôle du concours : quatre robots "
-              + "prédisent, lui se contente de porter la dérive."
+          <p className="note">{!robot.horizon
+            ? "Il ne lit aucun verdict : il PORTE un panier équipondéré "
+              + "d'actions passées au filtre qualité, ni stop ni objectif, "
+              + "rééquilibrage mensuel au-delà de 25 % d'écart — "
+              + (robot.specialite ?? "") + ". Les robots à verdicts "
+              + "prédisent ; les porteurs mesurent ce que vaut le simple "
+              + "fait de porter, à deux niveaux d'agressivité."
             : donnees.regles_robot}</p>
           <Trajectoire robot={robot} meilleurPredicteur={meilleurPredicteur} />
           <h4>Positions ouvertes — suivies en direct</h4>

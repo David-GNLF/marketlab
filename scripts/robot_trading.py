@@ -81,12 +81,33 @@ MAX_POSITIONS = 4
 # écart matériel : le turnover est un coût, pas une vertu.
 DERIVE = {
     "nom": "claudederive",
-    "expo": 0.60,             # part de l'équité investie
+    "expo": 0.60,             # part de l'équité investie (la MARGE engagée)
+    "levier": 1,
     "positions_max": 15,      # granularité du panier
     "ecart_tolere": 0.25,     # rééquilibrer seulement au-delà (relatif)
     "libelle": "porteur de dérive — 60 % équipondéré, levier 1, "
                "rééquilibrage mensuel",
 }
+
+# LA VARIANTE À LEVIER — décision utilisateur du 2026-10-31, prise devant le
+# chiffrage complet : +40 %/an historiques contre un pire creux de −42 %, un
+# portage de 6 %/an sur la part empruntée, et la liquidation possible d'une
+# ligne sur un titre qui perd la moitié. Une variable à la fois : claudederive
+# reste INTOUCHÉ jusqu'au verdict du 20 mars, cette variante mesure ce que le
+# supplément d'agressivité rapporte et coûte — l'écart entre les deux sera le
+# prix exact du levier, en vrai.
+LEVIER2 = {
+    "nom": "claudelevier",
+    "expo": 1.00,
+    "levier": 2,
+    "positions_max": 15,
+    "ecart_tolere": 0.25,
+    "libelle": "porteur à levier — 100 % équipondéré, levier 2, "
+               "rééquilibrage mensuel : +40 %/an historiques contre un pire "
+               "creux de −42 % et 6 %/an de portage",
+}
+
+PROFILS_DERIVE = {p["nom"]: p for p in (DERIVE, LEVIER2)}
 PART_EQUITE = 0.05
 TAUX_PORTAGE_ANNUEL = 0.06   # coût annuel de la part empruntée (levier)
 LEVIERS = {"Forex": 5, "Matières": 3, "Actions": 2, "Crypto": 2, "Indices": 2}
@@ -548,7 +569,8 @@ def _fermer_derive(compte: dict, p: dict, motif: str) -> str | None:
     return f"FERMÉ {p['symbole']} ({motif}) : P&L {pnl:+.2f} $"
 
 
-def decisions_derive(compte: dict, quand=None) -> list[str]:
+def decisions_derive(compte: dict, profil: dict | None = None,
+                     quand=None) -> list[str]:
     """Le passage mensuel du porteur de dérive. Ne lit AUCUN verdict.
 
     1. sortir ce que le filtre qualité désavoue désormais ;
@@ -560,6 +582,7 @@ def decisions_derive(compte: dict, quand=None) -> list[str]:
     pourrissent). Le week-end ne fait rien : les cours sont figés, entrer
     sur un prix de vendredi soir fabriquerait une exécution fictive.
     """
+    profil = profil if profil is not None else DERIVE
     quand = quand if quand is not None else pd.Timestamp.now()
     if quand.dayofweek >= 5:
         return []
@@ -567,7 +590,7 @@ def decisions_derive(compte: dict, quand=None) -> list[str]:
         return []
     journal: list[str] = []
     eligibles = [s for s in univers_derive()
-                 if qualite_ok(s)][:DERIVE["positions_max"]]
+                 if qualite_ok(s)][:profil["positions_max"]]
 
     for p in list(compte.get("positions", [])):
         if p["symbole"] not in eligibles:
@@ -581,7 +604,9 @@ def decisions_derive(compte: dict, quand=None) -> list[str]:
                        "le panier attend")
         compte["dernier_reequilibrage"] = quand.strftime("%Y-%m-%d")
         return journal
-    cible = equite * DERIVE["expo"] / len(eligibles)
+    levier = int(profil.get("levier", 1))
+    # cible = la MARGE par titre ; l'exposition de marché vaut cible x levier
+    cible = equite * profil["expo"] / len(eligibles)
 
     detenus = {p["symbole"]: p for p in compte.get("positions", [])}
     for symbole in eligibles:
@@ -591,8 +616,11 @@ def decisions_derive(compte: dict, quand=None) -> list[str]:
             continue
         p = detenus.get(symbole)
         if p is not None:
+            # l'ecart se juge sur l'EXPOSITION courante contre l'exposition
+            # cible : a levier 2, la meme marge porte deux fois plus de marche
             valeur = p["quantite"] * prix
-            if abs(valeur - cible) <= DERIVE["ecart_tolere"] * cible:
+            cible_notionnel = cible * levier
+            if abs(valeur - cible_notionnel) <= profil["ecart_tolere"] * cible_notionnel:
                 continue              # dans la tolérance : on ne paie pas le spread
             evenement = _fermer_derive(compte, p, "rééquilibrage mensuel")
             if evenement:
@@ -604,16 +632,17 @@ def decisions_derive(compte: dict, quand=None) -> list[str]:
         compte["solde"] -= mise
         compte["positions"].append({
             "id": f"dv{len(compte.get('historique', [])) + len(compte['positions'])}",
-            "symbole": symbole, "sens": "long", "marge": mise, "levier": 1,
-            "notionnel": round(mise, 2), "quantite": mise / prix_achat,
+            "symbole": symbole, "sens": "long", "marge": mise,
+            "levier": levier, "notionnel": round(mise * levier, 2),
+            "quantite": mise * levier / prix_achat,
             "prix_entree": prix_achat,
             # ni stop ni objectif : on porte la dérive, on ne la découpe pas
             "stop": None, "objectif": None,
             "ouvert_le": _maintenant(), "source": "derive",
             "raison": f"panier de dérive — part cible {cible:.0f} $ "
                       f"sur {len(eligibles)} titres"})
-        journal.append(f"PANIER {symbole} : {mise:.2f} $ à levier 1 "
-                       f"(cible {cible:.0f} $)")
+        journal.append(f"PANIER {symbole} : {mise:.2f} $ à levier "
+                       f"{levier} (cible {cible:.0f} $ de marge)")
 
     compte["dernier_reequilibrage"] = quand.strftime("%Y-%m-%d")
     if not journal:
@@ -685,18 +714,20 @@ def main() -> int:
             print(f"compte robot « {nom} » créé ({CAPITAL_DEPART:.0f} $ "
                   f"virtuels, horizon {cfg_robot['horizon']})")
 
-        # le porteur de dérive, créé au premier passage lui aussi
-        if f"{DERIVE['nom']}.json" not in fichiers:
-            _televerser(session, base, f"{DERIVE['nom']}.json", {
-                "nom": DERIVE["nom"], "capital_initial": CAPITAL_DEPART,
+        # les porteurs de dérive, créés au premier passage eux aussi
+        for profil in PROFILS_DERIVE.values():
+            if f"{profil['nom']}.json" in fichiers:
+                continue
+            _televerser(session, base, f"{profil['nom']}.json", {
+                "nom": profil["nom"], "capital_initial": CAPITAL_DEPART,
                 "solde": CAPITAL_DEPART, "positions": [], "ordres": [],
                 "historique": [],
                 "equity": [[_maintenant(), CAPITAL_DEPART]],
-                "journal_robot": ["compte créé — " + DERIVE["libelle"]],
+                "journal_robot": ["compte créé — " + profil["libelle"]],
                 "cree_le": _maintenant()})
-            fichiers.append(f"{DERIVE['nom']}.json")
-            print(f"compte « {DERIVE['nom']} » créé ({CAPITAL_DEPART:.0f} $ "
-                  f"virtuels — {DERIVE['libelle']})")
+            fichiers.append(f"{profil['nom']}.json")
+            print(f"compte « {profil['nom']} » créé ({CAPITAL_DEPART:.0f} $ "
+                  f"virtuels — {profil['libelle']})")
 
         gardes_fil: list[tuple[str, bool]] = []
         for fichier in fichiers:
@@ -723,7 +754,7 @@ def main() -> int:
             gardes_fil += [(f"🛡️ compte {compte.get('nom', '?')} — {g}", False)
                            for g in gardes]
             est_robot = compte["nom"] in ROBOTS
-            est_derive = compte["nom"] == DERIVE["nom"]
+            est_derive = compte["nom"] in PROFILS_DERIVE
             if est_robot:
                 v = verdicts_par_robot.get(compte["nom"]) or []
                 if v:
@@ -736,7 +767,8 @@ def main() -> int:
                                       "horizon : robot en attente")
                 compte["horizon"] = ROBOTS[compte["nom"]]["horizon"]
             elif est_derive:
-                evenements += decisions_derive(compte)
+                evenements += decisions_derive(
+                    compte, PROFILS_DERIVE[compte["nom"]])
             if est_robot or est_derive:
                 compte.setdefault("journal_robot", []).extend(
                     [f"[{_maintenant()}] {e}" for e in evenements])
@@ -757,7 +789,8 @@ def main() -> int:
                 # panneaux de transparence (positions, journal), règles écrites
                 "nom": compte["nom"], "est_robot": est_robot or est_derive,
                 "horizon": ROBOTS.get(compte["nom"], {}).get("horizon"),
-                "specialite": (DERIVE["libelle"] if est_derive else
+                "specialite": (PROFILS_DERIVE[compte["nom"]]["libelle"]
+                               if est_derive else
                                ROBOTS.get(compte["nom"], {}).get("libelle")),
                 "equite": equite,
                 "perf_%": round((equite / compte["capital_initial"] - 1) * 100, 2),
