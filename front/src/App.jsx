@@ -1631,10 +1631,55 @@ function RapportSeance() {
   );
 }
 
+/* La trajectoire « depuis la création » : équité, rythme annualisé, et pour
+   le porteur de dérive l'écart au meilleur prédicteur — la course que le
+   Concours existe pour arbitrer. Calculée au front depuis l'ORIGINE (date de
+   création, capital) : un chiffre recopié côté serveur divergerait. */
+function Trajectoire({ robot, meilleurPredicteur }) {
+  if (!robot.cree_le || !robot.capital_initial) return null;
+  const debut = new Date(String(robot.cree_le).replace(" ", "T"));
+  const jours = Math.max(1, (Date.now() - debut.getTime()) / 864e5);
+  const ratio = robot.equite / robot.capital_initial;
+  // annualiser moins de deux semaines projetterait du bruit en %/an
+  const annualise = jours >= 14 && ratio > 0
+    ? (Math.pow(ratio, 365 / jours) - 1) * 100 : null;
+  const estDerive = robot.nom === "claudederive";
+  const ecart = estDerive && meilleurPredicteur != null
+    ? robot["perf_%"] - meilleurPredicteur : null;
+  return (
+    <>
+      <h4>Trajectoire depuis la création</h4>
+      <div className="rangee" style={{ marginBottom: 8 }}>
+        <Tuile libelle="Équité" valeur={`${nb(robot.equite)} $`}
+               note={`parti de ${nb(robot.capital_initial, 0)} $ le ${
+                 String(robot.cree_le).slice(0, 10)}`} />
+        <Tuile libelle="Performance"
+               valeur={`${robot["perf_%"] >= 0 ? "+" : ""}${robot["perf_%"]} %`}
+               note={`en ${Math.round(jours)} jour(s)`} />
+        <Tuile libelle="Rythme annualisé"
+               valeur={annualise == null ? "—"
+                 : `${annualise >= 0 ? "+" : ""}${annualise.toFixed(1)} %/an`}
+               note={annualise == null
+                 ? "trop tôt pour annualiser (moins de 14 jours)"
+                 : "le rythme actuel prolongé un an — une projection, pas une promesse"} />
+        {ecart != null && (
+          <Tuile libelle="Écart au meilleur prédicteur"
+                 valeur={`${ecart >= 0 ? "+" : ""}${ecart.toFixed(1)} pts`}
+                 note="porter contre prédire — verdict formel le 20 mars 2027" />
+        )}
+      </div>
+    </>
+  );
+}
+
 function PageConcours() {
   const { donnees, erreur } = useDonnees(api.getConcours);
   if (!donnees) return <Chargement erreur={erreur} />;
   const robots = donnees.comptes?.filter((c) => c.est_robot) ?? [];
+  // le repère de la course : la meilleure performance parmi ceux qui PRÉDISENT
+  const predicteurs = robots.filter((c) => c.nom !== "claudederive");
+  const meilleurPredicteur = predicteurs.length
+    ? Math.max(...predicteurs.map((c) => c["perf_%"])) : null;
   return (
     <>
       <div className="carte">
@@ -1676,9 +1721,20 @@ function PageConcours() {
       </div>
       {robots.map((robot) => (
         <div className="carte" key={robot.nom}>
-          <h3>{robot.nom} — horizon {robot.horizon ?? "?"} séances,
+          {/* le porteur de dérive n'a pas d'horizon de verdict : son titre
+              porte sa spécialité, pas un « ? » qui ressemble à une panne */}
+          <h3>{robot.nom} — {robot.horizon
+            ? `horizon ${robot.horizon} séances`
+            : (robot.specialite ?? "règles propres")},
             en transparence totale</h3>
-          <p className="note">{donnees.regles_robot}</p>
+          <p className="note">{robot.nom === "claudederive"
+            ? "Il ne lit aucun verdict : il PORTE. Panier équipondéré "
+              + "d'actions passées au filtre qualité, levier 1, ni stop ni "
+              + "objectif, rééquilibrage mensuel au-delà de 25 % d'écart. "
+              + "C'est le bras de contrôle du concours : quatre robots "
+              + "prédisent, lui se contente de porter la dérive."
+            : donnees.regles_robot}</p>
+          <Trajectoire robot={robot} meilleurPredicteur={meilleurPredicteur} />
           <h4>Positions ouvertes — suivies en direct</h4>
           <PositionsVivantes positions={robot.positions} />
           {robot.bilan_trades?.n > 0 && (

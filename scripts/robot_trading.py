@@ -761,6 +761,11 @@ def main() -> int:
                                ROBOTS.get(compte["nom"], {}).get("libelle")),
                 "equite": equite,
                 "perf_%": round((equite / compte["capital_initial"] - 1) * 100, 2),
+                # la trajectoire « depuis la création » se calcule au front :
+                # il lui faut l'ORIGINE (date, capital), pas un chiffre
+                # recopié qui divergerait au premier changement
+                "cree_le": compte.get("cree_le"),
+                "capital_initial": compte["capital_initial"],
                 "n_positions": len(compte["positions"]),
                 "n_trades": len(compte.get("historique", [])),
                 "positions": ([{k: p.get(k) for k in
