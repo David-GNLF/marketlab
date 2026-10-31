@@ -403,3 +403,37 @@ def test_levier_la_tolerance_se_juge_sur_l_exposition(monkeypatch):
     a = c["positions"][0]
     assert a["marge"] == pytest.approx(1000.0, abs=5)
     assert a["notionnel"] == pytest.approx(2000.0, abs=10)
+
+
+# ---------------------------------------------------------------------------
+# Remise à zéro générationnelle : les règles changent, l'expérience repart
+# ---------------------------------------------------------------------------
+
+def test_changement_de_generation_remet_le_compte_a_zero():
+    c = _compte(solde=612.0, generation_regles="2026-07-29-origine",
+                positions=[{"id": "p1", "symbole": "TEST", "sens": "long",
+                            "marge": 50.0, "levier": 2, "notionnel": 100.0,
+                            "quantite": 1.0, "prix_entree": 100.0,
+                            "stop": None, "objectif": None,
+                            "ouvert_le": "2026-10-01 22:00"}],
+                historique=[{"symbole": "TEST", "pnl": -3.0}])
+    evenements = rt.appliquer_generation(c)
+    assert len(evenements) == 1 and "REMISE À ZÉRO" in evenements[0]
+    assert c["solde"] == 1000.0 and c["positions"] == [] \
+        and c["historique"] == []
+    assert c["generation_regles"] == rt.GENERATION_REGLES
+
+
+def test_la_remise_a_zero_ne_sapplique_qu_une_fois():
+    c = _compte(solde=612.0, historique=[{"symbole": "T", "pnl": -3.0}])
+    assert rt.appliquer_generation(c)          # première fois : remise à zéro
+    c["solde"] = 977.0                          # le compte revit ensuite
+    c["historique"] = [{"symbole": "U", "pnl": -23.0}]
+    assert rt.appliquer_generation(c) == []     # même génération : intouché
+    assert c["solde"] == 977.0 and c["historique"]
+
+
+def test_un_compte_neuf_prend_la_generation_sans_bruit():
+    c = _compte(solde=1000.0)                   # jamais tradé
+    assert rt.appliquer_generation(c) == []     # rien à remettre à zéro
+    assert c["generation_regles"] == rt.GENERATION_REGLES

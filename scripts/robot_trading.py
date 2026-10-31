@@ -14,7 +14,8 @@ verdicts de l'outil, avec des règles ÉCRITES :
 - LONG uniquement — le bilan sur 2 ans a montré que les avis Défavorable
   précédaient des hausses : pas de short tant que le bilan ne le justifie pas ;
 - mise = 5 % de l'équité × multiplicateur de taille du verdict ; levier par
-  classe d'actif (forex ×5, matières ×3, actions/crypto ×2) ; 4 positions
+  classe d'actif (forex ×10, matières ×6, actions/crypto ×4 — doublés le
+  2026-10-31, comptes remis à zéro) ; 4 positions
   maximum ; jamais deux fois le même actif ;
 - stop et objectif = ceux du plan du verdict ; clôture anticipée si l'avis
   retombe à Défavorable ou S'abstenir ;
@@ -110,7 +111,21 @@ LEVIER2 = {
 PROFILS_DERIVE = {p["nom"]: p for p in (DERIVE, LEVIER2)}
 PART_EQUITE = 0.05
 TAUX_PORTAGE_ANNUEL = 0.06   # coût annuel de la part empruntée (levier)
-LEVIERS = {"Forex": 5, "Matières": 3, "Actions": 2, "Crypto": 2, "Indices": 2}
+# DOUBLÉS le 2026-10-31 sur décision utilisateur, prise devant le calcul
+# énoncé : le levier MULTIPLIE ce qui existe, et l'avantage mesuré des
+# robots à verdicts est nul à négatif — doubler double le portage (certain)
+# et l'amplitude des pertes si l'espérance reste ce qu'elle est. Pour que
+# la mesure reste lisible, le changement s'accompagne d'une REMISE À ZÉRO
+# générationnelle des 4 comptes robots (GENERATION_REGLES) : expérience
+# neuve et datée plutôt qu'un historique qui mélange deux régimes.
+LEVIERS = {"Forex": 10, "Matières": 6, "Actions": 4, "Crypto": 4,
+           "Indices": 4}
+
+# La génération des règles : quand elle change, chaque compte ROBOT (jamais
+# un compte humain, jamais un porteur de dérive) repart à son capital de
+# départ au prochain passage. Idempotent : un compte déjà à cette
+# génération n'est plus touché.
+GENERATION_REGLES = "2026-10-31-levier-x2"
 VERDICTS_LOCAL = config.ROOT / "site" / "donnees" / "verdicts.json"
 RAPPORT_LOCAL = config.ROOT / "site" / "donnees" / "rapport_seance.json"
 CONCOURS_LOCAL = config.ROOT / "site" / "donnees" / "concours.json"
@@ -184,6 +199,35 @@ def _seances_a_confronter(compte: dict, debut, df) -> list:
     if fenetre.empty:
         return [df.iloc[-1]]
     return [ligne for _, ligne in fenetre.iterrows()]
+
+
+def appliquer_generation(compte: dict) -> list[str]:
+    """Remet un compte ROBOT à zéro quand la génération des règles a changé.
+
+    Changer les règles d'un robot en pleine course rend son historique
+    illisible : les courbes mélangeraient deux régimes de levier et plus rien
+    ne serait comparable à rien. La remise à zéro est donc GÉNÉRATIONNELLE :
+    datée, écrite dans le journal du compte, exécutée UNE fois. L'appelant ne
+    la déclenche que pour les comptes de ROBOTS — jamais pour un compte
+    humain, jamais pour un porteur de dérive.
+    """
+    if compte.get("generation_regles") == GENERATION_REGLES:
+        return []
+    deja_vivant = bool(compte.get("historique") or compte.get("positions"))
+    compte["generation_regles"] = GENERATION_REGLES
+    if not deja_vivant and float(compte.get("solde", 0))             == float(compte.get("capital_initial", 0)):
+        return []                 # compte neuf : rien à remettre à zéro
+    capital = float(compte.get("capital_initial") or CAPITAL_DEPART)
+    compte["solde"] = capital
+    compte["positions"] = []
+    compte["ordres"] = []
+    compte["historique"] = []
+    compte["equity"] = [[_maintenant(), capital]]
+    note = (f"REMISE À ZÉRO ({GENERATION_REGLES}) : les leviers ont été "
+            f"doublés sur décision utilisateur — l'expérience repart à "
+            f"{capital:.0f} $ pour que la mesure reste lisible")
+    compte.setdefault("journal_robot", []).append(f"[{_maintenant()}] {note}")
+    return [note]
 
 
 def tenir_compte(compte: dict) -> list[str]:
@@ -734,7 +778,10 @@ def main() -> int:
             compte = _telecharger(session, base, fichier)
             if not compte:
                 continue
-            evenements = tenir_compte(compte)
+            evenements = []
+            if compte["nom"] in ROBOTS:
+                evenements += appliquer_generation(compte)
+            evenements += tenir_compte(compte)
             evenements += executer_ordres(compte)
             evenements += facturer_portage(compte)
             # SURVEILLANCE DES POSITIONS OUVERTES. La chaîne d'encadrement
@@ -841,7 +888,7 @@ def main() -> int:
         "comptes": classement,
         "regles_robot": ("long uniquement sur verdict Favorable avec plan ; "
                          "mise 5 % de l'équité × taille du verdict ; levier "
-                         "forex ×5, matières ×3, actions/crypto ×2 ; 4 "
+                         "forex ×10, matières ×6, actions/crypto ×4 (doublés le 31/10/2026, comptes remis à zéro ce jour-là) ; 4 "
                          "positions max ; stop/objectif du plan ; clôture si "
                          "le verdict se retourne ; tout est journalisé."),
         "robots": [{"nom": n, "horizon": c["horizon"],
