@@ -988,3 +988,82 @@ date,devise,evenement,impact,prevision,precedent
 2026-10-30,USD,Employment Cost Index q/q,Medium,0.8,0.9
 2026-10-31,CNY,Manufacturing PMI,Low,50.1,50.1
 2026-10-31,CNY,Non-Manufacturing PMI,Low,50.5,50.2
+2026-11-02,AUD,Building Approvals m/m,Low,1.8,-6.1
+2026-11-02,AUD,Commodity Prices y/y,Low,,15.5
+2026-11-02,AUD,MI Inflation Gauge m/m,Low,,0.3
+2026-11-02,CAD,Manufacturing PMI,Low,,51.5
+2026-11-02,CHF,Manufacturing PMI,Low,55.3,55.3
+2026-11-02,CHF,Retail Sales y/y,Low,3,3.2
+2026-11-02,CNY,RatingDog Manufacturing PMI,Low,52,52.1
+2026-11-02,EUR,Final Manufacturing PMI,Low,52.4,52.4
+2026-11-02,EUR,French Final Manufacturing PMI,Low,49.3,49.3
+2026-11-02,EUR,German Final Manufacturing PMI,Low,54.2,54.2
+2026-11-02,EUR,German Retail Sales m/m,Low,0.4,1.3
+2026-11-02,EUR,Italian Manufacturing PMI,Low,49.9,50.4
+2026-11-02,EUR,Spanish Manufacturing PMI,Low,50.4,51
+2026-11-02,GBP,Final Manufacturing PMI,Low,52.8,52.8
+2026-11-02,JPY,Final Manufacturing PMI,Low,53.3,53.3
+2026-11-02,NZD,Building Consents m/m,Low,,5.6
+2026-11-02,USD,Construction Spending m/m,Low,0.4,0.9
+2026-11-02,USD,Final Manufacturing PMI,Low,56,56
+2026-11-02,USD,ISM Manufacturing PMI,Medium,54.5,54.5
+2026-11-02,USD,ISM Manufacturing Prices,Low,77.2,77.9
+2026-11-03,AUD,Cash Rate,High,4.85,4.6
+2026-11-03,CHF,CPI m/m,Medium,0,0
+2026-11-03,EUR,French Gov Budget Balance,Low,,-1.596e+11
+2026-11-03,NZD,Employment Change q/q,High,0.4,0.5
+2026-11-03,NZD,GDT Price Index,Low,,2.5
+2026-11-03,NZD,Labor Cost Index q/q,Low,0.5,0.7
+2026-11-03,NZD,Unemployment Rate,High,5.5,5.6
+2026-11-03,USD,Factory Orders m/m,Low,1.2,0.1
+2026-11-03,USD,JOLTS Job Openings,Medium,7110000,7080000
+2026-11-03,USD,Omdia Total Vehicle Sales,Low,15900000,16000000
+2026-11-03,USD,RCM/TIPP Economic Optimism,Low,46.2,46.8
+2026-11-04,AUD,Household Spending m/m,Low,0.2,0
+2026-11-04,CAD,Trade Balance,Low,3800000000,4200000000
+2026-11-04,CNY,RatingDog Services PMI,Low,51.5,51.6
+2026-11-04,EUR,CPI Flash Estimate y/y,Medium,4,3.8
+2026-11-04,EUR,Core CPI Flash Estimate y/y,Medium,2.5,2.5
+2026-11-04,EUR,Final Services PMI,Low,51.7,51.7
+2026-11-04,EUR,French Final Services PMI,Low,48.4,48.4
+2026-11-04,EUR,German Final Services PMI,Low,51.7,51.7
+2026-11-04,EUR,Italian Services PMI,Low,51,51.7
+2026-11-04,EUR,Spanish Services PMI,Low,57.5,58.3
+2026-11-04,EUR,Spanish Unemployment Change,Low,25300,23600
+2026-11-04,GBP,Final Services PMI,Low,53.1,53.1
+2026-11-04,JPY,Monetary Base y/y,Low,-14,-15.2
+2026-11-04,NZD,ANZ Commodity Prices m/m,Low,,0.6
+2026-11-04,USD,ADP Non-Farm Employment Change,Low,68000,90000
+2026-11-04,USD,Crude Oil Inventories,Low,,-1900000
+2026-11-04,USD,Final Services PMI,Low,57.9,57.9
+2026-11-04,USD,ISM Services PMI,Medium,54.9,54.9
+2026-11-04,USD,Trade Balance,Low,-1.079e+11,-1.056e+11
+2026-11-05,AUD,Goods Trade Balance,Low,960000000,500000000
+2026-11-05,CHF,Unemployment Rate,Low,3.1,3.1
+2026-11-05,EUR,French Industrial Production m/m,Low,0.4,-0.3
+2026-11-05,EUR,German Factory Orders m/m,Low,4.9,-10.6
+2026-11-05,EUR,Italian Retail Sales m/m,Low,0.1,0.3
+2026-11-05,EUR,PPI m/m,Low,2.6,1.9
+2026-11-05,GBP,Construction PMI,Low,46.5,46.1
+2026-11-05,GBP,Official Bank Rate,High,4,3.75
+2026-11-05,USD,Challenger Job Cuts y/y,Low,,-19.9
+2026-11-05,USD,Natural Gas Storage,Low,,8e+10
+2026-11-05,USD,Prelim Nonfarm Productivity q/q,Low,2.8,1.4
+2026-11-05,USD,Prelim Unit Labor Costs q/q,Low,0.3,1.3
+2026-11-05,USD,Unemployment Claims,Medium,197000,194000
+2026-11-06,CAD,Employment Change,High,14500,-68300
+2026-11-06,CAD,Ivey PMI,Medium,57.7,58.2
+2026-11-06,CAD,Unemployment Rate,High,6.5,6.5
+2026-11-06,CHF,Foreign Currency Reserves,Low,,7.7e+11
+2026-11-06,CHF,SECO Consumer Climate,Low,-35,-36
+2026-11-06,EUR,French Trade Balance,Low,-5800000000,-6100000000
+2026-11-06,EUR,German Industrial Production m/m,Low,-0.2,2
+2026-11-06,EUR,Retail Sales m/m,Low,-0.1,0.1
+2026-11-06,GBP,Lloyds HPI m/m,Low,0,0
+2026-11-06,JPY,Average Cash Earnings y/y,Low,3.8,3.8
+2026-11-06,USD,Average Hourly Earnings m/m,High,0.3,0.1
+2026-11-06,USD,Consumer Credit m/m,Low,1.2e+10,8300000000
+2026-11-06,USD,Non-Farm Employment Change,High,63000,29000
+2026-11-06,USD,Prelim UoM Consumer Sentiment,Medium,47.8,46.3
+2026-11-06,USD,Prelim UoM Inflation Expectations,Medium,,4.7
+2026-11-06,USD,Unemployment Rate,High,4.2,4.2
