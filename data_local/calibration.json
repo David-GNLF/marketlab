@@ -1,22 +1,22 @@
 {
- "n": 8401,
- "n_effectif": 420,
- "taux_de_base_%": 50.7,
+ "n": 8447,
+ "n_effectif": 422,
+ "taux_de_base_%": 50.6,
  "paliers": [
   {
    "note_min": -58.5,
    "note_max": -29.1,
-   "proba": 49.8,
-   "n": 241
+   "proba": 50.0,
+   "n": 244
   },
   {
    "note_min": -29.1,
    "note_max": 81.3,
-   "proba": 50.7,
-   "n": 8160
+   "proba": 50.6,
+   "n": 8203
   }
  ],
- "brier_avant": 0.2964,
+ "brier_avant": 0.2972,
  "brier_calibre": 0.25,
  "brier_taux_de_base": 0.25,
  "gain_sur_taux_de_base": 0.0,
