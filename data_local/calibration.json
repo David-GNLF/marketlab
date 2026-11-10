@@ -1,13 +1,13 @@
 {
- "n": 8892,
- "n_effectif": 444,
+ "n": 8948,
+ "n_effectif": 447,
  "taux_de_base_%": 49.7,
  "paliers": [
   {
    "note_min": -58.5,
    "note_max": 81.3,
    "proba": 49.7,
-   "n": 8892
+   "n": 8948
   }
  ],
  "brier_avant": 0.3002,
