@@ -1121,6 +1121,8 @@ date,devise,evenement,impact,prevision,precedent
 2026-11-13,CAD,Manufacturing Sales m/m,Low,0.1,1.5
 2026-11-13,CAD,Wholesale Sales m/m,Low,0.5,-1.6
 2026-11-13,CHF,PPI m/m,Low,0.2,0.3
+2026-11-13,CNY,M2 Money Supply y/y,Low,7.2,7.2
+2026-11-13,CNY,New Loans,Low,8e+10,1.08e+12
 2026-11-13,EUR,Flash Employment Change q/q,Low,0.2,0.1
 2026-11-13,EUR,Flash GDP q/q,Low,0.4,0.4
 2026-11-13,EUR,French Final CPI m/m,Low,0.4,0.4
@@ -1129,5 +1131,6 @@ date,devise,evenement,impact,prevision,precedent
 2026-11-13,EUR,Trade Balance,Low,-4500000000,-6800000000
 2026-11-13,GBP,CB Leading Index m/m,Low,,-0.1
 2026-11-13,USD,Core PPI m/m,High,0.3,0.7
+2026-11-13,USD,Mortgage Delinquencies,Low,,4.37
 2026-11-13,USD,Natural Gas Storage,Low,,7.7e+10
 2026-11-13,USD,PPI m/m,High,0.4,1.3
