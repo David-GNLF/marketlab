@@ -16,7 +16,7 @@
       "mesurable": true,
       "inverse": false,
       "motif": null,
-      "ic_purge": -0.0052,
+      "ic_purge": -0.004,
       "part_concluante_%": 0.0,
       "obs_independantes": 19
     },
@@ -25,7 +25,7 @@
       "mesurable": true,
       "inverse": false,
       "motif": null,
-      "ic_purge": -0.0344,
+      "ic_purge": -0.0364,
       "part_concluante_%": 0.0,
       "obs_independantes": 15
     }
